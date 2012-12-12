@@ -1,12 +1,18 @@
 module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpMessageData(..)
                               , OfpCapabilities(..), OfpSwitchFeatures(..), OfpPhyPort(..)
+                              , OfpPortConfigFlags(..), OfpPortStateFlags(..), OfpPortFeatureFlags(..)
+                              , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags
+                              , openflow_1_0
                               ) where
  
 import Data.Word
 import qualified Data.ByteString as BS
 import qualified Data.Set as S
 import Data.Bits
+
+openflow_1_0 :: Word8
+openflow_1_0 = 0x01
 
 type MACAddr = Word64
 
@@ -68,10 +74,10 @@ data OfpType  =
 
 data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: Word64
                                            , ofp_n_buffers    :: Word32
-                                           , ofp_n_tables     :: Word32
+                                           , ofp_n_tables     :: Word8
                                            , ofp_capabilities :: S.Set OfpCapabilities
                                            , ofp_ports        :: [OfpPhyPort]
-                                           }
+                                           } deriving (Show)
 
 data OfpCapabilities =   OFPC_FLOW_STATS             --  Flow statistics
                        | OFPC_TABLE_STATS            --  Table statistics
@@ -107,7 +113,7 @@ data OfpPhyPort = OfpPhyPort { ofp_port_no         :: Word16
                              , ofp_port_advertised :: S.Set OfpPortFeatureFlags
                              , ofp_port_supported  :: S.Set OfpPortFeatureFlags
                              , ofp_port_peer       :: S.Set OfpPortFeatureFlags
-                             }
+                             } deriving (Show)
 
 data OfpPortConfigFlags =   OFPPC_PORT_DOWN     -- Port is administratively down                        
                           | OFPPC_NO_STP        -- Disable 802.1D spanning tree on port

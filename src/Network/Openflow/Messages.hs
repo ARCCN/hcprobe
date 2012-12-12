@@ -2,6 +2,9 @@ module Network.Openflow.Messages ( ofpHelloRequest
                                  , ofpParsePacket
                                  , bsStrict
                                  , putMessage
+                                 , unpack64
+                                 , header
+                                 , featuresReply
                                  ) where
 
 import Network.Openflow.Types
@@ -28,6 +31,13 @@ ofpHelloRequest v xid = putMessageHeader 0 h
                       , ofp_hdr_xid     = xid
                       }
 
+
+header :: Word8 -> Word32 -> OfpType -> OfpHeader
+header v x t = OfpHeader v t (fromIntegral ofpHeaderLen) x
+
+featuresReply ov sw xid = OfpMessage hdr feature_repl
+  where hdr = header ov xid OFPT_FEATURES_REPLY
+        feature_repl = OfpFeatureReply sw
 
 ofpParseHeader :: Get OfpHeader
 ofpParseHeader = do
@@ -65,7 +75,8 @@ putMessageData OfpHello = return ()
 putMessageData (OfpFeatureReply f) = do
   putWord64be (ofp_datapath_id f)
   putWord32be (ofp_n_buffers f)
-  putWord32be (ofp_n_tables f)
+  putWord8    (ofp_n_tables f)
+  replicateM_ 3 (putWord8 0)
   putWord32be (bitFlags ofCapabilities (ofp_capabilities f))
   putWord32be 0 -- reserved, see OpenFlow Spec. 1.1
   mapM_ putOfpPort (ofp_ports f)

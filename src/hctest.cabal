@@ -19,6 +19,7 @@ library
     build-depends:    base, binary, binary-strict, bytestring,
                       network-conduit==0.6.*,
                       conduit==0.5.*,
+                      random,
                       transformers, mtl, containers
 
 executable hctest
@@ -27,6 +28,7 @@ executable hctest
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit, network-conduit==0.6.*,
                        conduit==0.5.*,
+                       random,
                        transformers, mtl, containers
 
   Ghc-options:         -Wall
