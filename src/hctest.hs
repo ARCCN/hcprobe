@@ -44,13 +44,10 @@ client ad = appSource ad $$ conduit
         let bs  = fromJust bs'
         let msg = show (ofp_hdr_type hdr)
         liftIO $ printf "IN MSG: %-16s %s\n" msg (take 32 (hexdumpBs 32 " " "" bs))
-        case (ofp_hdr_type hdr) of          
+        case (ofp_hdr_type hdr) of
           OFPT_HELLO -> do lift $ yield (helloBs (ofp_hdr_xid hdr)) $$ (appSink ad)
           _          -> return ()
       conduit
-
-parseOfMessage :: Maybe BS.ByteString -> Int
-parseOfMessage bs = undefined
 
 
 main :: IO ()

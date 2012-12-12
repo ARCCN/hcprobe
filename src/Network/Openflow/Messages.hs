@@ -27,6 +27,8 @@ ofpHelloRequest v xid = putOfpHeader h
 
 
 -- FIXME: error handling
+-- FIXME: output length
+-- FIXME: enum code overflow
 ofpParseHeader :: BS.ByteString -> Maybe OfpHeader
 ofpParseHeader s = flip runGet (bsLazy s) $ do
     v   <- getWord8
