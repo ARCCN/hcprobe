@@ -16,7 +16,7 @@ cabal-version:       >=1.8
 
 library
     exposed-modules:  Network.Openflow.Types
-    build-depends:    base, binary, bytestring,
+    build-depends:    base, binary, binary-strict, bytestring,
                       network-conduit==0.6.*,
                       conduit==0.5.*,
                       transformers, mtl
@@ -24,7 +24,7 @@ library
 executable hctest
   main-is:           hctest.hs
   -- other-modules:    
-  build-depends:       base, binary, bytestring,
+  build-depends:       base, binary, binary-strict, bytestring,
                        conduit, network-conduit==0.6.*,
                        conduit==0.5.*,
                        transformers, mtl

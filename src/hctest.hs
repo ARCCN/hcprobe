@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Network.Openflow.Types ( OfpHeader(..), OfpType(..) )
+import Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..) )
 import Network.Openflow.Messages
 import Data.Binary.Put ( runPut )
 import qualified Data.ByteString as BS
@@ -38,16 +38,25 @@ client ad = appSource ad $$ conduit
   where
     conduit = do
       bs' <- await
-      let hdr' = bs' >>= ofpParseHeader
-      when (isJust hdr') $ do
-        let hdr = fromJust hdr'
-        let bs  = fromJust bs'
-        let msg = show (ofp_hdr_type hdr)
-        liftIO $ printf "IN MSG: %-16s %s\n" msg (take 32 (hexdumpBs 32 " " "" bs))
-        case (ofp_hdr_type hdr) of
-          OFPT_HELLO -> do lift $ yield (helloBs (ofp_hdr_xid hdr)) $$ (appSink ad)
-          _          -> return ()
+      when (isJust bs') $ do
+        let bs = fromJust bs'
+        case (ofpParsePacket bs) of
+          Just (msg, rest) -> (liftIO $ dump "IN:" (ofp_header msg) bs) >> processMessage msg >> leftover rest
+          Nothing          -> return ()
       conduit
+
+    processMessage (OfpMessage hdr msg) = do
+      case (ofp_hdr_type hdr) of
+        OFPT_HELLO -> do let resp = helloBs (ofp_hdr_xid hdr)
+                         liftIO $ dump "OUT:" hdr resp
+                         lift $ yield resp $$ (appSink ad)
+        _          -> return () 
+
+--    dump :: String -> BS.ByteString -> OfpHeader -> Application a
+dump :: String -> OfpHeader -> BS.ByteString -> IO ()
+dump s hdr bs = do
+  let tp = show (ofp_hdr_type hdr)
+  putStr $ printf "%-4s %-24s %s\n" s tp (take 64 (hexdumpBs 64 " " "" bs))
 
 
 main :: IO ()

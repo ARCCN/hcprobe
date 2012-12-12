@@ -1,15 +1,23 @@
-module Network.Openflow.Types ( OfpHeader(..), OfpType(..)
+module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpMessageData(..)
                               , putOfpHeader
                               ) where
  
 import Data.Word
 import Data.Binary.Put
+import qualified Data.ByteString as BS
 
 data OfpHeader = OfpHeader { ofp_hdr_version :: Word8
                            , ofp_hdr_type    :: OfpType 
                            , ofp_hdr_length  :: Word16
                            , ofp_hdr_xid     :: Word32
                            }
+
+data OfpMessage = OfpMessage { ofp_header  :: OfpHeader
+                             , ofp_data    :: OfpMessageData
+                             }
+
+data OfpMessageData = OfpMessageRaw BS.ByteString
+
 data OfpType  = 
     -- Immutable messages
       OFPT_HELLO               -- Symmetric message
