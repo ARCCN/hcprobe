@@ -1,9 +1,11 @@
 module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpMessageData(..)
-                              , OfpCapabilities(..)
+                              , OfpCapabilities(..), OfpSwitchFeatures(..), OfpPhyPort(..)
+                              , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags
                               ) where
  
 import Data.Word
 import qualified Data.ByteString as BS
+import qualified Data.Set as S
 import Data.Bits
 
 type MACAddr = Word64
@@ -18,7 +20,9 @@ data OfpMessage = OfpMessage { ofp_header  :: OfpHeader
                              , ofp_data    :: OfpMessageData
                              }
 
-data OfpMessageData = OfpMessageRaw BS.ByteString
+data OfpMessageData =   OfpMessageRaw BS.ByteString
+                      | OfpFeatureReply OfpSwitchFeatures
+                      | OfpHello
 
 data OfpType  = 
     -- Immutable messages
@@ -62,12 +66,10 @@ data OfpType  =
     deriving (Ord, Eq, Enum, Show)
 
 
-
 data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: Word64
                                            , ofp_n_buffers    :: Word32
                                            , ofp_n_tables     :: Word32
-                                           , ofp_capabilities :: [OfpCapabilities]
-                                           , ofp_actions      :: [OfpActionType]
+                                           , ofp_capabilities :: S.Set OfpCapabilities
                                            , ofp_ports        :: [OfpPhyPort]
                                            }
 
@@ -79,25 +81,7 @@ data OfpCapabilities =   OFPC_FLOW_STATS             --  Flow statistics
                        | OFPC_IP_REASM               --  Can reassemble IP fragments
                        | OFPC_QUEUE_STATS            --  Queue statistics
                        | OFPC_ARP_MATCH_IP           --  Match IP addresses in ARP pkts
-                       deriving (Eq, Ord, Show)
-
-instance Enum OfpCapabilities where
-  toEnum 1   = OFPC_FLOW_STATS
-  toEnum 2   = OFPC_TABLE_STATS
-  toEnum 4   = OFPC_PORT_STATS
-  toEnum 8   = OFPC_STP
-  toEnum 16  = OFPC_RESERVED
-  toEnum 32  = OFPC_IP_REASM
-  toEnum 64  = OFPC_QUEUE_STATS
-  toEnum 128 = OFPC_ARP_MATCH_IP
-  fromEnum OFPC_FLOW_STATS   = 1
-  fromEnum OFPC_TABLE_STATS  = 2
-  fromEnum OFPC_PORT_STATS   = 4
-  fromEnum OFPC_STP          = 8
-  fromEnum OFPC_RESERVED     = 16
-  fromEnum OFPC_IP_REASM     = 32
-  fromEnum OFPC_QUEUE_STATS  = 64
-  fromEnum OFPC_ARP_MATCH_IP = 128
+                       deriving (Eq, Ord, Enum, Show)
 
 data OfpActionType = OFPAT_OUTPUT          -- Output to switch port
                      | OFPAT_SET_VLAN_VID  -- Set the 802.1q VLAN id
@@ -112,40 +96,85 @@ data OfpActionType = OFPAT_OUTPUT          -- Output to switch port
                      | OFPAT_SET_TP_DST    -- TCP/UDP destination port
                      | OFPAT_ENQUEUE       -- Output to queue
                      | OFPAT_VENDOR
-                    deriving(Eq, Ord, Show)
+                    deriving(Eq, Ord, Enum, Show)
 
-instance Enum OfpActionType where
-  toEnum 0 = OFPAT_OUTPUT 
-  toEnum 1 = OFPAT_SET_VLAN_VID 
-  toEnum 2 = OFPAT_SET_VLAN_PCP 
-  toEnum 3 = OFPAT_STRIP_VLAN 
-  toEnum 4 = OFPAT_SET_DL_SRC 
-  toEnum 5 = OFPAT_SET_DL_DST 
-  toEnum 6 = OFPAT_SET_NW_SRC 
-  toEnum 7 = OFPAT_SET_NW_DST 
-  toEnum 8 = OFPAT_SET_NW_TOS 
-  toEnum 9 = OFPAT_SET_TP_SRC 
-  toEnum 10 = OFPAT_SET_TP_DST 
-  toEnum 11 = OFPAT_ENQUEUE 
-  toEnum 0xFFFF = OFPAT_VENDOR
-  fromEnum OFPAT_OUTPUT        = 0
-  fromEnum OFPAT_SET_VLAN_VID  = 1
-  fromEnum OFPAT_SET_VLAN_PCP  = 2
-  fromEnum OFPAT_STRIP_VLAN    = 3
-  fromEnum OFPAT_SET_DL_SRC    = 4
-  fromEnum OFPAT_SET_DL_DST    = 5
-  fromEnum OFPAT_SET_NW_SRC    = 6
-  fromEnum OFPAT_SET_NW_DST    = 7
-  fromEnum OFPAT_SET_NW_TOS    = 8
-  fromEnum OFPAT_SET_TP_SRC    = 9
-  fromEnum OFPAT_SET_TP_DST    = 10
-  fromEnum OFPAT_ENQUEUE       = 11
-  fromEnum OFPAT_VENDOR        = 0xFFFF
-
-data OfpPhyPort = OfpPhyPort { ofp_port_no       :: Word16
-                             , ofp_port_hw_addr  :: MACAddr
-                             , ofp_port_name     :: BS.ByteString
-                             , ofp_port_config   :: [OfpPortConfig]
-                             , ofp_port_state    :: [OfpPortState]
+data OfpPhyPort = OfpPhyPort { ofp_port_no         :: Word16
+                             , ofp_port_hw_addr    :: MACAddr
+                             , ofp_port_name       :: BS.ByteString
+                             , ofp_port_config     :: S.Set OfpPortConfigFlags
+                             , ofp_port_state      :: S.Set OfpPortStateFlags
+                             , ofp_port_current    :: S.Set OfpPortFeatureFlags
+                             , ofp_port_advertised :: S.Set OfpPortFeatureFlags
+                             , ofp_port_supported  :: S.Set OfpPortFeatureFlags
+                             , ofp_port_peer       :: S.Set OfpPortFeatureFlags
                              }
+
+data OfpPortConfigFlags =   OFPPC_PORT_DOWN     -- Port is administratively down                        
+                          | OFPPC_NO_STP        -- Disable 802.1D spanning tree on port
+                          | OFPPC_NO_RECV       -- Drop all packets except 802.1D spanning tree packets
+                          | OFPPC_NO_RECV_STP   -- Drop received 802.1D STP packets
+                          | OFPPC_NO_FLOOD      -- Do not include this port when flooding
+                          | OFPPC_NO_FWD        -- Drop packets forwarded to port
+                          | OFPPC_NO_PACKET_IN  -- Do not send packet-in msgs for port
+                          deriving(Eq, Ord, Enum, Show)
+
+data OfpPortStateFlags =   OFPPS_LINK_DOWN    -- No physical link present
+                         | OFPPS_STP_LISTEN   -- Not learning or relaying frames
+                         | OFPPS_STP_LEARN    -- Learning but not relaying frames
+                         | OFPPS_STP_FORWARD  -- Learning and relaying frames
+                         | OFPPS_STP_BLOCK    -- Not part of spanning tree
+                         | OFPPS_STP_MASK     -- Bit mask for OFPPS_STP_* values
+                         deriving (Eq, Ord, Enum, Show)
+
+data OfpPortFeatureFlags =   OFPPF_10MB_HD    --  10 Mb half-duplex rate support
+                           | OFPPF_10MB_FD    --  10 Mb full-duplex rate support
+                           | OFPPF_100MB_HD   --  100 Mb half-duplex rate support
+                           | OFPPF_100MB_FD   --  100 Mb full-duplex rate support
+                           | OFPPF_1GB_HD     --  1 Gb half-duplex rate support
+                           | OFPPF_1GB_FD     --  1 Gb full-duplex rate support
+                           | OFPPF_10GB_FD    --  10 Gb full-duplex rate support
+                           | OFPPF_COPPER     --  Copper medium
+                           | OFPPF_FIBER      --  Fiber medium
+                           | OFPPF_AUTONEG    --  Auto-negotiation
+                           | OFPPF_PAUSE      --  Pause
+                           | OFPPF_PAUSE_ASYM --  Asymmetric pause
+                           deriving (Eq, Ord, Enum, Show)
+
+ofCapabilities OFPC_FLOW_STATS     = 1 `shiftL` 0
+ofCapabilities OFPC_TABLE_STATS    = 1 `shiftL` 1
+ofCapabilities OFPC_PORT_STATS     = 1 `shiftL` 2
+ofCapabilities OFPC_STP            = 1 `shiftL` 3
+ofCapabilities OFPC_RESERVED       = 1 `shiftL` 4
+ofCapabilities OFPC_IP_REASM       = 1 `shiftL` 5
+ofCapabilities OFPC_QUEUE_STATS    = 1 `shiftL` 6
+ofCapabilities OFPC_ARP_MATCH_IP   = 1 `shiftL` 7
+
+ofConfigFlags   OFPPC_PORT_DOWN    = 1 `shiftL` 0
+ofConfigFlags   OFPPC_NO_STP       = 1 `shiftL` 1
+ofConfigFlags   OFPPC_NO_RECV      = 1 `shiftL` 2
+ofConfigFlags   OFPPC_NO_RECV_STP  = 1 `shiftL` 3
+ofConfigFlags   OFPPC_NO_FLOOD     = 1 `shiftL` 4
+ofConfigFlags   OFPPC_NO_FWD       = 1 `shiftL` 5
+ofConfigFlags   OFPPC_NO_PACKET_IN = 1 `shiftL` 6
+
+ofStateFlags   OFPPS_LINK_DOWN   = 1 `shiftL` 0
+ofStateFlags   OFPPS_STP_LISTEN  = 0 `shiftL` 8
+ofStateFlags   OFPPS_STP_LEARN   = 1 `shiftL` 8
+ofStateFlags   OFPPS_STP_FORWARD = 2 `shiftL` 8
+ofStateFlags   OFPPS_STP_BLOCK   = 3 `shiftL` 8
+ofStateFlags   OFPPS_STP_MASK    = 3 `shiftL` 8
+
+ofFeatureFlags   OFPPF_10MB_HD    = 1 `shiftL` 0
+ofFeatureFlags   OFPPF_10MB_FD    = 1 `shiftL` 1
+ofFeatureFlags   OFPPF_100MB_HD   = 1 `shiftL` 2
+ofFeatureFlags   OFPPF_100MB_FD   = 1 `shiftL` 3
+ofFeatureFlags   OFPPF_1GB_HD     = 1 `shiftL` 4
+ofFeatureFlags   OFPPF_1GB_FD     = 1 `shiftL` 5
+ofFeatureFlags   OFPPF_10GB_FD    = 1 `shiftL` 6
+ofFeatureFlags   OFPPF_COPPER     = 1 `shiftL` 7
+ofFeatureFlags   OFPPF_FIBER      = 1 `shiftL` 8
+ofFeatureFlags   OFPPF_AUTONEG    = 1 `shiftL` 9
+ofFeatureFlags   OFPPF_PAUSE      = 1 `shiftL` 10
+ofFeatureFlags   OFPPF_PAUSE_ASYM = 1 `shiftL` 11
+
 
