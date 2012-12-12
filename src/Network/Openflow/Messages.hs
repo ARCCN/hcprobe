@@ -44,3 +44,9 @@ ofpParsePacket s = withResult $ flip runGet s $ do
   where withResult (Left _, _)    = Nothing
         withResult (Right msg, rest) = Just (msg, rest)
 
+putOfpHeader :: OfpHeader -> PutM ()
+putOfpHeader h = putWord8 version >> putWord8 tp >> putWord16be len >> putWord32be xid
+  where version = ofp_hdr_version h
+        tp      = (fromIntegral.fromEnum.ofp_hdr_type) h
+        len     = ofp_hdr_length h
+        xid     = ofp_hdr_xid h
