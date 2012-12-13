@@ -14,6 +14,8 @@ import Data.Bits
 openflow_1_0 :: Word8
 openflow_1_0 = 0x01
 
+-- TODO: replace Data.Set to something more effective for bitmaps
+
 type MACAddr = Word64
 
 data OfpHeader = OfpHeader { ofp_hdr_version :: Word8

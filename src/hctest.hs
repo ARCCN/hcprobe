@@ -23,6 +23,8 @@ import qualified Data.Conduit.List as CL
 import Data.Conduit
 import Data.Conduit.Network
 
+--TODO: rename to hcprobe ?
+
 hexdumpBs :: Int -> String -> String -> BS.ByteString -> String
 hexdumpBs n ds ts bs = concat $ concat rows
   where hexes :: [String]
@@ -31,15 +33,10 @@ hexdumpBs n ds ts bs = concat $ concat rows
         chunk [] = Nothing
         chunk xs = Just (intersperse ds (take n xs) ++ [ts], drop n xs)
 
-
+-- FIXME: remove this function
 helloBs xid = bsStrict $ runPut (ofpHelloRequest openflow_1_0 xid)
 
 encodeMsg = bsStrict . runPut . putMessage
-
---featuresReplBs sw xid = bsStrict $ runPut $ do
---  let hdr = header openflow_1_0 xid OFPT_FEATURES_REPLY
---  let feature_repl = OfpMessage hdr (OfpFeatureReply sw)
---  putMessage feature_repl
 
 ofpClient sw host port = runTCPClient (clientSettings port host) (client sw)
 
@@ -55,18 +52,28 @@ client sw ad = appSource ad $$ conduit
           Nothing          -> return ()
       conduit
 
+    -- FIXME: (W 2012-DEC-13) remove case, implement different functions for handling messages
     processMessage (OfpMessage hdr msg) = do
       case (ofp_hdr_type hdr) of
         OFPT_HELLO -> do let resp = helloBs (ofp_hdr_xid hdr)
                          liftIO $ dump "OUT:" hdr resp
                          lift $ yield resp $$ (appSink ad)
+
+        -- FIXME: (W 2012-DEC-13) bad port description
         OFPT_FEATURES_REQUEST -> do let repl = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
                                     let resp = encodeMsg repl
                                     liftIO $ dump "OUT:" (ofp_header repl) resp
                                     lift $ yield resp $$ (appSink ad)
+        -- TODO: (W 2012-DEC-13) implement the following messages
+        OFPT_ECHO_REQUEST     -> return ()
+        -- TODO: (L 2) implement the following messages
+        OFPT_PACKET_OUT       -> return ()
+        OFPT_SET_CONFIG       -> return ()
         _          -> return () 
 
---    dump :: String -> BS.ByteString -> OfpHeader -> Application a
+-- TODO: move liftIO here
+-- TODO: truncate message by length in header
+-- TODO: use logger / settings
 dump :: String -> OfpHeader -> BS.ByteString -> IO ()
 dump s hdr bs = do
   let tp = show (ofp_hdr_type hdr)

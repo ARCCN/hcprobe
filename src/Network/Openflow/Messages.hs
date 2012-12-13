@@ -81,15 +81,19 @@ putMessageData (OfpFeatureReply f) = do
   putWord32be 0 -- reserved, see OpenFlow Spec. 1.1
   mapM_ putOfpPort (ofp_ports f)
 
+-- FIXME: typed error handling
 putMessageData _        = error "Unsupported message: "
 
+-- FIXME: change to something more effective
 bitFlags :: Num b => (a -> b) -> S.Set a -> b
 bitFlags fn fs = S.fold (\v acc -> acc + (fn v)) 0 fs
 
 putOfpPort :: OfpPhyPort -> PutM ()
 putOfpPort port = do
   putWord16be (ofp_port_no port)
+  -- FIXME: missed padding (4 bytes)?
   mapM_ putWord8 (drop 2 (unpack64 (ofp_port_hw_addr port)))
+  -- FIXME: missed padding (2 bytes) ?
   putByteString (BS.take 15 (ofp_port_name port)) >> putWord8 0 -- ASCIIZ(15) string
   putWord32be (bitFlags ofConfigFlags (ofp_port_config port))
   putWord32be (bitFlags ofStateFlags (ofp_port_state port))
