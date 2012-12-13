@@ -50,27 +50,41 @@ client sw ad = appSource ad $$ conduit
       when (isJust bs') $ do
         let bs = fromJust bs'
         case (ofpParsePacket bs) of
-          Just (msg, rest) -> (liftIO $ dump "IN:" (ofp_header msg) bs) >> processMessage msg >> leftover rest
+          Just (msg, rest) -> (liftIO $ dump "IN:" (ofp_header msg) bs) >> dispatch msg >> leftover rest
           Nothing          -> return ()
       conduit
 
-    -- FIXME: (W 2012-DEC-13) remove case, implement different functions for handling messages
-    processMessage (OfpMessage hdr msg) = do
-      case (ofp_hdr_type hdr) of
-        OFPT_HELLO -> do let resp = helloBs (ofp_hdr_xid hdr)
-                         liftIO $ dump "OUT:" hdr resp
-                         lift $ yield resp $$ (appSink ad)
+    dispatch msg@(OfpMessage hdr msgData) = processMessage (ofp_hdr_type hdr) msg
 
-        OFPT_FEATURES_REQUEST -> do let repl = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
-                                    let resp = encodeMsg repl
-                                    liftIO $ dump "OUT:" (ofp_header repl) resp
-                                    lift $ yield resp $$ (appSink ad)
-        -- TODO: (W 2012-DEC-13) implement the following messages
-        OFPT_ECHO_REQUEST     -> return ()
-        -- TODO: (L 2) implement the following messages
-        OFPT_PACKET_OUT       -> return ()
-        OFPT_SET_CONFIG       -> return ()
-        _          -> return () 
+    processMessage OFPT_HELLO (OfpMessage hdr msg) = do
+      let resp = helloBs (ofp_hdr_xid hdr)
+      liftIO $ dump "OUT:" hdr resp
+      lift $ yield resp $$ (appSink ad)
+
+    processMessage OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = do
+      let repl = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
+      let resp = encodeMsg repl
+      liftIO $ dump "OUT:" (ofp_header repl) resp
+      lift $ yield resp $$ (appSink ad)
+
+    -- TODO: (W 2012-DEC-13) (L 8) implement the following messages
+    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr msg) = do
+      return ()
+
+    processMessage OFPT_SET_CONFIG (OfpMessage hdr msg) = do
+      return ()
+
+    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr msg) = do
+      return ()
+
+    -- TODO: (L 10) implement the following messages
+    processMessage OFPT_PACKET_OUT (OfpMessage hdr msg) = do
+      return ()
+
+    processMessage OFPT_PACKET_OUT (OfpMessage hdr msg) = do
+      return ()
+
+    processMessage _ _ = return ()
 
 -- TODO: move liftIO here
 -- TODO: truncate message by length in header
