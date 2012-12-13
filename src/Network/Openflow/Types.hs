@@ -1,9 +1,13 @@
 module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpMessageData(..)
                               , OfpCapabilities(..), OfpSwitchFeatures(..), OfpPhyPort(..)
                               , OfpPortConfigFlags(..), OfpPortStateFlags(..), OfpPortFeatureFlags(..)
-                              , OfpSwitchConfig(..), OfpSwitchCfgFlags(..)
+                              , OfpSwitchConfig(..), OfpSwitchCfgFlags(..), OfpError(..)
+                              , OfpErrorType(..), OfpHelloFailedCode(..), OfpBadActionCode(..)
+                              , OfpBadRequestCode(..), OfpFlowModFailedCode(..), OfpPortModFailedCode(..)
+                              , OfpQueueOpFailedCode(..)
                               , MACAddr
-                              , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags
+                              , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags, ofErrorType
+                              , ofErrorCode
                               , openflow_1_0
                               , defaultSwitchConfig
                               ) where
@@ -16,6 +20,7 @@ import Data.Bits
 openflow_1_0 :: Word8
 openflow_1_0 = 0x01
 
+-- TODO: split to several files
 -- TODO: replace Data.Set to something more effective for bitmaps
 
 type MACAddr = Word64
@@ -40,6 +45,8 @@ data OfpMessageData =   OfpMessageRaw BS.ByteString
                       | OfpGetConfigReply OfpSwitchConfig
                       | OfpHello | OfpEmptyReply
                       | OfpPacketOut BS.ByteString -- FIXME: implement real data type
+                      | OfpVendor BS.ByteString    -- WTF?
+                      | OfpErrorReply OfpError
                       | OfpUnsupported BS.ByteString
 
 data OfpType  = 
@@ -206,4 +213,74 @@ ofFeatureFlags   OFPPF_AUTONEG    = 1 `shiftL` 9
 ofFeatureFlags   OFPPF_PAUSE      = 1 `shiftL` 10
 ofFeatureFlags   OFPPF_PAUSE_ASYM = 1 `shiftL` 11
 
+data OfpError = OfpError { ofp_error_type :: OfpErrorType
+                         , ofp_error_data :: BS.ByteString
+                         }
+
+data OfpErrorType =   OFPET_HELLO_FAILED OfpHelloFailedCode      -- Hello protocol failed
+                    | OFPET_BAD_REQUEST  OfpBadRequestCode       -- Request was not understood
+                    | OFPET_BAD_ACTION   OfpBadActionCode        -- Error in action description
+                    | OFPET_FLOW_MOD_FAILED OfpFlowModFailedCode -- Problem modifying flow entry
+                    | OFPET_PORT_MOD_FAILED OfpPortModFailedCode -- Port mod request failed
+                    | OFPET_QUEUE_OP_FAILED OfpQueueOpFailedCode -- Queue operation failed
+                    deriving (Ord, Eq, Show)
+
+data OfpHelloFailedCode = OFPHFC_INCOMPATIBLE -- No compatible version
+                        | OFPHFC_EPERM        -- Permissions error
+                        deriving (Ord, Eq, Enum, Show)
+
+data OfpBadRequestCode =   OFPBRC_BAD_VERSION         --  ofp_header.version not supported
+                         | OFPBRC_BAD_TYPE            --  ofp_header.type not supported
+                         | OFPBRC_BAD_STAT            --  ofp_stats_request.type not supported
+                         | OFPBRC_BAD_VENDOR          --  Vendor not supported (in ofp_vendor_header or ofp_stats_request or ofp_stats_reply)
+                         | OFPBRC_BAD_SUBTYPE         --  Vendor subtype not supported
+                         | OFPBRC_EPERM               --  Permissions error
+                         | OFPBRC_BAD_LEN             --  Wrong request length for type
+                         | OFPBRC_BUFFER_EMPTY        --  Specified buffer has already been used
+                         | OFPBRC_BUFFER_UNKNOWN       --  Specified buffer does not exist
+                         deriving (Ord, Eq, Enum, Show)
+
+
+data OfpBadActionCode =  OFPBAC_BAD_TYPE           --  Unknown action type
+                       | OFPBAC_BAD_LEN            --  Length problem in actions
+                       | OFPBAC_BAD_VENDOR         --  Unknown vendor id specified
+                       | OFPBAC_BAD_VENDOR_TYPE    --  Unknown action type for vendor id
+                       | OFPBAC_BAD_OUT_PORT       --  Problem validating output action
+                       | OFPBAC_BAD_ARGUMENT       --  Bad action argument
+                       | OFPBAC_EPERM              --  Permissions error
+                       | OFPBAC_TOO_MANY           --  Can't handle this many actions
+                       | OFPBAC_BAD_QUEUE          --  Problem validating output queue
+                       deriving (Ord, Eq, Enum, Show)
+
+
+data OfpFlowModFailedCode =   OFPFMFC_ALL_TABLES_FULL    --  Flow not added because of full tables
+                            | OFPFMFC_OVERLAP            --  Attempted to add overlapping flow with CHECK_OVERLAP flag set
+                            | OFPFMFC_EPERM              --  Permissions error
+                            | OFPFMFC_BAD_EMERG_TIMEOUT  --  Flow not added because of non-zero idle/hard timeout
+                            | OFPFMFC_BAD_COMMAND        --  Unknown command
+                            | OFPFMFC_UNSUPPORTED        --  Unsupported action list - cannot process in the order specified
+                            deriving (Ord, Eq, Enum, Show)
+
+data OfpPortModFailedCode =   OFPPMFC_BAD_PORT            --  Specified port does not exist
+                            | OFPPMFC_BAD_HW_ADDR         --  Specified hardware address is wrong
+                            deriving (Ord, Eq, Enum, Show)
+
+data OfpQueueOpFailedCode =   OFPQOFC_BAD_PORT           --  Invalid port (or port does not exist)
+                            | OFPQOFC_BAD_QUEUE          --  Queue does not exist.
+                            | OFPQOFC_EPERM              --  Permissions error
+                            deriving (Ord, Eq, Enum, Show)
+
+ofErrorType (OFPET_HELLO_FAILED _)     = 0
+ofErrorType (OFPET_BAD_REQUEST  _)     = 1
+ofErrorType (OFPET_BAD_ACTION   _)     = 2
+ofErrorType (OFPET_FLOW_MOD_FAILED _)  = 3
+ofErrorType (OFPET_PORT_MOD_FAILED _)  = 4
+ofErrorType (OFPET_QUEUE_OP_FAILED _)  = 5
+
+ofErrorCode (OFPET_HELLO_FAILED x)     = fromEnum x
+ofErrorCode (OFPET_BAD_REQUEST  x)     = fromEnum x
+ofErrorCode (OFPET_BAD_ACTION   x)     = fromEnum x
+ofErrorCode (OFPET_FLOW_MOD_FAILED x)  = fromEnum x
+ofErrorCode (OFPET_PORT_MOD_FAILED x)  = fromEnum x
+ofErrorCode (OFPET_QUEUE_OP_FAILED x)  = fromEnum x
 

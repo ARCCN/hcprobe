@@ -8,6 +8,7 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  , featuresReply
                                  , echoReply
                                  , headReply
+                                 , errorReply
                                  , getConfigReply
                                  , putOfpPort
                                  ) where
@@ -53,6 +54,9 @@ headReply :: OfpHeader -> OfpType -> OfpMessage
 headReply h t = OfpMessage newHead OfpEmptyReply
   where newHead = h {ofp_hdr_type = t, ofp_hdr_length = fromIntegral ofpHeaderLen}
 
+errorReply h tp = OfpMessage newHead (OfpErrorReply tp)
+  where newHead = h { ofp_hdr_type = OFPT_ERROR, ofp_hdr_length = fromIntegral ofpHeaderLen}
+
 getConfigReply :: OfpHeader -> OfpSwitchConfig -> OfpMessage
 getConfigReply hdr cfg = OfpMessage newHead (OfpGetConfigReply cfg)
   where newHead = hdr { ofp_hdr_type = OFPT_GET_CONFIG_REPLY }
@@ -85,6 +89,7 @@ parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
     parse OFPT_SET_CONFIG       = runParse getOfpSetConfig
     parse OFPT_GET_CONFIG_REQUEST = runParse (return OfpGetConfigRequest)
     parse OFPT_PACKET_OUT       = runParse (return (OfpPacketOut bs))
+    parse OFPT_VENDOR           = runParse (return (OfpVendor bs))
     parse _                     = runParse (return (OfpUnsupported bs))
 
     runParse fGet =
@@ -132,6 +137,11 @@ putMessageData (OfpEchoReply bs) = putByteString bs
 putMessageData (OfpGetConfigReply cfg) = do
   putWord16be (fromIntegral (fromEnum (ofp_switch_cfg_flags cfg)))
   putWord16be (ofp_switch_cfg_miss_send_len cfg)
+
+putMessageData (OfpErrorReply et) = do
+  putWord16be (fromIntegral $ ofErrorType (ofp_error_type et))
+  putWord16be (fromIntegral $ ofErrorCode (ofp_error_type et))
+  putByteString (BS.take 64 (ofp_error_data et))
 
 putMessageData OfpEmptyReply = return ()
 

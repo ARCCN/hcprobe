@@ -72,24 +72,29 @@ client sw cfg ad = appSource ad $$ conduit
     processMessage OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = sendReply reply nothing
       where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
 
-    -- TODO: (W 2012-DEC-13) implement the following messages
     processMessage OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = do
-      -- TODO: set config
       liftIO $ atomically $ writeTVar cfg cfg'
-      return ()
 
     processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) = do
       cfg' <- liftIO $ atomically $ readTVar cfg
       sendReply (getConfigReply hdr cfg') nothing
 
-    processMessage OFPT_BARRIER_REQUEST msg = nothing
+    processMessage OFPT_BARRIER_REQUEST msg = do
+      -- TODO: do something, process all pkts, etc
+      sendReply (headReply (ofp_header msg) OFPT_BARRIER_REPLY) nothing
+
+    processMessage OFPT_VENDOR msg = do
+      -- TODO: do something, process all pkts, etc
+      let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) (BS.empty)
+      let reply = errorReply (ofp_header msg) errT
+      sendReply (reply) nothing
 
     -- TODO: implement the following messages
-    processMessage OFPT_PACKET_OUT (OfpMessage hdr msg) = nothing 
+    processMessage OFPT_PACKET_OUT (OfpMessage hdr msg) = nothing
     processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing
     processMessage OFPT_STATS_REQUEST (OfpMessage hdr msg) = nothing
 
-    processMessage _ _ = nothing 
+    processMessage _ _ = nothing
 
     nothing = return ()
 
