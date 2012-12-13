@@ -35,7 +35,7 @@ data OfpMessageData =   OfpMessageRaw BS.ByteString
                       | OfpFeaturesRequest
                       | OfpFeatureReply OfpSwitchFeatures
                       | OfpSetConfig OfpSwitchConfig
-                      | OfpHello
+                      | OfpHello | OfpEmptyReply
                       | OfpPacketOut BS.ByteString -- FIXME: implement real data type
                       | OfpUnsupported BS.ByteString
 

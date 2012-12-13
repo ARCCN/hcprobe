@@ -33,16 +33,11 @@ hexdumpBs n ds ts bs = concat $ concat rows
         chunk [] = Nothing
         chunk xs = Just (intersperse ds (take n xs) ++ [ts], drop n xs)
 
--- FIXME: remove this function
-helloBs xid = bsStrict $ runPut (ofpHelloRequest openflow_1_0 xid)
-
 encodePutM = bsStrict . runPut
 
 encodeMsg = encodePutM . putMessage
 
 ofpClient sw host port = runTCPClient (clientSettings port host) (client sw)
-
--- FIXME: remove boilerplate: dump, yield, etc
 
 client :: OfpSwitchFeatures -> Application IO
 client sw ad = appSource ad $$ conduit
@@ -60,27 +55,17 @@ client sw ad = appSource ad $$ conduit
       Nothing   -> return ()
       Just msg' -> processMessage (ofp_hdr_type hdr) msg'
 
-    processMessage OFPT_HELLO (OfpMessage hdr _) = do
-      let resp = helloBs (ofp_hdr_xid hdr)
-      liftIO $ dump "OUT:" hdr resp
-      lift $ yield resp $$ (appSink ad)
+    processMessage OFPT_HELLO (OfpMessage hdr _) = sendReply (headReply hdr OFPT_HELLO) nothing
 
-    processMessage OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = do
-      let repl = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
-      let resp = encodeMsg repl
-      liftIO $ dump "OUT:" (ofp_header repl) resp
-      lift $ yield resp $$ (appSink ad)
+    processMessage OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = sendReply reply nothing
+      where reply = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
 
-    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = do
-      liftIO $ dump "OUT:" (ofp_header reply) replyBs
-      lift $ yield replyBs $$ (appSink ad)
-      where replyBs = encodeMsg reply
-            reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
+    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = sendReply reply nothing
+      where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
 
     -- TODO: (W 2012-DEC-13) implement the following messages
-    processMessage OFPT_SET_CONFIG msg = do    
+    processMessage OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg)) = do
       -- TODO: set config
-      -- TODO: send set_config reply
       return ()
 
     processMessage OFPT_BARRIER_REQUEST msg = do    
@@ -91,6 +76,14 @@ client sw ad = appSource ad $$ conduit
       return ()
 
     processMessage _ _ = return ()
+
+    nothing = return ()
+
+    sendReply msg fm = do
+      fm
+      liftIO $ dump "OUT:" (ofp_header msg) replyBs
+      lift $ yield replyBs $$ (appSink ad)
+      where replyBs = encodeMsg msg
 
 -- TODO: move liftIO here
 -- TODO: truncate message by length in header

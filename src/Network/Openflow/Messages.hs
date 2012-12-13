@@ -7,6 +7,7 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  , header
                                  , featuresReply
                                  , echoReply
+                                 , headReply
                                  , putOfpPort
                                  ) where
 
@@ -46,6 +47,10 @@ featuresReply ov sw xid = OfpMessage hdr feature_repl
 
 echoReply ov payload xid = OfpMessage hdr (OfpEchoReply payload)
   where hdr = header ov xid OFPT_ECHO_REPLY       
+
+headReply :: OfpHeader -> OfpType -> OfpMessage
+headReply h t = OfpMessage newHead OfpEmptyReply
+  where newHead = h {ofp_hdr_type = t, ofp_hdr_length = fromIntegral ofpHeaderLen}
 
 ofpParseHeader :: Get OfpHeader
 ofpParseHeader = do
@@ -117,6 +122,8 @@ putMessageData (OfpFeatureReply f) = do
   mapM_ putOfpPort (ofp_ports f)
 
 putMessageData (OfpEchoReply bs) = putByteString bs
+
+putMessageData OfpEmptyReply = return ()
 
 -- FIXME: typed error handling
 putMessageData _        = error "Unsupported message: "
