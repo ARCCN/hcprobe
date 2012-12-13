@@ -79,8 +79,7 @@ client sw ad = appSource ad $$ conduit
 
     nothing = return ()
 
-    sendReply msg fm = do
-      fm
+    sendReply msg fm = fm >> do
       liftIO $ dump "OUT:" (ofp_header msg) replyBs
       lift $ yield replyBs $$ (appSink ad)
       where replyBs = encodeMsg msg
