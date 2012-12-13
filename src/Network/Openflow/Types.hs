@@ -1,6 +1,7 @@
 module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpMessageData(..)
                               , OfpCapabilities(..), OfpSwitchFeatures(..), OfpPhyPort(..)
                               , OfpPortConfigFlags(..), OfpPortStateFlags(..), OfpPortFeatureFlags(..)
+                              , OfpSwitchConfig(..), OfpSwitchCfgFlags(..)
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags
                               , openflow_1_0
@@ -29,8 +30,14 @@ data OfpMessage = OfpMessage { ofp_header  :: OfpHeader
                              }
 
 data OfpMessageData =   OfpMessageRaw BS.ByteString
+                      | OfpEchoRequest BS.ByteString
+                      | OfpEchoReply BS.ByteString
+                      | OfpFeaturesRequest
                       | OfpFeatureReply OfpSwitchFeatures
+                      | OfpSetConfig OfpSwitchConfig
                       | OfpHello
+                      | OfpPacketOut BS.ByteString -- FIXME: implement real data type
+                      | OfpUnsupported BS.ByteString
 
 data OfpType  = 
     -- Immutable messages
@@ -105,6 +112,16 @@ data OfpActionType = OFPAT_OUTPUT          -- Output to switch port
                      | OFPAT_ENQUEUE       -- Output to queue
                      | OFPAT_VENDOR
                     deriving(Eq, Ord, Enum, Show)
+
+data OfpSwitchConfig = OfpSwitchConfig { ofp_switch_cfg_flags :: S.Set OfpSwitchCfgFlags
+                                       , ofp_switch_cfg_miss_send_len :: Word16
+                                       }
+
+data OfpSwitchCfgFlags = OFPC_FRAG_NORMAL -- No special handling for fragments 
+                       | OFPC_FRAG_DROP   -- Drop fragments
+                       | OFPC_FRAG_REASM  -- Reassemble (only if OFPC_IP_REASM set)
+                       | OFPC_FRAG_MASK
+                       deriving (Eq, Ord, Enum, Show)
 
 data OfpPhyPort = OfpPhyPort { ofp_port_no         :: Word16
                              , ofp_port_hw_addr    :: MACAddr

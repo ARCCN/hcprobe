@@ -1,10 +1,12 @@
-module Network.Openflow.Messages ( ofpHelloRequest
-                                 , ofpParsePacket
+module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
+                                 , ofpParsePacket  -- FIXME <- not needed
+                                 , parseMessageData
                                  , bsStrict
                                  , putMessage
                                  , unpack64
                                  , header
                                  , featuresReply
+                                 , echoReply
                                  , putOfpPort
                                  ) where
 
@@ -17,6 +19,8 @@ import qualified Data.Set as S
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
 import Control.Monad
+
+-- FIXME: rename ofpParse* to getOfp*
 
 bsStrict = BS.concat . BL.toChunks
 
@@ -40,6 +44,9 @@ featuresReply ov sw xid = OfpMessage hdr feature_repl
   where hdr = header ov xid OFPT_FEATURES_REPLY
         feature_repl = OfpFeatureReply sw
 
+echoReply ov payload xid = OfpMessage hdr (OfpEchoReply payload)
+  where hdr = header ov xid OFPT_ECHO_REPLY       
+
 ofpParseHeader :: Get OfpHeader
 ofpParseHeader = do
     v   <- getWord8
@@ -57,6 +64,33 @@ ofpParsePacket s = withResult $ flip runGet s $ do
   return $ OfpMessage hdr (OfpMessageRaw bs)
   where withResult (Left _, _)    = Nothing
         withResult (Right msg, rest) = Just (msg, rest)
+
+parseMessageData :: OfpMessage -> Maybe OfpMessage
+
+parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
+  where 
+    parse OFPT_HELLO            = runParse (return OfpHello)
+    parse OFPT_FEATURES_REQUEST = runParse (return OfpFeaturesRequest)
+    parse OFPT_ECHO_REQUEST     = runParse (return (OfpEchoRequest bs))
+    parse OFPT_SET_CONFIG       = runParse getOfpSetConfig
+    parse OFPT_PACKET_OUT       = runParse (return (OfpPacketOut bs))
+    parse _                     = runParse (return (OfpUnsupported bs))
+
+    runParse fGet =
+      case (runGet fGet bs) of
+        (Left _, _)  -> Nothing
+        (Right x, _) -> Just ((OfpMessage hdr) x)
+
+parseMessageData x@(OfpMessage _ _) = Just x -- already parsed
+
+getOfpSetConfig :: Get OfpMessageData
+getOfpSetConfig = do 
+  wFlags <- getWord16be
+  wSendL <- getWord16be
+                             -- FIXME: possible enum overflow
+  return $ OfpSetConfig $ OfpSwitchConfig { ofp_switch_cfg_flags = S.singleton (toEnum (fromIntegral wFlags))
+                                          , ofp_switch_cfg_miss_send_len = wSendL
+                                          }
 
 putMessage :: OfpMessage -> PutM ()
 putMessage (OfpMessage h d) = putMessageHeader dataLen h >> putByteString dataS
@@ -81,6 +115,8 @@ putMessageData (OfpFeatureReply f) = do
   putWord32be (bitFlags ofCapabilities (ofp_capabilities f))
   putWord32be 0 -- reserved, see OpenFlow Spec. 1.1
   mapM_ putOfpPort (ofp_ports f)
+
+putMessageData (OfpEchoReply bs) = putByteString bs
 
 -- FIXME: typed error handling
 putMessageData _        = error "Unsupported message: "

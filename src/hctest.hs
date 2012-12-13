@@ -42,6 +42,8 @@ encodeMsg = encodePutM . putMessage
 
 ofpClient sw host port = runTCPClient (clientSettings port host) (client sw)
 
+-- FIXME: remove boilerplate: dump, yield, etc
+
 client :: OfpSwitchFeatures -> Application IO
 client sw ad = appSource ad $$ conduit
   where
@@ -54,9 +56,11 @@ client sw ad = appSource ad $$ conduit
           Nothing          -> return ()
       conduit
 
-    dispatch msg@(OfpMessage hdr msgData) = processMessage (ofp_hdr_type hdr) msg
+    dispatch msg@(OfpMessage hdr msgData) = case (parseMessageData msg) of
+      Nothing   -> return ()
+      Just msg' -> processMessage (ofp_hdr_type hdr) msg'
 
-    processMessage OFPT_HELLO (OfpMessage hdr msg) = do
+    processMessage OFPT_HELLO (OfpMessage hdr _) = do
       let resp = helloBs (ofp_hdr_xid hdr)
       liftIO $ dump "OUT:" hdr resp
       lift $ yield resp $$ (appSink ad)
@@ -67,20 +71,22 @@ client sw ad = appSource ad $$ conduit
       liftIO $ dump "OUT:" (ofp_header repl) resp
       lift $ yield resp $$ (appSink ad)
 
-    -- TODO: (W 2012-DEC-13) (L 8) implement the following messages
-    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr msg) = do
+    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = do
+      liftIO $ dump "OUT:" (ofp_header reply) replyBs
+      lift $ yield replyBs $$ (appSink ad)
+      where replyBs = encodeMsg reply
+            reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
+
+    -- TODO: (W 2012-DEC-13) implement the following messages
+    processMessage OFPT_SET_CONFIG msg = do    
+      -- TODO: set config
+      -- TODO: send set_config reply
       return ()
 
-    processMessage OFPT_SET_CONFIG (OfpMessage hdr msg) = do
+    processMessage OFPT_BARRIER_REQUEST msg = do    
       return ()
 
-    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr msg) = do
-      return ()
-
-    -- TODO: (L 10) implement the following messages
-    processMessage OFPT_PACKET_OUT (OfpMessage hdr msg) = do
-      return ()
-
+    -- TODO: implement the following messages
     processMessage OFPT_PACKET_OUT (OfpMessage hdr msg) = do
       return ()
 
