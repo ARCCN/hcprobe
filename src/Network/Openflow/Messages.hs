@@ -5,6 +5,7 @@ module Network.Openflow.Messages ( ofpHelloRequest
                                  , unpack64
                                  , header
                                  , featuresReply
+                                 , putOfpPort
                                  ) where
 
 import Network.Openflow.Types
@@ -90,11 +91,9 @@ bitFlags fn fs = S.fold (\v acc -> acc + (fn v)) 0 fs
 
 putOfpPort :: OfpPhyPort -> PutM ()
 putOfpPort port = do
-  putWord16be (ofp_port_no port)
-  -- FIXME: missed padding (4 bytes)?
-  mapM_ putWord8 (drop 2 (unpack64 (ofp_port_hw_addr port)))
-  -- FIXME: missed padding (2 bytes) ?
-  putByteString (BS.take 15 (ofp_port_name port)) >> putWord8 0 -- ASCIIZ(15) string
+  putWord16be (ofp_port_no port)                                                            -- 2
+  mapM_ putWord8 (drop 2 (unpack64 (ofp_port_hw_addr port)))                                -- 8
+  putASCIIZ 16 (ofp_port_name port)    -- ASCIIZ(16)
   putWord32be (bitFlags ofConfigFlags (ofp_port_config port))
   putWord32be (bitFlags ofStateFlags (ofp_port_state port))
   putWord32be (bitFlags ofFeatureFlags (ofp_port_current port))
@@ -102,6 +101,12 @@ putOfpPort port = do
   putWord32be (bitFlags ofFeatureFlags (ofp_port_supported port))
   putWord32be (bitFlags ofFeatureFlags (ofp_port_peer port))
 
+-- TODO: to util module
+putASCIIZ :: Int -> BS.ByteString -> PutM ()
+putASCIIZ sz bs = putByteString bs' >> replicateM_ (sz - (BS.length bs')) (putWord8 0)
+  where bs' = BS.take (sz - 1) bs
+
+-- TODO: to util module
 unpack64 :: Word64 -> [Word8]
 unpack64 x = map (fromIntegral.(shiftR x)) [56,48..0]
 

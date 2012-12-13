@@ -36,7 +36,9 @@ hexdumpBs n ds ts bs = concat $ concat rows
 -- FIXME: remove this function
 helloBs xid = bsStrict $ runPut (ofpHelloRequest openflow_1_0 xid)
 
-encodeMsg = bsStrict . runPut . putMessage
+encodePutM = bsStrict . runPut
+
+encodeMsg = encodePutM . putMessage
 
 ofpClient sw host port = runTCPClient (clientSettings port host) (client sw)
 
@@ -59,7 +61,6 @@ client sw ad = appSource ad $$ conduit
                          liftIO $ dump "OUT:" hdr resp
                          lift $ yield resp $$ (appSink ad)
 
-        -- FIXME: (W 2012-DEC-13) bad port description
         OFPT_FEATURES_REQUEST -> do let repl = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
                                     let resp = encodeMsg repl
                                     liftIO $ dump "OUT:" (ofp_header repl) resp
@@ -84,17 +85,14 @@ main :: IO ()
 main = do
   (host:port:_) <- getArgs
   rnd <- newStdGen
---  let (p,g) = makePort (defaultGen rnd) [] [] [OFPPF_1GB_HD,OFPPF_COPPER]
-  let (sw,g') = makeSwitch (defaultSwGen rnd) 48 [] [] [] [OFPPF_1GB_HD,OFPPF_COPPER]
+--  let (p,g) = makePort (defaultPortGen rnd) [] [] [OFPPF_1GB_HD,OFPPF_COPPER]
+--  let q = encodePutM (putOfpPort p)
+--  printf "Port Len: %d\n" (BS.length q)
+  let (sw,g') = makeSwitch (defaultSwGen rnd) 48 [] [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
   let hdr = header openflow_1_0 1 OFPT_FEATURES_REPLY
   let feature_repl = OfpMessage hdr (OfpFeatureReply sw)
   let bs = bsStrict $ runPut (putMessage feature_repl)
   putStrLn (fmtSwitch sw)
---  putStr $ hexdumpBs 16 " " "\n" bs
---  dump "TEST" hdr bs
---  print p
---  let sw = defaultSwitchFeatures 1 48
---  putStr (hexdumpBs 16 " " "\n" helloBs)
   ofpClient sw (BS8.pack host) (read port)
   putStrLn "done"
 
