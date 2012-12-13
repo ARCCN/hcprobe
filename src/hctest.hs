@@ -68,14 +68,15 @@ client sw ad = appSource ad $$ conduit
       -- TODO: set config
       return ()
 
-    processMessage OFPT_BARRIER_REQUEST msg = do    
-      return ()
+    processMessage OFPT_BARRIER_REQUEST msg = nothing 
 
     -- TODO: implement the following messages
     processMessage OFPT_PACKET_OUT (OfpMessage hdr msg) = do
       return ()
 
-    processMessage _ _ = return ()
+    processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing
+
+    processMessage _ _ = nothing 
 
     nothing = return ()
 
