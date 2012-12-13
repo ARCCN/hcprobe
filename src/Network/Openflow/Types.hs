@@ -5,6 +5,7 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags
                               , openflow_1_0
+                              , defaultSwitchConfig
                               ) where
  
 import Data.Word
@@ -35,6 +36,8 @@ data OfpMessageData =   OfpMessageRaw BS.ByteString
                       | OfpFeaturesRequest
                       | OfpFeatureReply OfpSwitchFeatures
                       | OfpSetConfig OfpSwitchConfig
+                      | OfpGetConfigRequest
+                      | OfpGetConfigReply OfpSwitchConfig
                       | OfpHello | OfpEmptyReply
                       | OfpPacketOut BS.ByteString -- FIXME: implement real data type
                       | OfpUnsupported BS.ByteString
@@ -45,7 +48,7 @@ data OfpType  =
     | OFPT_ERROR               -- Symmetric message
     | OFPT_ECHO_REQUEST        -- Symmetric message
     | OFPT_ECHO_REPLY          -- Symmetric message
-    | OFPT_EXPERIMENTER        -- Symmetric message
+    | OFPT_VENDOR              -- Symmetric message
 
     -- Switch configuration messages
     | OFPT_FEATURES_REQUEST    -- Controller/switch message
@@ -62,9 +65,7 @@ data OfpType  =
     -- Controller command messages
     | OFPT_PACKET_OUT          -- Controller/switch message
     | OFPT_FLOW_MOD            -- Controller/switch message
-    | OFPT_GROUP_MOD           -- Controller/switch message
     | OFPT_PORT_MOD            -- Controller/switch message
-    | OFPT_TABLE_MOD           -- Controller/switch message
 
     -- Statistics messages
     | OFPT_STATS_REQUEST       -- Controller/switch message
@@ -113,7 +114,7 @@ data OfpActionType = OFPAT_OUTPUT          -- Output to switch port
                      | OFPAT_VENDOR
                     deriving(Eq, Ord, Enum, Show)
 
-data OfpSwitchConfig = OfpSwitchConfig { ofp_switch_cfg_flags :: S.Set OfpSwitchCfgFlags
+data OfpSwitchConfig = OfpSwitchConfig { ofp_switch_cfg_flags :: OfpSwitchCfgFlags
                                        , ofp_switch_cfg_miss_send_len :: Word16
                                        }
 
@@ -122,6 +123,9 @@ data OfpSwitchCfgFlags = OFPC_FRAG_NORMAL -- No special handling for fragments
                        | OFPC_FRAG_REASM  -- Reassemble (only if OFPC_IP_REASM set)
                        | OFPC_FRAG_MASK
                        deriving (Eq, Ord, Enum, Show)
+
+defaultSwitchConfig :: OfpSwitchConfig
+defaultSwitchConfig = OfpSwitchConfig OFPC_FRAG_NORMAL 128
 
 data OfpPhyPort = OfpPhyPort { ofp_port_no         :: Word16
                              , ofp_port_hw_addr    :: MACAddr

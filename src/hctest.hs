@@ -23,6 +23,10 @@ import qualified Data.Conduit.List as CL
 import Data.Conduit
 import Data.Conduit.Network
 
+import Control.Monad.STM
+import Control.Concurrent.STM
+import Control.Concurrent.STM.TVar
+
 --TODO: rename to hcprobe ?
 
 hexdumpBs :: Int -> String -> String -> BS.ByteString -> String
@@ -37,11 +41,16 @@ encodePutM = bsStrict . runPut
 
 encodeMsg = encodePutM . putMessage
 
-ofpClient sw host port = runTCPClient (clientSettings port host) (client sw)
+type SwitchConfig = TVar OfpSwitchConfig
 
-client :: OfpSwitchFeatures -> Application IO
-client sw ad = appSource ad $$ conduit
+ofpClient sw host port = do
+  switchCfg <- newTVarIO defaultSwitchConfig
+  runTCPClient (clientSettings port host) (client sw switchCfg)
+
+client :: OfpSwitchFeatures -> SwitchConfig -> Application IO
+client sw cfg ad = appSource ad $$ conduit
   where
+
     conduit = do
       bs' <- await
       when (isJust bs') $ do
@@ -64,16 +73,20 @@ client sw ad = appSource ad $$ conduit
       where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
 
     -- TODO: (W 2012-DEC-13) implement the following messages
-    processMessage OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg)) = do
+    processMessage OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = do
       -- TODO: set config
+      liftIO $ atomically $ writeTVar cfg cfg'
       return ()
 
-    processMessage OFPT_BARRIER_REQUEST msg = nothing 
+    processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) = do
+      cfg' <- liftIO $ atomically $ readTVar cfg
+      sendReply (getConfigReply hdr cfg') nothing
+
+    processMessage OFPT_BARRIER_REQUEST msg = nothing
 
     -- TODO: implement the following messages
     processMessage OFPT_PACKET_OUT (OfpMessage hdr msg) = nothing 
     processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing
-    processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) = nothing
     processMessage OFPT_STATS_REQUEST (OfpMessage hdr msg) = nothing
 
     processMessage _ _ = nothing 

@@ -8,6 +8,7 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  , featuresReply
                                  , echoReply
                                  , headReply
+                                 , getConfigReply
                                  , putOfpPort
                                  ) where
 
@@ -52,6 +53,10 @@ headReply :: OfpHeader -> OfpType -> OfpMessage
 headReply h t = OfpMessage newHead OfpEmptyReply
   where newHead = h {ofp_hdr_type = t, ofp_hdr_length = fromIntegral ofpHeaderLen}
 
+getConfigReply :: OfpHeader -> OfpSwitchConfig -> OfpMessage
+getConfigReply hdr cfg = OfpMessage newHead (OfpGetConfigReply cfg)
+  where newHead = hdr { ofp_hdr_type = OFPT_GET_CONFIG_REPLY }
+
 ofpParseHeader :: Get OfpHeader
 ofpParseHeader = do
     v   <- getWord8
@@ -78,6 +83,7 @@ parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
     parse OFPT_FEATURES_REQUEST = runParse (return OfpFeaturesRequest)
     parse OFPT_ECHO_REQUEST     = runParse (return (OfpEchoRequest bs))
     parse OFPT_SET_CONFIG       = runParse getOfpSetConfig
+    parse OFPT_GET_CONFIG_REQUEST = runParse (return OfpGetConfigRequest)
     parse OFPT_PACKET_OUT       = runParse (return (OfpPacketOut bs))
     parse _                     = runParse (return (OfpUnsupported bs))
 
@@ -93,7 +99,7 @@ getOfpSetConfig = do
   wFlags <- getWord16be
   wSendL <- getWord16be
                              -- FIXME: possible enum overflow
-  return $ OfpSetConfig $ OfpSwitchConfig { ofp_switch_cfg_flags = S.singleton (toEnum (fromIntegral wFlags))
+  return $ OfpSetConfig $ OfpSwitchConfig { ofp_switch_cfg_flags = toEnum (fromIntegral wFlags)
                                           , ofp_switch_cfg_miss_send_len = wSendL
                                           }
 
@@ -122,6 +128,10 @@ putMessageData (OfpFeatureReply f) = do
   mapM_ putOfpPort (ofp_ports f)
 
 putMessageData (OfpEchoReply bs) = putByteString bs
+
+putMessageData (OfpGetConfigReply cfg) = do
+  putWord16be (fromIntegral (fromEnum (ofp_switch_cfg_flags cfg)))
+  putWord16be (ofp_switch_cfg_miss_send_len cfg)
 
 putMessageData OfpEmptyReply = return ()
 

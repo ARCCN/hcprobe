@@ -28,7 +28,7 @@ executable hctest
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit, network-conduit==0.6.*,
                        conduit==0.5.*,
-                       random,
+                       random, stm,
                        transformers, mtl, containers
 
   Ghc-options:         -Wall
