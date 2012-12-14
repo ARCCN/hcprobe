@@ -11,7 +11,8 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , openflow_1_0
                               , defaultSwitchConfig
                               ) where
- 
+
+import Network.Openflow.Ethernet.Types (MACAddr)
 import Data.Word
 import qualified Data.ByteString as BS
 import qualified Data.Set as S
@@ -23,7 +24,6 @@ openflow_1_0 = 0x01
 -- TODO: split to several files
 -- TODO: replace Data.Set to something more effective for bitmaps
 
-type MACAddr = Word64
 
 data OfpHeader = OfpHeader { ofp_hdr_version :: Word8
                            , ofp_hdr_type    :: OfpType 
