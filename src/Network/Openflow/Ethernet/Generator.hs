@@ -9,7 +9,8 @@ putEthernetFrame x = do
   putMAC (srcMacAdddress x)
   putMAC (dstMacAddress  x)
   case (vlanID x) of
-    Nothing    -> undefined
-    Just (vid) -> undefined
+    Nothing    -> putWord16be (typeCode x)
+    Just (vid) -> putWord16be 0x8100 >> putWord16be vid >> putWord16be (typeCode x)
+  putPayload x
   undefined -- putCRC ??
 
