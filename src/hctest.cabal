@@ -19,7 +19,7 @@ library
     build-depends:    base, binary, binary-strict, bytestring,
                       network-conduit==0.6.*,
                       conduit==0.5.*,
-                      random,
+                      random, digest,
                       transformers, mtl, containers
 
 executable hctest
@@ -28,7 +28,18 @@ executable hctest
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit, network-conduit==0.6.*,
                        conduit==0.5.*,
-                       random, stm,
+                       random, digest, stm, 
+                       transformers, mtl, containers
+
+  Ghc-options:         -Wall
+
+executable ethertest 
+  main-is:           ethertest.hs
+  -- other-modules:    
+  build-depends:       base, binary, binary-strict, bytestring,
+                       conduit, network-conduit==0.6.*,
+                       conduit==0.5.*,
+                       random, digest, stm, 
                        transformers, mtl, containers
 
   Ghc-options:         -Wall

@@ -3,6 +3,7 @@ module Main where
 
 import Network.Openflow.Types
 import Network.Openflow.Messages
+import Network.Openflow.Misc
 import HCProbe.FakeSwitch
 import qualified Network.Openflow.Ethernet.Types as E
 import qualified Network.Openflow.Ethernet.Generator as G
@@ -30,16 +31,6 @@ import Control.Concurrent.STM
 import Control.Concurrent.STM.TVar
 
 --TODO: rename to hcprobe ?
-
-hexdumpBs :: Int -> String -> String -> BS.ByteString -> String
-hexdumpBs n ds ts bs = concat $ concat rows
-  where hexes :: [String]
-        hexes = reverse $ BS.foldl (\acc w -> (printf "%02X" w :: String) : acc) [] bs
-        rows  = unfoldr chunk hexes
-        chunk [] = Nothing
-        chunk xs = Just (intersperse ds (take n xs) ++ [ts], drop n xs)
-
-encodePutM = bsStrict . runPut
 
 encodeMsg = encodePutM . putMessage
 
@@ -86,7 +77,6 @@ client sw cfg ad = appSource ad $$ conduit
       sendReply (headReply (ofp_header msg) OFPT_BARRIER_REPLY) nothing
 
     processMessage OFPT_VENDOR msg = do
-      -- TODO: do something, process all pkts, etc
       let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) (BS.empty)
       let reply = errorReply (ofp_header msg) errT
       sendReply (reply) nothing

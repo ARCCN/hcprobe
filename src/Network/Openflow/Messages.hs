@@ -26,9 +26,6 @@ import Control.Monad
 
 -- FIXME: rename ofpParse* to getOfp*
 
-bsStrict = BS.concat . BL.toChunks
-
-bsLazy s = BL.fromChunks [s]
 
 ofpHeaderLen = (8 + 8 + 16 + 32) `div` 8
 

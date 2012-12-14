@@ -10,7 +10,7 @@ type VLANID  = Word16
 
 class EthernetFrame a where
   dstMacAddress  :: a -> MACAddr
-  srcMacAdddress :: a -> MACAddr
+  srcMacAddress  :: a -> MACAddr
   vlanID         :: a -> Maybe VLANID
   typeCode       :: a -> Word16
   putPayload     :: a -> PutM ()
