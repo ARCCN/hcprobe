@@ -33,29 +33,37 @@ import Control.Monad.STM
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TVar
 
+import Control.Concurrent.STM.TBMChan
+
 encodeMsg = encodePutM . putMessage
 
-data SwitchState = SwitchState { swTranID :: Word32, swCfg :: OfpSwitchConfig }
+data SwitchState = SwitchState { swTranID :: Word32
+                               , swCfg :: OfpSwitchConfig 
+                               }
 
 type SwitchStateVar = TVar SwitchState
 
 ofpClient sw host port = do
-  switchCfg <- newTVarIO (SwitchState 0  defaultSwitchConfig)
+  switchCfg <- newTVarIO (SwitchState 0 defaultSwitchConfig)
   runTCPClient (clientSettings port host) (client sw switchCfg)
 
 -- TODO: move to FakeSwitch ?
 
 client :: FakeSwitch -> SwitchStateVar -> Application IO
-client (FakeSwitch sw switchIP) cfg ad = appSource ad $$ conduit
+client fk@(FakeSwitch sw switchIP) cfg ad = do
+--  pktOut  <- liftIO $ atomically $ newTBMChan 16
+  appSource ad $$ conduit
   where
 
     conduit = do
       -- TODO: send ARP Gratuitous Reply
-      liftIO $ M.forkIO $ do
+      liftIO $ M.forkIO $ liftIO $ do
         -- FIXME: actually, until GET_FEATURES_REPLY
-        liftIO $ M.threadDelay 500000
+        M.threadDelay 500000
         tid <- nextTranID
         sendReplyT (arpGrat tid) (return ())
+        -- TODO: fork test algorithm
+        return ()
 
       forever $ do
         bs' <- await
@@ -97,7 +105,11 @@ client (FakeSwitch sw switchIP) cfg ad = appSource ad $$ conduit
       sendReply (reply) nothing
 
     -- TODO: implement the following messages
-    processMessage OFPT_PACKET_OUT (OfpMessage hdr msg) = nothing
+    processMessage OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
+      nothing
+--      liftIO $ atomically $ writeTChan pktOutChan m
+
+    -- TODO: implement the following messages
     processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing
     processMessage OFPT_STATS_REQUEST (OfpMessage hdr msg) = nothing
 
@@ -131,6 +143,9 @@ client (FakeSwitch sw switchIP) cfg ad = appSource ad $$ conduit
       return (fromIntegral t)
 
     defaultPacketInPort = (ofp_port_no . last . ofp_ports) sw
+
+    script = undefined
+
 
 -- TODO: move liftIO here
 -- TODO: truncate message by length in header

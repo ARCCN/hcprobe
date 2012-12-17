@@ -28,7 +28,7 @@ executable hcprobe
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit, network-conduit==0.6.*,
                        conduit==0.5.*, resourcet,
-                       random, digest, stm, 
+                       random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers
 
   Ghc-options:         -Wall
@@ -39,7 +39,7 @@ executable ethertest
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit, network-conduit==0.6.*,
                        conduit==0.5.*, resourcet,
-                       random, digest, stm, 
+                       random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers
 
   Ghc-options:         -Wall
