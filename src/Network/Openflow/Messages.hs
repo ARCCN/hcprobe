@@ -3,7 +3,6 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  , parseMessageData
                                  , bsStrict
                                  , putMessage
-                                 , unpack64
                                  , header
                                  , featuresReply
                                  , echoReply
@@ -11,6 +10,7 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  , errorReply
                                  , getConfigReply
                                  , putOfpPort
+                                 , putOfpPacketIn
                                  ) where
 
 import Network.Openflow.Types
@@ -58,6 +58,8 @@ errorReply h tp = OfpMessage newHead (OfpErrorReply tp)
 getConfigReply :: OfpHeader -> OfpSwitchConfig -> OfpMessage
 getConfigReply hdr cfg = OfpMessage newHead (OfpGetConfigReply cfg)
   where newHead = hdr { ofp_hdr_type = OFPT_GET_CONFIG_REPLY }
+
+packetIn = undefined
 
 ofpParseHeader :: Get OfpHeader
 ofpParseHeader = do
@@ -127,7 +129,7 @@ putMessageData (OfpFeatureReply f) = do
   putWord8    (ofp_n_tables f)
   replicateM_ 3 (putWord8 0)
   putWord32be (bitFlags ofCapabilities (ofp_capabilities f))
-  putWord32be 0 -- reserved, see OpenFlow Spec. 1.1
+  putWord32be (bitFlags ofActionType   (ofp_actions f))
   mapM_ putOfpPort (ofp_ports f)
 
 putMessageData (OfpEchoReply bs) = putByteString bs
@@ -142,6 +144,8 @@ putMessageData (OfpErrorReply et) = do
   putByteString (BS.take 64 (ofp_error_data et))
 
 putMessageData OfpEmptyReply = return ()
+
+putMessageData (OfpPacketInReply p) = putOfpPacketIn p
 
 -- FIXME: typed error handling
 putMessageData _        = error "Unsupported message: "
@@ -161,4 +165,13 @@ putOfpPort port = do
   putWord32be (bitFlags ofFeatureFlags (ofp_port_advertised port))
   putWord32be (bitFlags ofFeatureFlags (ofp_port_supported port))
   putWord32be (bitFlags ofFeatureFlags (ofp_port_peer port))
+
+putOfpPacketIn :: OfpPacketIn -> PutM ()
+putOfpPacketIn pktIn = do
+  putWord32be (ofp_pkt_in_buffer_id pktIn)
+  putWord16be (fromIntegral $ BS.length (ofp_pkt_in_data pktIn))
+  putWord16be (ofp_pkt_in_in_port pktIn)
+  putWord8    (fromIntegral $ fromEnum (ofp_pkt_in_reason pktIn))
+  putWord8    0 -- padding
+  putByteString (ofp_pkt_in_data pktIn)
 

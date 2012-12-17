@@ -1,4 +1,4 @@
-module HCProbe.FakeSwitch ( PortGen(..)
+module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
                           , makePort
                           , makeSwitch
                           , defaultPortGen
@@ -7,7 +7,8 @@ module HCProbe.FakeSwitch ( PortGen(..)
                           ) where
 
 import Network.Openflow.Types
-import Network.Openflow.Messages (unpack64)
+import Network.Openflow.Ethernet.Types
+import Network.Openflow.Misc
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Set as S
@@ -18,8 +19,6 @@ import Data.List
 import Text.Printf
 import Control.Monad
 import Control.Monad.State
-
-import Debug.Trace
 
 data PortGen = PortGen { pnum   :: Int
                        , pname  :: Int -> BS.ByteString
@@ -55,25 +54,30 @@ makePort gen cfg st ft = (port, gen')
                           , ofp_port_peer       = S.fromList ft
                           }
 
-data SwitchGen = SwitchGen {  dpid  :: Int
-                           ,  swRnd :: StdGen
+data SwitchGen = SwitchGen {  dpid    :: Int
+                           ,  ipAddr  :: IPv4Addr
+                           ,  swRnd   :: StdGen
                            }
-defaultSwGen :: StdGen -> SwitchGen
-defaultSwGen g = SwitchGen 1 g
+defaultSwGen :: IPv4Addr -> StdGen -> SwitchGen
+defaultSwGen ip g = SwitchGen 1 ip g
+
+data FakeSwitch = FakeSwitch { switchFeatures :: OfpSwitchFeatures, switchIP :: IPv4Addr }
 
 makeSwitch :: SwitchGen
            -> Int
            -> [OfpCapabilities]
+           -> [OfpActionType]
            -> [OfpPortConfigFlags]
            -> [OfpPortStateFlags]
            -> [OfpPortFeatureFlags]
-           -> (OfpSwitchFeatures, SwitchGen)
+           -> (FakeSwitch, SwitchGen)
 
-makeSwitch gen ports cap cfg st ff = (features, gen')
+makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen), gen')
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
                                      , ofp_n_buffers    = fromIntegral $ 256*ports
                                      , ofp_n_tables     = 1
                                      , ofp_capabilities = S.fromList cap
+                                     , ofp_actions      = S.fromList act
                                      , ofp_ports        = pps
                                      }
         gen' = gen { dpid = (dpid gen) + 1, swRnd = (rndGen pg') }

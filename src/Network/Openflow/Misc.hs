@@ -1,5 +1,5 @@
 module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ, 
-                               bsStrict, bsLazy, encodePutM,
+                               bsStrict, bsLazy, encodePutM, ipv4,
                                hexdumpBs
                              ) where
 
@@ -41,4 +41,11 @@ hexdumpBs n ds ts bs = concat $ concat rows
 
 encodePutM = bsStrict . runPut
 
+
+ipv4 :: Word8->Word8->Word8->Word8 -> IPv4Addr
+ipv4 a b c d = wa .|. wb .|. wc .|. wd
+  where wa = fromIntegral a `shiftL` 24
+        wb = fromIntegral b `shiftL` 16
+        wc = fromIntegral c `shiftL`  8
+        wd = fromIntegral d
 

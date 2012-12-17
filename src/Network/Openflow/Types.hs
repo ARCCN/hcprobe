@@ -1,12 +1,14 @@
 module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpMessageData(..)
                               , OfpCapabilities(..), OfpSwitchFeatures(..), OfpPhyPort(..)
                               , OfpPortConfigFlags(..), OfpPortStateFlags(..), OfpPortFeatureFlags(..)
+                              , OfpActionType(..)
                               , OfpSwitchConfig(..), OfpSwitchCfgFlags(..), OfpError(..)
                               , OfpErrorType(..), OfpHelloFailedCode(..), OfpBadActionCode(..)
                               , OfpBadRequestCode(..), OfpFlowModFailedCode(..), OfpPortModFailedCode(..)
-                              , OfpQueueOpFailedCode(..)
+                              , OfpQueueOpFailedCode(..), OfpPacketIn(..), OfpPacketInReason(..)
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags, ofErrorType
+                              , ofActionType
                               , ofErrorCode
                               , openflow_1_0
                               , defaultSwitchConfig
@@ -47,6 +49,7 @@ data OfpMessageData =   OfpMessageRaw BS.ByteString
                       | OfpPacketOut BS.ByteString -- FIXME: implement real data type
                       | OfpVendor BS.ByteString    -- WTF?
                       | OfpErrorReply OfpError
+                      | OfpPacketInReply OfpPacketIn
                       | OfpUnsupported BS.ByteString
 
 data OfpType  = 
@@ -93,6 +96,7 @@ data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: Word64
                                            , ofp_n_buffers    :: Word32
                                            , ofp_n_tables     :: Word8
                                            , ofp_capabilities :: S.Set OfpCapabilities
+                                           , ofp_actions      :: S.Set OfpActionType
                                            , ofp_ports        :: [OfpPhyPort]
                                            } deriving (Show)
 
@@ -106,7 +110,7 @@ data OfpCapabilities =   OFPC_FLOW_STATS             --  Flow statistics
                        | OFPC_ARP_MATCH_IP           --  Match IP addresses in ARP pkts
                        deriving (Eq, Ord, Enum, Show)
 
-data OfpActionType = OFPAT_OUTPUT          -- Output to switch port
+data OfpActionType =   OFPAT_OUTPUT        -- Output to switch port
                      | OFPAT_SET_VLAN_VID  -- Set the 802.1q VLAN id
                      | OFPAT_SET_VLAN_PCP  -- Set the 802.1q priority
                      | OFPAT_STRIP_VLAN    -- Strip the 802.1q header
@@ -175,6 +179,10 @@ data OfpPortFeatureFlags =   OFPPF_10MB_HD    --  10 Mb half-duplex rate support
                            | OFPPF_PAUSE      --  Pause
                            | OFPPF_PAUSE_ASYM --  Asymmetric pause
                            deriving (Eq, Ord, Enum, Show)
+
+ofActionType :: OfpActionType -> Word32
+ofActionType OFPAT_VENDOR = 0xFFFF
+ofActionType x = 1 `shiftL` (fromEnum x)
 
 ofCapabilities OFPC_FLOW_STATS     = 1 `shiftL` 0
 ofCapabilities OFPC_TABLE_STATS    = 1 `shiftL` 1
@@ -283,4 +291,16 @@ ofErrorCode (OFPET_BAD_ACTION   x)     = fromEnum x
 ofErrorCode (OFPET_FLOW_MOD_FAILED x)  = fromEnum x
 ofErrorCode (OFPET_PORT_MOD_FAILED x)  = fromEnum x
 ofErrorCode (OFPET_QUEUE_OP_FAILED x)  = fromEnum x
+
+data OfpPacketIn = OfpPacketIn { ofp_pkt_in_buffer_id :: Word32
+                               , ofp_pkt_in_in_port   :: Word16
+                               , ofp_pkt_in_reason    :: OfpPacketInReason
+                               , ofp_pkt_in_data      :: BS.ByteString
+                               }
+
+data OfpPacketInReason = OFPR_NO_MATCH | OFPR_ACTION
+                         deriving (Eq, Ord, Enum, Show)
+
+
+
 
