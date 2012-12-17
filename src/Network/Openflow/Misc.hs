@@ -1,9 +1,10 @@
-module Network.Openflow.Misc ( unpack64, putMAC, putASCIIZ, 
+module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ, 
                                bsStrict, bsLazy, encodePutM,
                                hexdumpBs
                              ) where
 
 import Network.Openflow.Types
+import Network.Openflow.Ethernet.Types
 import Data.Word
 import Data.Bits
 import Data.Binary.Put
@@ -22,6 +23,9 @@ putASCIIZ sz bs = putByteString bs' >> replicateM_ (sz - (BS.length bs')) (putWo
 
 putMAC :: MACAddr -> PutM ()
 putMAC mac = mapM_ putWord8 (drop 2 (unpack64 mac))
+
+putIP :: IPv4Addr -> PutM ()
+putIP ip = putWord32be ip
 
 bsStrict = BS.concat . BL.toChunks
 

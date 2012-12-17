@@ -5,8 +5,9 @@ import Data.Maybe
 import Data.ByteString
 import Data.Binary.Put
 
-type MACAddr = Word64
-type VLANID  = Word16
+type MACAddr  = Word64
+type VLANID   = Word16
+type IPv4Addr = Word32
 
 class EthernetFrame a where
   dstMacAddress  :: a -> MACAddr

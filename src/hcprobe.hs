@@ -2,11 +2,10 @@
 module Main where
 
 import Network.Openflow.Types
+import Network.Openflow.Ethernet.ARP
 import Network.Openflow.Messages
 import Network.Openflow.Misc
 import HCProbe.FakeSwitch
-import qualified Network.Openflow.Ethernet.Types as E
-import qualified Network.Openflow.Ethernet.Generator as G
 
 import Data.Binary.Put ( runPut )
 import qualified Data.ByteString as BS
