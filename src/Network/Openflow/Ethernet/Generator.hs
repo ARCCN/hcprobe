@@ -7,12 +7,15 @@ import Data.Digest.CRC32
 import Data.Word
 
 
+-- TODO: possibly, there is a way to calculate crc32 on the fly,
+--       without generating the actual bytestring         
+
 putEthernetFrame :: EthernetFrame a => a -> PutM ()
 putEthernetFrame x = putByteString frame >> putCRC32 frame
   where
     frame = bsStrict $ runPut $ do
       putMAC (dstMacAddress x)
-      putMAC (srcMacAddress x) 
+      putMAC (srcMacAddress x)
       case (vlanID x) of
         Nothing    -> putWord16be (typeCode x)
         Just (vid) -> putWord16be 0x8100 >> putWord16be vid >> putWord16be (typeCode x)
