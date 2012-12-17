@@ -30,8 +30,6 @@ import Control.Monad.STM
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TVar
 
---TODO: rename to hcprobe ?
-
 encodeMsg = encodePutM . putMessage
 
 type SwitchConfig = TVar OfpSwitchConfig
