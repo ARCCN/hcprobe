@@ -7,8 +7,6 @@ import Network.Openflow.Misc
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Ethernet.Generator
 import HCProbe.FakeSwitch
-import qualified Network.Openflow.Ethernet.Types as E
-import qualified Network.Openflow.Ethernet.Generator as G
 
 import Data.Binary.Put
 import qualified Data.ByteString as BS
@@ -21,13 +19,12 @@ import Data.Maybe
 import System.Random
 import System.Environment (getArgs)
 
-
 data ARPExample = ARPExample
 
 instance EthernetFrame ARPExample where
   dstMacAddress  _ = 0xFFFFFFFFFFFF
   srcMacAddress  _ = 0x080046A76E35
-  vlanID         _ = Nothing 
+  vlanID         _ = Just 253
   typeCode       _ = 0x806 
   putPayload     _ = mapM_ putWord8 arpRaw 
 
