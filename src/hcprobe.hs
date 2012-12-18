@@ -107,7 +107,6 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
     -- TODO: implement the following messages
     processMessage OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
       nothing
---      liftIO $ atomically $ writeTChan pktOutChan m
 
     -- TODO: implement the following messages
     processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing
@@ -129,7 +128,7 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
 
     arpGrat tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
       where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
-            pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = (-1 :: Word32)
+            pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = (1 :: Word32)
                                 , ofp_pkt_in_in_port   = defaultPacketInPort
                                 , ofp_pkt_in_reason    = OFPR_NO_MATCH
                                 , ofp_pkt_in_data      = arpGratData 

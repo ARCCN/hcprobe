@@ -74,7 +74,7 @@ makeSwitch :: SwitchGen
 
 makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen), gen')
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
-                                     , ofp_n_buffers    = fromIntegral $ 256*ports
+                                     , ofp_n_buffers    = fromIntegral $ 8*ports
                                      , ofp_n_tables     = 1
                                      , ofp_capabilities = S.fromList cap
                                      , ofp_actions      = S.fromList act
