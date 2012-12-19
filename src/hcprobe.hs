@@ -31,8 +31,6 @@ import qualified Control.Concurrent as M
 import Control.Monad.Trans.Resource hiding (runResourceT)
 import Control.Monad.STM
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TVar
-import Control.Concurrent.STM.TMVar
 
 import Control.Applicative ((<$>))
 
@@ -49,8 +47,10 @@ data SwitchState = SwitchState { swTranID :: Word32
                                }
 
 
-data SwitchContext = SwitchContext { handshakeDone :: TMVar Bool
+data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
                                    }
+
+pktSendTimeout = 500000
 
 ofpClient sw host port = do
   switchCfg <- newTVarIO (SwitchState 0 defaultSwitchConfig)
@@ -64,11 +64,12 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
   -- TODO: forkIO sender
 
     (_, pktSendQ) <- allocate (newTBMChanIO 512) (atomically.closeTBMChan)
-    featureReplyMonitor <- liftIO $ newEmptyTMVarIO
+    featureReplyMonitor <- liftIO $ newTVarIO False
 
     let ctx = SwitchContext featureReplyMonitor
 
     let sender = forever $ do
+        withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
         v <- liftIO $ atomically (readTBMChan pktSendQ)
         case v of 
           Just msg -> sendReplyT msg (return ())
@@ -84,7 +85,7 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
             Nothing          -> return ()    
 
     let sendARPGrat = do
-        withTimeout 1000000 (takeTMVar featureReplyMonitor)
+        withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
         tid <- nextTranID
         sendReplyT (arpGrat tid) (return ())
 
@@ -125,8 +126,7 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
     processMessage c OFPT_BARRIER_REQUEST msg = do
       -- TODO: do something, process all pkts, etc
       sendReply (headReply (ofp_header msg) OFPT_BARRIER_REPLY) $ do
-        liftIO $ atomically (putTMVar (handshakeDone c) True)
-        return ()
+        liftIO $ atomically (writeTVar (handshakeDone c) True)
 
     processMessage _ OFPT_VENDOR msg = do
       let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) (BS.empty)
@@ -171,7 +171,7 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
     withTimeout :: Int -> (STM a) -> IO (Maybe a)
     withTimeout tv f = do
       x <- registerDelay tv
-      atomically $ (readTVar x >>= \y -> if y 
+      atomically $ (readTVar x >>= \y -> if y
                                          then return Nothing
                                          else retry) `orElse` (Just <$> f)
 
