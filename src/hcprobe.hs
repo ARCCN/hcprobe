@@ -52,18 +52,18 @@ data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
 
 pktSendTimeout = 500000
 
-ofpClient sw host port = do
+ofpClient pktGen sw host port = do
   switchCfg <- newTVarIO (SwitchState 0 defaultSwitchConfig)
-  runTCPClient (clientSettings port host) (client sw switchCfg)
+  runTCPClient (clientSettings port host) (client pktGen sw switchCfg)
 
-client fk@(FakeSwitch sw switchIP) cfg ad = do 
+client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
 
   runResourceT $ do
   -- TODO: allocate shared structures
   -- TODO: forkIO receiver
   -- TODO: forkIO sender
 
-    (_, pktSendQ) <- allocate (newTBMChanIO 512) (atomically.closeTBMChan)
+    (_, pktSendQ) <- allocate (newTBMChanIO 1024) (atomically.closeTBMChan)
     featureReplyMonitor <- liftIO $ newTVarIO False
 
     let ctx = SwitchContext featureReplyMonitor
@@ -87,13 +87,14 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
     let sendARPGrat = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
         tid <- nextTranID
-        sendReplyT (arpGrat tid) (return ())
+        sendReplyT (arpGrat fk tid) (return ())
 
     allocate (M.forkIO (sender)) (M.killThread)
     allocate (M.forkIO (sendARPGrat)) (M.killThread)
     allocate (M.forkIO (receiver)) (M.killThread)
+    allocate (M.forkIO (pktInGen fk pktSendQ)) (M.killThread)
 
-    forever $ do liftIO $ M.yield
+    forever $ do liftIO $ M.threadDelay 1000000
 
   where
     sendReplyT msg fm = fm >> do
@@ -150,15 +151,6 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
       lift $ yield replyBs $$ (appSink ad)
       where replyBs = encodeMsg msg
 
-    arpGrat tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
-      where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
-            pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = (1 :: Word32)
-                                , ofp_pkt_in_in_port   = defaultPacketInPort
-                                , ofp_pkt_in_reason    = OFPR_NO_MATCH
-                                , ofp_pkt_in_data      = arpGratData 
-                                }
-            arpGratData = encodePutM $ putEthernetFrame (ARPGratuitousReply switchMAC switchIP)
-            switchMAC = ofp_datapath_id sw
 
 --    nextTranID :: Application IO
     nextTranID = liftIO $ atomically $ do 
@@ -166,7 +158,6 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
       writeTVar cfg (st{swTranID = succ t})
       return (fromIntegral t)
 
-    defaultPacketInPort = (ofp_port_no . last . ofp_ports) sw
 
     withTimeout :: Int -> (STM a) -> IO (Maybe a)
     withTimeout tv f = do
@@ -175,19 +166,42 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
                                          then return Nothing
                                          else retry) `orElse` (Just <$> f)
 
+defaultPacketInPort = (ofp_port_no . last . ofp_ports)
+
+arpGrat fk tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
+  where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
+        pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = (1 :: Word32)
+                            , ofp_pkt_in_in_port   = defaultPacketInPort sw
+                            , ofp_pkt_in_reason    = OFPR_NO_MATCH
+                            , ofp_pkt_in_data      = arpGratData 
+                            }
+        arpGratData = encodePutM $ putEthernetFrame (ARPGratuitousReply mac ip)
+        mac = ofp_datapath_id sw
+        ip  = switchIP fk 
+        sw  = switchFeatures fk
+
+
 -- TODO: move liftIO here
 -- TODO: truncate message by length in header
 -- TODO: use logger / settings
 dump :: String -> OfpHeader -> BS.ByteString -> IO ()
-dump s hdr bs = do
-  let tp = show (ofp_hdr_type hdr)
-  putStr $ printf "%-4s %-24s %s\n" s tp (hexdumpBs 32 " " "" (BS.take 32 bs))
+dump s hdr bs = return ()
+--dump s hdr bs = do
+--  let tp = show (ofp_hdr_type hdr)
+--  putStr $ printf "%-4s %-24s %s\n" s tp (hexdumpBs 32 " " "" (BS.take 32 bs))
 
 defActions = [ OFPAT_OUTPUT,OFPAT_SET_VLAN_VID,OFPAT_SET_VLAN_PCP
              , OFPAT_STRIP_VLAN,OFPAT_SET_DL_SRC,OFPAT_SET_DL_DST
              , OFPAT_SET_NW_SRC,OFPAT_SET_NW_DST,OFPAT_SET_NW_TOS
              , OFPAT_SET_TP_SRC,OFPAT_SET_TP_DST
              ]
+
+pktGenTest :: FakeSwitch -> TBMChan OfpMessage -> IO ()
+pktGenTest fk chan = do
+  rs <- liftM randoms newStdGen :: IO [Word32]
+  forM_ rs $ \tid -> do
+    M.threadDelay 150000
+    atomically $ writeTBMChan chan (arpGrat fk tid)
 
 main :: IO ()
 main = do
@@ -201,7 +215,7 @@ main = do
   let feature_repl = OfpMessage hdr (OfpFeatureReply sw)
   let bs = bsStrict $ runPut (putMessage feature_repl)
   putStrLn (fmtSwitch sw)
-  ofpClient fake (BS8.pack host) (read port)
+  ofpClient pktGenTest fake (BS8.pack host) (read port)
   putStrLn "done"
 
 
