@@ -28,7 +28,7 @@ import Data.Conduit
 import Data.Conduit.Network
 
 import qualified Control.Concurrent as M
-import Control.Monad.Trans.Resource
+import Control.Monad.Trans.Resource hiding (runResourceT)
 import Control.Monad.STM
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TVar
@@ -38,24 +38,131 @@ import Control.Concurrent.STM.TBMChan
 encodeMsg = encodePutM . putMessage
 
 data SwitchState = SwitchState { swTranID :: Word32
-                               , swCfg :: OfpSwitchConfig 
+                               , swCfg :: OfpSwitchConfig
                                }
-
-type SwitchStateVar = TVar SwitchState
 
 ofpClient sw host port = do
   switchCfg <- newTVarIO (SwitchState 0 defaultSwitchConfig)
   runTCPClient (clientSettings port host) (client sw switchCfg)
 
+client fk@(FakeSwitch sw switchIP) cfg ad = do 
+
+  runResourceT $ do
+  -- TODO: allocate shared structures
+  -- TODO: forkIO receiver
+  -- TODO: forkIO sender
+
+    (_, pktSendQ) <- allocate (newTBMChanIO 512) (atomically.closeTBMChan)
+
+    let sender = forever $ do
+        v <- liftIO $ atomically (readTBMChan pktSendQ)
+        case v of 
+          Just msg -> sendReplyT msg (return ())
+          Nothing  -> return ()
+        return ()
+
+    let receiver = forever $ appSource ad $$ do
+        bs' <- await
+        when (isJust bs') $ do
+          let bs = fromJust bs'
+          case (ofpParsePacket bs) of
+            Just (msg, rest) -> (liftIO $ dump "IN:" (ofp_header msg) bs) >> dispatch msg >> leftover rest
+            Nothing          -> return ()
+
+--    allocate (M.forkIO (sender)) (M.killThread)
+--    allocate (M.forkIO (receiver)) (M.killThread)
+
+--    forever $ do liftIO $ M.yield
+
+    forever $ liftIO $ do 
+        appSource ad $$ do
+          bs' <- await
+          when (isJust bs') $ do
+            let bs = fromJust bs'
+            case (ofpParsePacket bs) of
+              Just (msg, rest) -> (liftIO $ dump "IN:" (ofp_header msg) bs) >> dispatch msg >> leftover rest
+              Nothing          -> return ()
+
+
+  where
+    sendReplyT msg fm = fm >> do
+      liftIO $ dump "OUT:" (ofp_header msg) replyBs
+      yield replyBs $$ (appSink ad)
+      where replyBs = encodeMsg msg
+
+    dispatch msg@(OfpMessage hdr msgData) = case (parseMessageData msg) of
+      Nothing   -> return ()
+      Just msg' -> processMessage (ofp_hdr_type hdr) msg'
+
+    processMessage OFPT_HELLO (OfpMessage hdr _) = sendReply (headReply hdr OFPT_HELLO) nothing
+
+    processMessage OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = sendReply reply nothing
+      where reply = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
+
+    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = sendReply reply nothing
+      where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
+
+    processMessage OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = do
+      liftIO $ atomically $ do 
+        st <- readTVar cfg
+        writeTVar cfg (st { swCfg = cfg' })
+
+    processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) = do
+      st <- liftIO $ atomically $ readTVar cfg
+      sendReply (getConfigReply hdr (swCfg st)) nothing
+
+    processMessage OFPT_BARRIER_REQUEST msg = do
+      -- TODO: do something, process all pkts, etc
+      sendReply (headReply (ofp_header msg) OFPT_BARRIER_REPLY) nothing
+
+    processMessage OFPT_VENDOR msg = do
+      let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) (BS.empty)
+      let reply = errorReply (ofp_header msg) errT
+      sendReply (reply) nothing
+
+    -- TODO: implement the following messages
+    processMessage OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
+      nothing
+
+    -- TODO: implement the following messages
+    processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing
+    processMessage OFPT_STATS_REQUEST (OfpMessage hdr msg) = nothing
+
+    processMessage _ _ = nothing
+
+    nothing = return ()
+
+    sendReply msg fm = fm >> do
+      liftIO $ dump "OUT:" (ofp_header msg) replyBs
+      lift $ yield replyBs $$ (appSink ad)
+      where replyBs = encodeMsg msg
+
+
+{-
 -- TODO: move to FakeSwitch ?
 
-client :: FakeSwitch -> SwitchStateVar -> Application IO
-client fk@(FakeSwitch sw switchIP) cfg ad = do
---  pktOut  <- liftIO $ atomically $ newTBMChan 16
-  appSource ad $$ conduit
+client' :: FakeSwitch -> SwitchStateVar -> Application IO
+client' fk@(FakeSwitch sw switchIP) cfg ad = appSource ad $$ conduit
+
   where
 
-    conduit = do
+    sendARP = do
+      -- FIXME: actually, until feature request
+      M.threadDelay 500000
+      tid <- nextTranID
+      sendReplyT (arpGrat tid) (return ())
+
+    conduit = forever $ do
+      forever $ do
+        bs' <- await
+        when (isJust bs') $ do
+          let bs = fromJust bs'
+          case (ofpParsePacket bs) of
+            Just (msg, rest) -> (liftIO $ dump "IN:" (ofp_header msg) bs) >> dispatch msg >> leftover rest
+            Nothing          -> return ()
+      -- TODO: send PacketIn and whatever
+
+    conduit' = do
       -- TODO: send ARP Gratuitous Reply
       liftIO $ M.forkIO $ liftIO $ do
         -- FIXME: actually, until GET_FEATURES_REPLY
@@ -144,7 +251,7 @@ client fk@(FakeSwitch sw switchIP) cfg ad = do
     defaultPacketInPort = (ofp_port_no . last . ofp_ports) sw
 
     script = undefined
-
+-}
 
 -- TODO: move liftIO here
 -- TODO: truncate message by length in header
