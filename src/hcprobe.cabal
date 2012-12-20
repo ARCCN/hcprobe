@@ -17,8 +17,8 @@ cabal-version:       >=1.8
 library
     exposed-modules:  Network.Openflow.Types
     build-depends:    base, binary, binary-strict, bytestring,
-                      network-conduit==0.6.*,
-                      resourcet, async,
+                      network-conduit==0.6.*, cereal,
+                      resourcet, async, network-data,
                       random, digest, stm, stm-conduit, stm-chans,
                       conduit==0.5.*,
                       random, digest,
@@ -30,7 +30,7 @@ executable hcprobe
   -- other-modules:    
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit==0.5.*, network-conduit==0.6.*,
-                       resourcet, async,
+                       resourcet, async, network-data, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers,
                        MaybeT
@@ -42,7 +42,7 @@ executable ethertest
   -- other-modules:    
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit==0.5.*, network-conduit==0.6.*,
-                       resourcet, async,
+                       resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers,
                        MaybeT

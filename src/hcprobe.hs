@@ -3,10 +3,13 @@ module Main where
 
 import Network.Openflow.Types
 import Network.Openflow.Ethernet.ARP
+import Network.Openflow.Ethernet.IPv4
+import Network.Openflow.Ethernet.TCP
 import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Messages
 import Network.Openflow.Misc
 import HCProbe.FakeSwitch
+import HCProbe.TCP
 
 import Data.Binary.Put ( runPut )
 import qualified Data.ByteString as BS
@@ -30,6 +33,10 @@ pktGenTest fk chan = do
   forM_ rs $ \tid -> do
     threadDelay 150000
     atomically $ writeTBMChan chan (arpGrat fk 1 tid)
+
+-- TODO: multiple switches
+-- TODO: send "real" IP packets
+-- TODO: generate IP packets
 
 main :: IO ()
 main = do

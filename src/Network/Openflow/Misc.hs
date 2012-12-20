@@ -1,6 +1,6 @@
 module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ, 
                                bsStrict, bsLazy, encodePutM, ipv4,
-                               hexdumpBs
+                               csum16, hexdumpBs
                              ) where
 
 import Network.Openflow.Types
@@ -8,7 +8,9 @@ import Network.Openflow.Ethernet.Types
 import Data.Word
 import Data.Bits
 import Data.Binary.Put
+import Data.Binary.Strict.Get
 import Data.List
+import Data.Either
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import Control.Monad
@@ -41,11 +43,20 @@ hexdumpBs n ds ts bs = concat $ concat rows
 
 encodePutM = bsStrict . runPut
 
-
 ipv4 :: Word8->Word8->Word8->Word8 -> IPv4Addr
 ipv4 a b c d = wa .|. wb .|. wc .|. wd
   where wa = fromIntegral a `shiftL` 24
         wb = fromIntegral b `shiftL` 16
         wc = fromIntegral c `shiftL`  8
         wd = fromIntegral d
+
+csum16 :: BS.ByteString -> Maybe Word16
+csum16 b = words >>= return . (foldl' ( (+) . complement) 0)
+  where words = case words' of
+         (Right ws,_) -> Just ws
+         _            -> Nothing
+        words' = runGet (sequence $ replicate (fromIntegral $ BS.length b `div` 4) getWord16be) b
+  
+{-# INLINE csum16 #-}
+
 
