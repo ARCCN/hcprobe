@@ -36,6 +36,8 @@ import Control.Applicative ((<$>))
 
 import Control.Concurrent.STM.TBMChan
 
+import Control.Monad.Maybe
+
 import Debug.Trace
 
 encodeMsg = encodePutM . putMessage

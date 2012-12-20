@@ -29,7 +29,8 @@ executable hcprobe
                        conduit==0.5.*, network-conduit==0.6.*,
                        resourcet, async,
                        random, digest, stm, stm-conduit, stm-chans,
-                       transformers, mtl, containers
+                       transformers, mtl, containers,
+                       MaybeT
 
   Ghc-options:         -Wall -threaded
 
