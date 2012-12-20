@@ -52,6 +52,7 @@ data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
 
 pktSendTimeout = 500000
 
+-- FIXME: handle "resource vanished" exception
 ofpClient pktGen sw host port = do
   switchCfg <- newTVarIO (SwitchState 0 defaultSwitchConfig)
   runTCPClient (clientSettings port host) (client pktGen sw switchCfg)
@@ -70,11 +71,8 @@ client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
 
     let sender = forever $ do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        v <- liftIO $ atomically (readTBMChan pktSendQ)
-        case v of 
-          Just msg -> sendReplyT msg (return ())
-          Nothing  -> return ()
-        return ()
+        liftIO $ atomically (readTBMChan pktSendQ) >>= maybe skip sendReplyT
+        where skip = return ()
 
     let receiver = appSource ad $$ forever $ do
         bs' <- await
@@ -86,18 +84,17 @@ client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
 
     let sendARPGrat = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        tid <- nextTranID
-        sendReplyT (arpGrat fk tid) (return ())
+        liftM (arpGrat fk) nextTranID >>= sendReplyT
 
-    allocate (M.forkIO (sender)) (M.killThread)
-    allocate (M.forkIO (sendARPGrat)) (M.killThread)
-    allocate (M.forkIO (receiver)) (M.killThread)
-    allocate (M.forkIO (pktInGen fk pktSendQ)) (M.killThread)
+    allocate (M.forkIO sender) M.killThread
+    allocate (M.forkIO sendARPGrat) M.killThread
+    allocate (M.forkIO receiver) M.killThread
+    allocate (M.forkIO (pktInGen fk pktSendQ)) M.killThread
 
     forever $ do liftIO $ M.threadDelay 1000000
 
   where
-    sendReplyT msg fm = fm >> do
+    sendReplyT msg = do
       liftIO $ dump "OUT:" (ofp_header msg) replyBs
       yield replyBs $$ (appSink ad)
       where replyBs = encodeMsg msg
@@ -130,12 +127,12 @@ client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
         liftIO $ atomically (writeTVar (handshakeDone c) True)
 
     processMessage _ OFPT_VENDOR msg = do
-      let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) (BS.empty)
+      let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) BS.empty
       let reply = errorReply (ofp_header msg) errT
-      sendReply (reply) nothing
+      sendReply reply nothing
 
     -- TODO: implement the following messages
-    processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
+    processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) =
       nothing
 
     -- TODO: implement the following messages
@@ -148,7 +145,7 @@ client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
 
     sendReply msg fm = fm >> do
       liftIO $ dump "OUT:" (ofp_header msg) replyBs
-      lift $ yield replyBs $$ (appSink ad)
+      lift $ yield replyBs $$ appSink ad
       where replyBs = encodeMsg msg
 
 
@@ -159,18 +156,19 @@ client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
       return (fromIntegral t)
 
 
-    withTimeout :: Int -> (STM a) -> IO (Maybe a)
+    withTimeout :: Int -> STM a -> IO (Maybe a)
     withTimeout tv f = do
       x <- registerDelay tv
       atomically $ (readTVar x >>= \y -> if y
                                          then return Nothing
                                          else retry) `orElse` (Just <$> f)
 
-defaultPacketInPort = (ofp_port_no . last . ofp_ports)
+-- FIXME: last raises exception on empty list
+defaultPacketInPort = ofp_port_no . last . ofp_ports
 
 arpGrat fk tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
   where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
-        pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = (1 :: Word32)
+        pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = 1 :: Word32 -- FIXME: <- use correct port number
                             , ofp_pkt_in_in_port   = defaultPacketInPort sw
                             , ofp_pkt_in_reason    = OFPR_NO_MATCH
                             , ofp_pkt_in_data      = arpGratData 
@@ -210,7 +208,7 @@ main = do
 --  let (p,g) = makePort (defaultPortGen rnd) [] [] [OFPPF_1GB_HD,OFPPF_COPPER]
 --  let q = encodePutM (putOfpPort p)
 --  printf "Port Len: %d\n" (BS.length q)
-  let (fake@(FakeSwitch sw _),g') = makeSwitch (defaultSwGen (ipv4 10 0 0 1) rnd) 48 [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+  let (fake@(FakeSwitch sw _),_) = makeSwitch (defaultSwGen (ipv4 10 0 0 1) rnd) 48 [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
   let hdr = header openflow_1_0 1 OFPT_FEATURES_REPLY
   let feature_repl = OfpMessage hdr (OfpFeatureReply sw)
   let bs = bsStrict $ runPut (putMessage feature_repl)

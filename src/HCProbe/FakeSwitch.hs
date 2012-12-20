@@ -43,7 +43,7 @@ makePort gen cfg st ft = (port, gen')
         fmac acc b = (acc `shiftL` 8) .|. (fromIntegral b :: Word64)
         rand :: StdGen -> (Word8, StdGen)
         rand = random
-        port = OfpPhyPort { ofp_port_no         = fromIntegral $ pn
+        port = OfpPhyPort { ofp_port_no         = fromIntegral pn
                           , ofp_port_hw_addr    = foldl fmac 0 macbytes
                           , ofp_port_name       = pnm
                           , ofp_port_config     = S.fromList cfg
@@ -91,7 +91,7 @@ makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen), gen'
           return p
 
 fmtMac :: MACAddr -> String
-fmtMac mac = concat $ intersperse ":" $ map (printf "%02X") bytes
+fmtMac mac = intercalate ":" $ map (printf "%02X") bytes
   where bytes = drop 2 $ unpack64 mac
 
 fmtPort :: OfpPhyPort -> String
@@ -103,7 +103,7 @@ fmtPort p = printf "%02d %-6s HWAddr:%18s, ST: %s, FT: %s" pno pname mac st ft
         ft  = show $ S.toList (ofp_port_current p)
 
 fmtSwitch :: OfpSwitchFeatures -> String
-fmtSwitch f = printf "DPID: %s, %s\n" dp cap ++ concat (intersperse "\n" ports)
+fmtSwitch f = printf "DPID: %s, %s\n" dp cap ++ intercalate "\n" ports
   where dp  = fmtMac (ofp_datapath_id f)
         cap = show (S.toList (ofp_capabilities f))
         ports = map fmtPort (ofp_ports f) 

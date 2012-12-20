@@ -26,8 +26,8 @@ executable hcprobe
   main-is:           hcprobe.hs
   -- other-modules:    
   build-depends:       base, binary, binary-strict, bytestring,
-                       conduit, network-conduit==0.6.*,
-                       conduit==0.5.*, resourcet, async,
+                       conduit==0.5.*, network-conduit==0.6.*,
+                       resourcet, async,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers
 
@@ -37,8 +37,8 @@ executable ethertest
   main-is:           ethertest.hs
   -- other-modules:    
   build-depends:       base, binary, binary-strict, bytestring,
-                       conduit, network-conduit==0.6.*,
-                       conduit==0.5.*, resourcet, async,
+                       conduit==0.5.*, network-conduit==0.6.*,
+                       resourcet, async,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers
 
