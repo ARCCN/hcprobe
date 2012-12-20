@@ -42,32 +42,32 @@ encodeMsg = encodePutM . putMessage
 
 -- TODO: move to FakeSwitch ?
 
-data SwitchState = SwitchState { swTranID :: Word32
-                               , swCfg :: OfpSwitchConfig
-                               }
-
-
 data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
+                                   , transactionID :: TVar Int
+                                   , switchCfg     :: TVar OfpSwitchConfig
                                    }
 
 pktSendTimeout = 500000
+pktSendQLen    = 10000
 
 -- FIXME: handle "resource vanished" exception
 ofpClient pktGen sw host port = do
-  switchCfg <- newTVarIO (SwitchState 0 defaultSwitchConfig)
-  runTCPClient (clientSettings port host) (client pktGen sw switchCfg)
+  runTCPClient (clientSettings port host) (client pktGen sw)
 
-client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
+client pktInGen fk@(FakeSwitch sw switchIP) ad = do
 
   runResourceT $ do
   -- TODO: allocate shared structures
   -- TODO: forkIO receiver
   -- TODO: forkIO sender
 
-    (_, pktSendQ) <- allocate (newTBMChanIO 1024) (atomically.closeTBMChan)
-    featureReplyMonitor <- liftIO $ newTVarIO False
+    (_, pktSendQ) <- allocate (newTBMChanIO pktSendQLen) (atomically.closeTBMChan)
 
-    let ctx = SwitchContext featureReplyMonitor
+    tranId <- liftIO $ newTVarIO 0
+    featureReplyMonitor <- liftIO $ newTVarIO False
+    swCfg <- liftIO $ newTVarIO defaultSwitchConfig
+
+    let ctx = SwitchContext featureReplyMonitor tranId swCfg
 
     let sender = forever $ do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
@@ -80,18 +80,17 @@ client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
           let bs = fromJust bs'
           case (ofpParsePacket bs) of
             Just (msg, rest) -> (liftIO $ dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg >> leftover rest
-            Nothing          -> return ()    
+            Nothing          -> return ()
 
     let sendARPGrat = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        liftM (arpGrat fk) nextTranID >>= sendReplyT
+        liftM (arpGrat fk) (nextTranID ctx) >>= sendReplyT
 
-    allocate (M.forkIO sender) M.killThread
-    allocate (M.forkIO sendARPGrat) M.killThread
-    allocate (M.forkIO receiver) M.killThread
-    allocate (M.forkIO (pktInGen fk pktSendQ)) M.killThread
+    let mainThread = receiver
+    let threads = [sender, sendARPGrat, (pktInGen fk pktSendQ)]
+    mapM_ ((flip allocate M.killThread) . M.forkIO) threads
 
-    forever $ do liftIO $ M.threadDelay 1000000
+    liftIO mainThread
 
   where
     sendReplyT msg = do
@@ -103,33 +102,30 @@ client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
       Nothing   -> return ()
       Just msg' -> processMessage c (ofp_hdr_type hdr) msg'
 
-    processMessage _ OFPT_HELLO (OfpMessage hdr _) = sendReply (headReply hdr OFPT_HELLO) nothing
+    processMessage _ OFPT_HELLO (OfpMessage hdr _) = sendReply (headReply hdr OFPT_HELLO)
 
-    processMessage c OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = sendReply reply nothing 
+    processMessage c OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = sendReply reply
       where reply = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
 
-    processMessage _ OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = sendReply reply nothing
+    processMessage _ OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = sendReply reply
       where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
 
-    processMessage _ OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = do
-      liftIO $ atomically $ do 
-        st <- readTVar cfg
-        writeTVar cfg (st { swCfg = cfg' })
+    processMessage c OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = do
+      liftIO $ atomically $ modifyTVar (switchCfg c) (const cfg')
 
-    processMessage _ OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) = do
-      st <- liftIO $ atomically $ readTVar cfg
-      sendReply (getConfigReply hdr (swCfg st)) nothing
+    processMessage c OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) =
+      (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
 
     -- FIXME: possible problems with other controllers rather than NOX
     processMessage c OFPT_BARRIER_REQUEST msg = do
       -- TODO: do something, process all pkts, etc
-      sendReply (headReply (ofp_header msg) OFPT_BARRIER_REPLY) $ do
-        liftIO $ atomically (writeTVar (handshakeDone c) True)
+      liftIO $ atomically (writeTVar (handshakeDone c) True)
+      sendReply (headReply (ofp_header msg) OFPT_BARRIER_REPLY)
 
     processMessage _ OFPT_VENDOR msg = do
       let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) BS.empty
       let reply = errorReply (ofp_header msg) errT
-      sendReply reply nothing
+      sendReply reply
 
     -- TODO: implement the following messages
     processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) =
@@ -143,18 +139,14 @@ client pktInGen fk@(FakeSwitch sw switchIP) cfg ad = do
 
     nothing = return ()
 
-    sendReply msg fm = fm >> do
+    sendReply msg = do
       liftIO $ dump "OUT:" (ofp_header msg) replyBs
       lift $ yield replyBs $$ appSink ad
       where replyBs = encodeMsg msg
 
-
---    nextTranID :: Application IO
-    nextTranID = liftIO $ atomically $ do 
-      st@(SwitchState t c) <- readTVar cfg
-      writeTVar cfg (st{swTranID = succ t})
-      return (fromIntegral t)
-
+    nextTranID c = liftIO $ atomically $ do
+      modifyTVar (transactionID c) succ
+      readTVar (transactionID c) >>= return . fromIntegral
 
     withTimeout :: Int -> STM a -> IO (Maybe a)
     withTimeout tv f = do
