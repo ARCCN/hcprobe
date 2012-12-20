@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleInstances, DeriveDataTypeable #-}
-module Network.Openflow.Ethernet.TCP (TCPFlag) where
+module Network.Openflow.Ethernet.TCP (TCPFlag(..), TCP(..), putTCP) where
 
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
@@ -10,6 +10,8 @@ import Data.Word
 import Data.Binary.Put
 import Data.Bits
 import Data.List (foldl')
+
+import Debug.Trace
 
 type TCPPort = Word16
 
@@ -37,7 +39,7 @@ putTCP x = putHeader (csum16 pkt) >> (tcpPutPayload x)
   {- 4  -} putWord16be dstPort
   {- 8  -} putWord32be seqno
   {- 12 -} putWord32be ackno
-  {- 13 -} putWord8    (fromIntegral hlen)
+  {- 13 -} putWord8    (fromIntegral dataoff)
   {- 14 -} putWord8    flags
   {- 16 -} putWord16be wss
   {- 20 -} putWord16be (maybe 0 id cs)
@@ -59,7 +61,7 @@ putTCP x = putHeader (csum16 pkt) >> (tcpPutPayload x)
         dstPort = tcpDstPort x
         seqno   = tcpSeqNo x
         ackno   = tcpAckNo x
-        dataoff = ((hlen .&. 0xF) `shiftL` 4)
+        dataoff = (((hlen `div` 4) .&. 0xF) `shiftL` 4)
         flags   = (fromIntegral $ fromEnum (tcpFlags x))
         wss     = tcpWinSize x
         isUrgent = ( flags .|. (fromIntegral $ fromEnum URG) ) /= 0

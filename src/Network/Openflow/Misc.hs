@@ -15,6 +15,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import Control.Monad
 import Text.Printf
+import Debug.Trace
 
 unpack64 :: Word64 -> [Word8]
 unpack64 x = map (fromIntegral.(shiftR x)) [56,48..0]
@@ -51,12 +52,10 @@ ipv4 a b c d = wa .|. wb .|. wc .|. wd
         wd = fromIntegral d
 
 csum16 :: BS.ByteString -> Maybe Word16
-csum16 b = words >>= return . (foldl' ( (+) . complement) 0)
-  where words = case words' of
-         (Right ws,_) -> Just ws
-         _            -> Nothing
-        words' = runGet (sequence $ replicate (fromIntegral $ BS.length b `div` 4) getWord16be) b
-  
+csum16 s = words >>= return . trunc . (foldl' (\acc w -> acc + fromIntegral w) 0)
+  where withResult (Left _, _)  = Nothing
+        withResult (Right s, _) = Just s
+        words = withResult $ flip runGet s (replicateM (BS.length s `div` 2) $ getWord16be)
+        trunc :: Word32 -> Word16
+        trunc w = fromIntegral $ complement $ (w .&. 0xFFFF) + (w `shiftR` 16)
 {-# INLINE csum16 #-}
-
-
