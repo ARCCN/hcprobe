@@ -18,6 +18,8 @@ library
     exposed-modules:  Network.Openflow.Types
     build-depends:    base, binary, binary-strict, bytestring,
                       network-conduit==0.6.*,
+                      resourcet, async,
+                      random, digest, stm, stm-conduit, stm-chans,
                       conduit==0.5.*,
                       random, digest,
                       transformers, mtl, containers

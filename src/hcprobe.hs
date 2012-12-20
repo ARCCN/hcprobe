@@ -76,17 +76,15 @@ client pktInGen fk@(FakeSwitch sw switchIP) ad = do
         liftIO $ atomically (readTBMChan pktSendQ) >>= maybe skip sendReplyT
         where skip = return ()
 
-    let receiver = appSource ad $$ forever $ do
-        bs' <- await
-        when (isJust bs') $ do
-          let bs = fromJust bs'
-          case (ofpParsePacket bs) of
-            Just (msg, rest) -> (liftIO $ dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg >> leftover rest
-            Nothing          -> return ()
+    let receiver = appSource ad $$ forever $ runMaybeT $ do
+        bs <- MaybeT await
+        (msg, rest) <- MaybeT $ return (ofpParsePacket bs)
+        lift $ liftIO (dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg >> leftover rest
 
     let sendARPGrat = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        liftM (arpGrat fk) (nextTranID ctx) >>= sendReplyT
+        liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
+
 
     let mainThread = receiver
     let threads = [sender, sendARPGrat, (pktInGen fk pktSendQ)]
@@ -160,9 +158,9 @@ client pktInGen fk@(FakeSwitch sw switchIP) ad = do
 -- FIXME: last raises exception on empty list
 defaultPacketInPort = ofp_port_no . last . ofp_ports
 
-arpGrat fk tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
+arpGrat fk bid tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
   where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
-        pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = 1 :: Word32 -- FIXME: <- use correct port number
+        pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = bid
                             , ofp_pkt_in_in_port   = defaultPacketInPort sw
                             , ofp_pkt_in_reason    = OFPR_NO_MATCH
                             , ofp_pkt_in_data      = arpGratData 
@@ -177,10 +175,10 @@ arpGrat fk tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
 -- TODO: truncate message by length in header
 -- TODO: use logger / settings
 dump :: String -> OfpHeader -> BS.ByteString -> IO ()
-dump s hdr bs = return ()
---dump s hdr bs = do
---  let tp = show (ofp_hdr_type hdr)
---  putStr $ printf "%-4s %-24s %s\n" s tp (hexdumpBs 32 " " "" (BS.take 32 bs))
+--dump s hdr bs = return ()
+dump s hdr bs = do
+  let tp = show (ofp_hdr_type hdr)
+  putStr $ printf "%-4s %-24s %s\n" s tp (hexdumpBs 32 " " "" (BS.take 32 bs))
 
 defActions = [ OFPAT_OUTPUT,OFPAT_SET_VLAN_VID,OFPAT_SET_VLAN_PCP
              , OFPAT_STRIP_VLAN,OFPAT_SET_DL_SRC,OFPAT_SET_DL_DST
@@ -193,7 +191,7 @@ pktGenTest fk chan = do
   rs <- liftM randoms newStdGen :: IO [Word32]
   forM_ rs $ \tid -> do
     M.threadDelay 150000
-    atomically $ writeTBMChan chan (arpGrat fk tid)
+    atomically $ writeTBMChan chan (arpGrat fk 1 tid)
 
 main :: IO ()
 main = do
