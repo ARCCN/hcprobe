@@ -45,8 +45,11 @@ instance IPv4 TestPacketTCP where
   ipPutPayload = putTCP
 
 instance TCP TestPacketTCP where
-  tcpSrcPort    = srcPort 
-  tcpDstPort    = dstPort 
+  tcpSrcAddr    = ipSrc
+  tcpDstAddr    = ipDst
+  tcpProto      = ipProto
+  tcpSrcPort    = srcPort
+  tcpDstPort    = dstPort
   tcpSeqNo      = (maybe 0 fromIntegral).testSeqNo
   tcpAckNo      = (maybe 0 fromIntegral).testAckNo
   tcpFlags      = (maybe [] id).testFlags

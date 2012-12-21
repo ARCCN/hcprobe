@@ -7,6 +7,9 @@ import Data.Digest.CRC32
 import Data.Word
 
 
+import Debug.Trace
+import Text.Printf
+
 -- TODO: possibly, there is a way to calculate crc32 on the fly,
 --       without generating the actual bytestring         
 
@@ -20,5 +23,5 @@ putEthernetFrame x = putByteString frame >> putCRC32 frame
         Nothing    -> putWord16be (typeCode x)
         Just (vid) -> putWord16be 0x8100 >> putWord16be vid >> putWord16be (typeCode x)
       putPayload x
-    putCRC32 bs = putWord32be (crc32 bs)
+    putCRC32 bs = putWord32le (crc32 bs)
 

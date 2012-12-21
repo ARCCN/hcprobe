@@ -55,7 +55,7 @@ csum16 :: BS.ByteString -> Maybe Word16
 csum16 s = words >>= return . trunc . (foldl' (\acc w -> acc + fromIntegral w) 0)
   where withResult (Left _, _)  = Nothing
         withResult (Right s, _) = Just s
-        words = withResult $ flip runGet s (replicateM (BS.length s `div` 2) $ getWord16be)
+        words = withResult $ flip runGet s (replicateM (BS.length s `div` 2) $ getWord16le)
         trunc :: Word32 -> Word16
         trunc w = fromIntegral $ complement $ (w .&. 0xFFFF) + (w `shiftR` 16)
 {-# INLINE csum16 #-}

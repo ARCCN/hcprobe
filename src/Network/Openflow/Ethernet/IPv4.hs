@@ -36,11 +36,7 @@ putIPv4Pkt :: IPv4 a => a -> PutM ()
 putIPv4Pkt x = do
   let hdrF = hdr
   let crc16 = csum16 hdrF
---  trace (show crc16) $ return ()
---  trace (hexdumpBs 128 "" "" hdrF) $ return ()
   putHdr crc16 >> putByteString body
-  
-  putByteString body
   where
     hdr = (bsStrict.runPut) (putHdr Nothing)
     body = (bsStrict . runPut) (ipPutPayload x)
@@ -53,7 +49,7 @@ putIPv4Pkt x = do
       putWord16be flagsOff
       putWord8    ttl
       putWord8    proto
-      putWord16le (maybe 0 id cs)
+      putWord16be (maybe 0 id cs)
       putIP       ipS
       putIP       ipD
 
@@ -64,7 +60,7 @@ putIPv4Pkt x = do
     ipId   = ipID x
     flagsOff = (off .&. 0x1FFF) .|. ((fromIntegral flags) `shiftL` 13)
     flags  = ipFlags x
-    totLen = fromIntegral $ 2*(ipHeaderLen x) + fromIntegral (BS.length body)
+    totLen = fromIntegral $ 4*(ipHeaderLen x) + fromIntegral (BS.length body)
     off    = ipFragOffset x
     ttl    = ipTTL x
     proto  = ipProto x
