@@ -5,7 +5,6 @@ import Network.Openflow.Ethernet.IPv4
 import Network.Openflow.Ethernet.TCP
 import qualified Data.ByteString as BS
 import Data.Binary.Put
-import qualified Data.Serialize as S
 import Data.Word
 
 data TestPacketTCP = TestPacketTCP { dstMAC  :: MACAddr

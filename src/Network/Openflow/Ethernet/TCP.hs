@@ -50,7 +50,7 @@ putTCP x = do
   {- 13 -} putWord8    (fromIntegral dataoff)
   {- 14 -} putWord8    flags
   {- 16 -} putWord16be wss
-  {- 18 -} putWord16be (maybe 0 id cs)
+  {- 18 -} putWord16le (maybe 0 id cs)
   {- 20 -} when isUrgent $ putWord16be (tcpUrgentPtr x)
   {- ?? -} padding
 

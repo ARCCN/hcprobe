@@ -49,7 +49,7 @@ putIPv4Pkt x = do
       putWord16be flagsOff
       putWord8    ttl
       putWord8    proto
-      putWord16be (maybe 0 id cs)
+      putWord16le (maybe 0 id cs)
       putIP       ipS
       putIP       ipD
 

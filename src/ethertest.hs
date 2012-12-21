@@ -31,9 +31,11 @@ import System.Environment (getArgs)
 import Debug.Trace
 
 
+mcPrefix = (0x00163e `shiftL` 24) :: Word64
+
 testTCP = do
-  dstMac <- randomIO :: IO MACAddr
-  srcMac <- randomIO :: IO MACAddr
+  dstMac <- liftM ( \x -> (x .&. 0xFFFFFF) .|. mcPrefix ) randomIO :: IO MACAddr
+  srcMac <- liftM ( \x -> (x .&. 0xFFFFFF) .|. mcPrefix ) randomIO :: IO MACAddr
   srcIp  <- randomIO :: IO IPv4Addr
   dstIp  <- randomIO :: IO IPv4Addr
   srcP   <- randomIO :: IO Word16
