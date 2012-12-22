@@ -31,11 +31,11 @@ import System.Environment (getArgs)
 import Debug.Trace
 
 
-mcPrefix = (0x00163e `shiftL` 24) :: Word64
+mcPrefix = ((.|.)(0x00163e`shiftL`24)).((.&.)0xFFFFFF)
 
 testTCP = do
-  dstMac <- liftM ( \x -> (x .&. 0xFFFFFF) .|. mcPrefix ) randomIO :: IO MACAddr
-  srcMac <- liftM ( \x -> (x .&. 0xFFFFFF) .|. mcPrefix ) randomIO :: IO MACAddr
+  dstMac <- liftM mcPrefix randomIO :: IO MACAddr
+  srcMac <- liftM mcPrefix randomIO :: IO MACAddr
   srcIp  <- randomIO :: IO IPv4Addr
   dstIp  <- randomIO :: IO IPv4Addr
   srcP   <- randomIO :: IO Word16
@@ -60,7 +60,7 @@ testTCP = do
 
 crcTest :: IO ()                         
 crcTest = replicateM_ 1000 $ do
-  pkt <- replicateM 64 randomIO >>= return . BS.pack
+  pkt <- liftM  BS.pack $ replicateM 64 randomIO
   let crc = csum16 pkt
   printf "%s %s\n" (show crc) (hexdumpBs 64 "" "" pkt)
 

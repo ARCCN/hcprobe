@@ -35,8 +35,6 @@ pktGenTest fk chan = do
     atomically $ writeTBMChan chan (arpGrat fk 1 tid)
 
 -- TODO: multiple switches
--- TODO: send "real" IP packets
--- TODO: generate IP packets
 
 main :: IO ()
 main = do
