@@ -33,6 +33,7 @@ import Data.Bits
 import Data.Conduit
 import Data.Conduit.Network
 import Data.List
+import Data.Maybe
 import Data.Word
 import System.Random
 import Text.Printf
@@ -54,7 +55,7 @@ makePort :: PortGen
 makePort gen cfg st ft = (port, gen') 
   where pn  = pnum gen
         pnm = (pname gen) pn
-        gen' = gen { pnum = pn + 1, rndGen = (snd.head.reverse) mac' }
+        gen' = gen { pnum = pn + 3, rndGen = (snd.head.reverse) mac' }
         mac' = take 3 $ unfoldr ( \g -> Just (rand g, snd (rand g)) ) (rndGen gen)
         macbytes =  [0x00, 0x16, 0x3e] ++ map fst mac' :: [Word8]
         fmac acc b = (acc `shiftL` 8) .|. (fromIntegral b :: Word64)
@@ -78,7 +79,11 @@ data SwitchGen = SwitchGen {  dpid    :: Int
 defaultSwGen :: IPv4Addr -> StdGen -> SwitchGen
 defaultSwGen ip g = SwitchGen 1 ip g
 
-data FakeSwitch = FakeSwitch { switchFeatures :: OfpSwitchFeatures, switchIP :: IPv4Addr }
+data FakeSwitch = FakeSwitch {  switchFeatures :: OfpSwitchFeatures
+                              , switchIP       :: IPv4Addr 
+                              , onSendMessage  :: Maybe (OfpMessage -> IO ())
+                              , onRecvMessage  :: Maybe (OfpMessage -> IO ())
+                             }
 
 makeSwitch :: SwitchGen
            -> Int
@@ -89,7 +94,7 @@ makeSwitch :: SwitchGen
            -> [OfpPortFeatureFlags]
            -> (FakeSwitch, SwitchGen)
 
-makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen), gen')
+makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen) Nothing Nothing, gen')
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
                                      , ofp_n_buffers    = fromIntegral $ 8*ports
                                      , ofp_n_tables     = 1
@@ -139,12 +144,9 @@ pktSendQLen    = 10000
 ofpClient pktGen sw host port = do
   runTCPClient (clientSettings port host) (client pktGen sw)
 
-client pktInGen fk@(FakeSwitch sw switchIP) ad = do
+client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
 
   runResourceT $ do
-  -- TODO: allocate shared structures
-  -- TODO: forkIO receiver
-  -- TODO: forkIO sender
 
     (_, pktSendQ) <- allocate (newTBMChanIO pktSendQLen) (atomically.closeTBMChan)
 
@@ -162,6 +164,8 @@ client pktInGen fk@(FakeSwitch sw switchIP) ad = do
     let receiver = appSource ad $$ forever $ runMaybeT $ do
         bs <- MaybeT await
         (msg, rest) <- MaybeT $ return (ofpParsePacket bs)
+--        when (outH) $ undefined
+        maybe (return ()) (\x -> (lift.liftIO.x) msg) rH 
         lift $ liftIO (dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg >> leftover rest
 
     let sendARPGrat = do
@@ -179,6 +183,7 @@ client pktInGen fk@(FakeSwitch sw switchIP) ad = do
     sendReplyT msg = do
       liftIO $ dump "OUT:" (ofp_header msg) replyBs
       yield replyBs $$ (appSink ad)
+      maybe (return ()) (\x -> (liftIO.x) msg) sH
       where replyBs = encodeMsg msg
 
     dispatch c msg@(OfpMessage hdr msgData) = case (parseMessageData msg) of

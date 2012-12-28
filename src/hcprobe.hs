@@ -21,6 +21,7 @@ import Data.Bits
 import Text.Printf
 import Data.Maybe
 import Data.List (intersperse, concat, unfoldr)
+import qualified Data.IntMap as IntMap 
 
 import System.Random
 import System.Environment (getArgs)
@@ -79,10 +80,19 @@ tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
         sw  = switchFeatures fk
 
 
+type PktStats = IntMap.IntMap Int
 
--- TODO: multiple switches
--- TODO: send "real" IP packets
--- TODO: generate IP packets
+onSend :: TVar PktStats -> OfpMessage -> IO ()
+onSend s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = atomically $ do
+  st <- readTVar s
+  writeTVar s ( IntMap.insert (fromIntegral bid) 0 st )
+
+onSend _ _ = return ()
+
+onReceive :: TVar PktStats -> OfpMessage -> IO ()
+onReceive s (OfpMessage _ (OfpPacketOut _)) = undefined
+
+onReceive _ _  = return ()
 
 main :: IO ()
 main = do
@@ -90,9 +100,11 @@ main = do
 --  let (p,g) = makePort (defaultPortGen rnd) [] [] [OFPPF_1GB_HD,OFPPF_COPPER]
 --  let q = encodePutM (putOfpPort p)
 --  printf "Port Len: %d\n" (BS.length q)
+  stats <- newTVarIO (IntMap.empty)
   workers <- forM [1..500] $ \i -> do
     rnd <- newStdGen
-    let (fake@(FakeSwitch sw _),_) = makeSwitch (defaultSwGen (ipv4 10 0 0 1) rnd) 48 [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+    let (fake'@(FakeSwitch sw _ _ _),_) = makeSwitch (defaultSwGen (ipv4 10 0 0 1) rnd) 48 [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+    let fake = fake' { onSendMessage = Just (onSend stats), onRecvMessage = Just (onReceive stats) }
     let hdr = header openflow_1_0 1 OFPT_FEATURES_REPLY
     let feature_repl = OfpMessage hdr (OfpFeatureReply sw)
     let bs = bsStrict $ runPut (putMessage feature_repl)
