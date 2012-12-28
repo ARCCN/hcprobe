@@ -38,6 +38,8 @@ import Data.Word
 import System.Random
 import Text.Printf
 
+import Debug.Trace
+
 data PortGen = PortGen { pnum   :: Int
                        , pname  :: Int -> BS.ByteString
                        , rndGen :: StdGen
@@ -76,8 +78,8 @@ data SwitchGen = SwitchGen {  dpid    :: Int
                            ,  ipAddr  :: IPv4Addr
                            ,  swRnd   :: StdGen
                            }
-defaultSwGen :: IPv4Addr -> StdGen -> SwitchGen
-defaultSwGen ip g = SwitchGen 1 ip g
+defaultSwGen :: Int -> IPv4Addr -> StdGen -> SwitchGen
+defaultSwGen i ip g = SwitchGen i ip g
 
 data FakeSwitch = FakeSwitch {  switchFeatures :: OfpSwitchFeatures
                               , switchIP       :: IPv4Addr 
@@ -102,7 +104,7 @@ makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen) Nothi
                                      , ofp_actions      = S.fromList act
                                      , ofp_ports        = pps
                                      }
-        gen' = gen { dpid = (dpid gen) + 1, swRnd = (rndGen pg') }
+        gen' = gen { dpid = succ (dpid gen), swRnd = (rndGen pg') }
         (pps, pg') = flip runState pg $ replicateM ports genPort
         pg = defaultPortGen (swRnd gen)
 
@@ -164,8 +166,6 @@ client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
     let receiver = appSource ad $$ forever $ runMaybeT $ do
         bs <- MaybeT await
         (msg, rest) <- MaybeT $ return (ofpParsePacket bs)
---        when (outH) $ undefined
-        maybe (return ()) (\x -> (lift.liftIO.x) msg) rH 
         lift $ liftIO (dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg >> leftover rest
 
     let sendARPGrat = do
@@ -187,8 +187,13 @@ client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
       where replyBs = encodeMsg msg
 
     dispatch c msg@(OfpMessage hdr msgData) = case (parseMessageData msg) of
-      Nothing   -> return ()
-      Just msg' -> processMessage c (ofp_hdr_type hdr) msg'
+      Nothing   ->  return ()
+      Just msg'@(OfpMessage h _) -> processMessage c (ofp_hdr_type hdr) msg'
+
+    -- TODO: implement the following messages
+    processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
+      maybe (return ()) (\x -> (liftIO.x) m) rH
+      return ()
 
     processMessage _ OFPT_HELLO (OfpMessage hdr _) = sendReply (headReply hdr OFPT_HELLO)
 
@@ -214,10 +219,6 @@ client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
       let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) BS.empty
       let reply = errorReply (ofp_header msg) errT
       sendReply reply
-
-    -- TODO: implement the following messages
-    processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) =
-      nothing
 
     -- TODO: implement the following messages
     processMessage _ OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing

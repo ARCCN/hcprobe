@@ -6,6 +6,7 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , OfpErrorType(..), OfpHelloFailedCode(..), OfpBadActionCode(..)
                               , OfpBadRequestCode(..), OfpFlowModFailedCode(..), OfpPortModFailedCode(..)
                               , OfpQueueOpFailedCode(..), OfpPacketIn(..), OfpPacketInReason(..)
+                              , OfpPacketOutData(..)
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags, ofErrorType
                               , ofActionType
@@ -46,7 +47,7 @@ data OfpMessageData =   OfpMessageRaw BS.ByteString
                       | OfpGetConfigRequest
                       | OfpGetConfigReply OfpSwitchConfig
                       | OfpHello | OfpEmptyReply
-                      | OfpPacketOut BS.ByteString -- FIXME: implement real data type
+                      | OfpPacketOut OfpPacketOutData  -- FIXME: implement real data type
                       | OfpVendor BS.ByteString    -- WTF?
                       | OfpErrorReply OfpError
                       | OfpPacketInReply OfpPacketIn
@@ -302,5 +303,8 @@ data OfpPacketInReason = OFPR_NO_MATCH | OFPR_ACTION
                          deriving (Eq, Ord, Enum, Show)
 
 
-
+data OfpPacketOutData = OfpPacketOutData { ofp_pkt_out_buffer_id :: Word32
+                                         , ofp_pkt_out_in_port   :: Word16
+                                         -- TODO: implement rest of message
+                                         }
 
