@@ -32,44 +32,67 @@ import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Concurrent.Async
 
-mcPrefix = (0x00163e `shiftL` 24) :: Word64
+import Debug.Trace
 
-testTCP = do
-  dstMac <- liftM ( \x -> (x .&. 0xFFFFFF) .|. mcPrefix ) randomIO :: IO MACAddr
-  srcMac <- liftM ( \x -> (x .&. 0xFFFFFF) .|. mcPrefix ) randomIO :: IO MACAddr
+mcPrefix = ((.|.)(0x00163e `shiftL` 24)).((.&.)0xFFFFFF)
+
+macSpaceDim = 100
+
+testTCP dstMac srcMac = do
+--  dstMac <- liftM mcPrefix randomIO :: IO MACAddr
+--  srcMac <- liftM mcPrefix randomIO :: IO MACAddr
   srcIp  <- randomIO :: IO IPv4Addr
   dstIp  <- randomIO :: IO IPv4Addr
   srcP   <- randomIO :: IO Word16
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
   flags  <- return [ACK]
-  cargo  <- replicateM 32 randomIO :: IO [Word8]
+  cargo  <- replicateM 128 randomIO :: IO [Word8]
   return $! TestPacketTCP { dstMAC = dstMac
-                         , srcMAC = srcMac
-                         , srcIP  = srcIp
-                         , dstIP  = dstIp
-                         , dstPort = dstP
-                         , srcPort = srcP
-                         , testWSS = Just wss
-                         , testFlags = Just flags
-                         , payLoad = BS.pack cargo
-                         , testSeqNo = Nothing
-                         , testAckNo = Nothing
-                         , testIpID = Nothing
-                         }
+                          , srcMAC = srcMac
+                          , srcIP  = srcIp
+                          , dstIP  = dstIp
+                          , dstPort = dstP
+                          , srcPort = srcP
+                          , testWSS = Just wss
+                          , testFlags = Just flags
+                          , payLoad = BS.pack cargo
+                          , testSeqNo = Nothing
+                          , testAckNo = Nothing
+                          , testIpID = Nothing
+                          }
 
 pktGenTest :: FakeSwitch -> TBMChan OfpMessage -> IO ()
-pktGenTest fk chan = do
-  forever $do
+pktGenTest fk chan = forever $ do
     tid <- randomIO :: IO Word32
-    threadDelay 1500
+    delay <- liftM (mod maxTimeout) randomIO :: IO Int
+    threadDelay delay
     bid <- liftM ((`mod` nbuf))    randomIO :: IO Word32
-    pid <- liftM ((+1).(`mod` (nports-1)))  randomIO :: IO Word16
-    tid <- randomIO :: IO Word32
-    pl  <- liftM (encodePutM.putEthernetFrame) testTCP
-    atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid pid pl)
+    pid <- liftM ((+1).(`mod` (nports-1)))  randomIO :: IO Int 
+    n1  <- randomIO :: IO Int
+    n2  <- randomIO :: IO Int
+    dct <- macSpaceDict
+    msp <- macSpace
+    let !srcMac' = IntMap.lookup pid dct >>= choice n1
+    let !dstMac' = choice n2 msp
+    case (srcMac', dstMac') of 
+      (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
+                                       pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac)
+                                       atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
+      _                          -> putStrLn "FUCKUP"
+
+
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
+        inports = fromIntegral nports :: Int
+        maxTimeout = 10000
+        macSpace  = replicateM macSpaceDim (liftM mcPrefix randomIO)
+        macSpace' = macSpace >>= return.((takeWhile (not.null)).(unfoldr (Just.(splitAt mpp))))
+        macSpaceDict :: IO (IntMap.IntMap [MACAddr])
+        macSpaceDict = macSpace' >>= return . IntMap.fromList . (zip [1..inports-1])
+        mpp = macSpaceDim `div` inports - 1
+        choice n l  = Just $ l !! (n `mod` length l)
+        choice n [] = Nothing
 
 tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
   where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
@@ -93,7 +116,7 @@ onSend :: TVar PktStats -> OfpMessage -> IO ()
 onSend s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = atomically $ do
   st <- readTVar s
   writeTVar s $! st { pktInSent = succ (pktInSent st)
---                    , pmap = (IntMap.insert (fromIntegral bid) 0 (pmap st)) -- TODO: truncate map on overflow
+                    , pmap = (IntMap.insert (fromIntegral bid) 0 (pmap st)) -- TODO: truncate map on overflow
                     }
 
 onSend _ _ = return ()
@@ -104,7 +127,7 @@ onReceive :: TVar PktStats -> OfpMessage -> IO ()
 onReceive s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = atomically $ do
     st <- readTVar s
     writeTVar s $! st { pktOutRcv = succ (pktOutRcv st)
---                      , pmap = IntMap.delete (fromIntegral bid) (pmap st) -- TODO: truncate map on overflow
+                      , pmap = IntMap.delete (fromIntegral bid) (pmap st) -- TODO: truncate map on overflow
                       }
 
 onReceive _ (OfpMessage h _)  = do
