@@ -7,6 +7,8 @@ module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
                           , ofpClient
                           , arpGrat
                           , defActions
+                          , defaultPacketInPort
+                          , encodeMsg
                           ) where
 
 import HCProbe.ARP
@@ -256,10 +258,10 @@ arpGrat fk bid tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
 -- TODO: truncate message by length in header
 -- TODO: use logger / settings
 dump :: String -> OfpHeader -> BS.ByteString -> IO ()
---dump s hdr bs = return ()
-dump s hdr bs = do
-  let tp = show (ofp_hdr_type hdr)
-  putStr $ printf "%-4s %-24s %s\n" s tp (hexdumpBs 32 " " "" (BS.take 32 bs))
+dump s hdr bs = return ()
+--dump s hdr bs = do
+--  let tp = show (ofp_hdr_type hdr)
+--  putStr $ printf "%-4s %-24s %s\n" s tp (hexdumpBs 32 " " "" (BS.take 32 bs))
 
 defActions = [ OFPAT_OUTPUT,OFPAT_SET_VLAN_VID,OFPAT_SET_VLAN_PCP
              , OFPAT_STRIP_VLAN,OFPAT_SET_DL_SRC,OFPAT_SET_DL_DST
