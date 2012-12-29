@@ -164,9 +164,9 @@ client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
         where skip = return ()
 
     let receiver = appSource ad $$ forever $ runMaybeT $ do
-        bs <- await
---        (msg, rest) <- MaybeT $! return (ofpParsePacket bs)
---        lift $ liftIO (dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg >> leftover rest
+        bs <- MaybeT $ await
+        (msg, rest) <- MaybeT $ return (ofpParsePacket bs)
+        lift $ liftIO (dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg >> leftover rest
 
     let sendARPGrat = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
@@ -183,7 +183,7 @@ client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
     sendReplyT msg = do
       liftIO $ dump "OUT:" (ofp_header msg) replyBs
       yield replyBs $$ (appSink ad)
---      maybe (return ()) (\x -> (liftIO.x) msg) sH
+      maybe (return ()) (\x -> (liftIO.x) msg) sH
       where replyBs = encodeMsg msg
 
     dispatch c msg@(OfpMessage hdr msgData) = case (parseMessageData msg) of
@@ -192,7 +192,7 @@ client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
 
     -- TODO: implement the following messages
     processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
---      maybe (return ()) (\x -> (liftIO.x) m) rH
+      maybe (return ()) (\x -> (liftIO.x) m) rH
       return ()
 
     processMessage _ OFPT_HELLO (OfpMessage hdr _) = sendReply (headReply hdr OFPT_HELLO)

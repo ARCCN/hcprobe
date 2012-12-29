@@ -87,30 +87,22 @@ data PktStats = PktStats { pktInSent :: Int
                          }
 
 onSend :: TVar PktStats -> OfpMessage -> IO ()
-onSend s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = return () 
---atomically $! do
---  st <- readTVar s
---  return ()
---  writeTVar s $! st
---  writeTVar s $! (st { --pmap = (IntMap.insert (fromIntegral bid) 0 (pmap st))
---                      pktInSent = succ (pktInSent st)
---                     })
+onSend s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = atomically $ do
+  st <- readTVar s
+  writeTVar s $! st { pmap = (IntMap.insert (fromIntegral bid) 0 (pmap st))
+                    , pktInSent = succ (pktInSent st)
+                    }
 
 onSend _ _ = return ()
 
 -- FIXME: stack space overflow during stats. update
 
 onReceive :: TVar PktStats -> OfpMessage -> IO ()
-onReceive s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = return () 
---do 
---  atomically $ do
---    st <- readTVar s;
---    return ()
---    writeTVar s $! st
-
---    writeTVar s $! (st { pmap = IntMap.delete (fromIntegral bid) (pmap st)
---                       , pktOutRcv =succ (pktOutRcv st)
---                       })
+onReceive s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = atomically $ do
+    st <- readTVar s
+    writeTVar s $! st { pmap = IntMap.delete (fromIntegral bid) (pmap st)
+                      , pktOutRcv = succ (pktOutRcv st)
+                      }
 
 onReceive _ (OfpMessage h _)  = do
   return ()
@@ -125,12 +117,11 @@ main :: IO ()
 main = do
   (host:port:_) <- getArgs
   stats <- newTVarIO (PktStats 0 0 IntMap.empty)
-  workers <- forM [1..500] $ \i -> do
+  workers <- forM [1..50] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
     let (fake'@(FakeSwitch sw _ _ _),_) = makeSwitch (defaultSwGen i ip rnd) 48 [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
---    let fake = fake' { onSendMessage = Just (onSend stats), onRecvMessage = Just (onReceive stats) }
-    let fake = fake'
+    let fake = fake' { onSendMessage = Just (onSend stats), onRecvMessage = Just (onReceive stats) }
     async $ ofpClient pktGenTest fake (BS8.pack host) (read port)
   ps <- async (printStat stats)
   mapM_ wait (ps:workers)
