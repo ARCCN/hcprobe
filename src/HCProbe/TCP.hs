@@ -1,3 +1,4 @@
+{-# Language BangPatterns #-}
 module HCProbe.TCP (TestPacketTCP(..)) where
 
 import Network.Openflow.Ethernet.Types
@@ -7,18 +8,18 @@ import qualified Data.ByteString as BS
 import Data.Binary.Put
 import Data.Word
 
-data TestPacketTCP = TestPacketTCP { dstMAC  :: MACAddr
-                                   , srcMAC  :: MACAddr
-                                   , srcIP   :: IPv4Addr
-                                   , dstIP   :: IPv4Addr
-                                   , dstPort :: Word16
-                                   , srcPort :: Word16
-                                   , testIpID :: Maybe Int
-                                   , testSeqNo :: Maybe Int
-                                   , testAckNo :: Maybe Int
-                                   , testWSS :: Maybe Int
-                                   , testFlags :: Maybe [TCPFlag]
-                                   , payLoad :: BS.ByteString
+data TestPacketTCP = TestPacketTCP { dstMAC    :: !MACAddr
+                                   , srcMAC    :: !MACAddr
+                                   , srcIP     :: !IPv4Addr
+                                   , dstIP     :: !IPv4Addr
+                                   , dstPort   :: !Word16
+                                   , srcPort   :: !Word16
+                                   , testIpID  :: !(Maybe Int)
+                                   , testSeqNo :: !(Maybe Int)
+                                   , testAckNo :: !(Maybe Int)
+                                   , testWSS   :: !(Maybe Int)
+                                   , testFlags :: !(Maybe [TCPFlag])
+                                   , payLoad   :: !BS.ByteString
                                    }
 
 

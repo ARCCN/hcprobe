@@ -43,7 +43,7 @@ testTCP = do
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
   flags  <- return [ACK]
-  cargo  <- replicateM 64 randomIO :: IO [Word8]
+  cargo  <- replicateM 32 randomIO :: IO [Word8]
   return $! TestPacketTCP { dstMAC = dstMac
                          , srcMAC = srcMac
                          , srcIP  = srcIp
@@ -60,14 +60,14 @@ testTCP = do
 
 pktGenTest :: FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest fk chan = do
-  rs <- liftM randoms newStdGen :: IO [Word32]
-  forM_ rs $ \tid -> do
-    threadDelay (15000*5) 
+  forever $do
+    tid <- randomIO :: IO Word32
+    threadDelay 1500
     bid <- liftM ((`mod` nbuf))    randomIO :: IO Word32
     pid <- liftM ((+1).(`mod` (nports-1)))  randomIO :: IO Word16
     tid <- randomIO :: IO Word32
     pl  <- liftM (encodePutM.putEthernetFrame) testTCP
-    atomically $! writeTBMChan chan $! (tcpTestPkt fk tid bid pid pl)
+    atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid pid pl)
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
 
@@ -81,16 +81,19 @@ tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
         sw  = switchFeatures fk
 
 
-data PktStats = PktStats { pktInSent :: Int
-                         , pktOutRcv :: Int
-                         , pmap      :: IntMap.IntMap Int
+
+
+
+data PktStats = PktStats { pktInSent :: !Int
+                         , pktOutRcv :: !Int
+                         , pmap      :: !(IntMap.IntMap Int)
                          }
 
 onSend :: TVar PktStats -> OfpMessage -> IO ()
 onSend s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = atomically $ do
   st <- readTVar s
-  writeTVar s $! st { pmap = (IntMap.insert (fromIntegral bid) 0 (pmap st))
-                    , pktInSent = succ (pktInSent st)
+  writeTVar s $! st { pktInSent = succ (pktInSent st)
+--                    , pmap = (IntMap.insert (fromIntegral bid) 0 (pmap st)) -- TODO: truncate map on overflow
                     }
 
 onSend _ _ = return ()
@@ -100,8 +103,8 @@ onSend _ _ = return ()
 onReceive :: TVar PktStats -> OfpMessage -> IO ()
 onReceive s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = atomically $ do
     st <- readTVar s
-    writeTVar s $! st { pmap = IntMap.delete (fromIntegral bid) (pmap st)
-                      , pktOutRcv = succ (pktOutRcv st)
+    writeTVar s $! st { pktOutRcv = succ (pktOutRcv st)
+--                      , pmap = IntMap.delete (fromIntegral bid) (pmap st) -- TODO: truncate map on overflow
                       }
 
 onReceive _ (OfpMessage h _)  = do
@@ -111,19 +114,19 @@ printStat tst = forever $ do
   st <- atomically $! readTVar tst
   hSetBuffering stdout NoBuffering
   hPutStr stdout $ printf "Stats:  pktin: %8d pktout: %8d qlen: %8d            \r" (pktInSent st) (pktOutRcv st) ((IntMap.size . pmap) st)
-  threadDelay 300000
+  threadDelay 500000
 
 main :: IO ()
 main = do
   (host:port:_) <- getArgs
   stats <- newTVarIO (PktStats 0 0 IntMap.empty)
-  workers <- forM [1..50] $ \i -> do
+  workers <- forM [1..100] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
-    let (fake'@(FakeSwitch sw _ _ _),_) = makeSwitch (defaultSwGen i ip rnd) 48 [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+    let !(fake'@(FakeSwitch sw _ _ _),_) = makeSwitch (defaultSwGen i ip rnd) 48 [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
     let fake = fake' { onSendMessage = Just (onSend stats), onRecvMessage = Just (onReceive stats) }
     async $ ofpClient pktGenTest fake (BS8.pack host) (read port)
   ps <- async (printStat stats)
-  mapM_ wait (ps:workers)
+  mapM_ wait (workers)
   putStrLn "done"
 

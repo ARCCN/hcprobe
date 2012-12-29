@@ -35,7 +35,7 @@ executable hcprobe
                        transformers, mtl, containers,
                        MaybeT
 
-  Ghc-options:         -Wall -threaded -rtsopts -O2
+  Ghc-options:         -Wall -threaded -rtsopts -O2 -auto-all -caf-all
 
 executable ethertest 
   main-is:           ethertest.hs

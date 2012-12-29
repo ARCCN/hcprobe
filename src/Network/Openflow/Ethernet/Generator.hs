@@ -1,3 +1,4 @@
+{-# Language BangPatterns #-}
 module Network.Openflow.Ethernet.Generator where
 
 import Network.Openflow.Ethernet.Types

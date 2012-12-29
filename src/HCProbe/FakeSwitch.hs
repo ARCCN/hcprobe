@@ -1,3 +1,4 @@
+{-# Language BangPatterns #-}
 module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
                           , makePort
                           , makeSwitch
@@ -140,7 +141,7 @@ data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
                                    }
 
 pktSendTimeout = 500000
-pktSendQLen    = 10000
+pktSendQLen    = 1000
 
 -- FIXME: handle "resource vanished" exception
 ofpClient pktGen sw host port = do
@@ -150,17 +151,18 @@ client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
 
   runResourceT $ do
 
-    (_, pktSendQ) <- allocate (newTBMChanIO pktSendQLen) (atomically.closeTBMChan)
+    (_, !pktSendQ) <- allocate (newTBMChanIO pktSendQLen) (atomically.closeTBMChan)
 
     tranId <- liftIO $ newTVarIO 0
     featureReplyMonitor <- liftIO $ newTVarIO False
     swCfg <- liftIO $ newTVarIO defaultSwitchConfig
 
-    let ctx = SwitchContext featureReplyMonitor tranId swCfg
+    let !ctx = SwitchContext featureReplyMonitor tranId swCfg
 
-    let sender = forever $ do
+    let sender = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        liftIO $! atomically (readTBMChan pktSendQ) >>= maybe skip sendReplyT
+        forever $ do
+          liftIO $! atomically (readTBMChan pktSendQ) >>= maybe skip sendReplyT
         where skip = return ()
 
     let receiver = appSource ad $$ forever $ runMaybeT $ do
@@ -186,9 +188,9 @@ client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
       maybe (return ()) (\x -> (liftIO.x) msg) sH
       where replyBs = encodeMsg msg
 
-    dispatch c msg@(OfpMessage hdr msgData) = case (parseMessageData msg) of
+    dispatch !c !(msg@(OfpMessage hdr msgData)) = case (parseMessageData msg) of
       Nothing   ->  return ()
-      Just msg'@(OfpMessage h _) -> processMessage c (ofp_hdr_type hdr) msg'
+      Just !(msg'@(OfpMessage h _)) -> processMessage c (ofp_hdr_type hdr) msg'
 
     -- TODO: implement the following messages
     processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
@@ -240,7 +242,7 @@ client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
     withTimeout :: Int -> STM a -> IO (Maybe a)
     withTimeout tv f = do
       x <- registerDelay tv
-      atomically $ (readTVar x >>= \y -> if y
+      atomically $! (readTVar x >>= \y -> if y
                                          then return Nothing
                                          else retry) `orElse` (Just <$> f)
 
