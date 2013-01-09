@@ -19,10 +19,11 @@ import qualified Data.ByteString.Char8 as BS8
 import Data.Word
 import Data.Bits
 import Data.Time
+import qualified Data.Set as S
 import Text.Printf
 import Data.Maybe
 import Data.List (intersperse, concat, unfoldr)
-import qualified Data.IntMap as IntMap 
+import qualified Data.IntMap as IntMap
 
 import System.Random
 import System.IO
@@ -36,7 +37,6 @@ import Control.Concurrent.Async
 
 import Debug.Trace
 
-mcPrefix = ((.|.)(0x00163e `shiftL` 24)).((.&.)0xFFFFFF)
 
 macSpaceDim = 100
 
@@ -64,17 +64,21 @@ testTCP dstMac srcMac = do
 
 -- FIXME: improve pktIn/s performance, move mac space to FakeSwitch
 pktGenTest :: FakeSwitch -> TBMChan OfpMessage -> IO ()
-pktGenTest fk chan = forever $ do
+pktGenTest fk chan = do
+    forever $ do
     tid <- randomIO :: IO Word32
-    delay <- liftM (`mod` maxTimeout) randomIO :: IO Int
-    bid <- liftM ((`mod` nbuf)) randomIO     :: IO Word32
-    pid <- liftM ((+1).(`mod` (nports-1)))  randomIO :: IO Int 
+    delay <- liftM (`mod` maxTimeout)          randomIO :: IO Int
+    bid <- liftM ((`mod` nbuf))                randomIO :: IO Word32
+    pid <- liftM ((+2).(`mod` (nports-1)))     randomIO :: IO Int 
+    pidDst <- liftM ((+2).(`mod` (nports-1)))  randomIO :: IO Int 
     n1  <- randomIO :: IO Int
     n2  <- randomIO :: IO Int
-    dct <- macSpaceDict
-    msp <- macSpace
-    let !srcMac' = IntMap.lookup pid dct >>= choice n1
-    let !dstMac' = choice n2 msp
+
+    let dct = macSpace fk
+--    srcMac' <- liftM Just randomIO :: IO (Maybe MACAddr)
+--    dstMac' <- liftM Just randomIO :: IO (Maybe MACAddr)
+    let !srcMac' = IntMap.lookup pid    dct >>= choice n1
+    let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
     case (srcMac', dstMac') of 
       (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
                                        pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac)
@@ -85,12 +89,7 @@ pktGenTest fk chan = forever $ do
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
         inports = fromIntegral nports :: Int
-        maxTimeout = 10000
-        macSpace  = replicateM macSpaceDim (liftM mcPrefix randomIO)
-        macSpace' = macSpace >>= return.((takeWhile (not.null)).(unfoldr (Just.(splitAt mpp))))
-        macSpaceDict :: IO (IntMap.IntMap [MACAddr])
-        macSpaceDict = macSpace' >>= return . IntMap.fromList . (zip [1..inports-1])
-        mpp = macSpaceDim `div` inports - 1
+        maxTimeout = 1000
         choice n l  = Just $ l !! (n `mod` length l)
         choice n [] = Nothing
 
@@ -102,10 +101,6 @@ tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
                             , ofp_pkt_in_data      = pl
                             }
         sw  = switchFeatures fk
-
-
-
-
 
 data PktStats = PktStats { pktInSent :: !Int
                          , pktOutRcv :: !Int
@@ -120,8 +115,6 @@ onSend s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = atomically 
                     }
 
 onSend _ _ = return ()
-
--- FIXME: stack space overflow during stats. update
 
 onReceive :: TVar PktStats -> OfpMessage -> IO ()
 onReceive s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = atomically $ do
@@ -146,21 +139,41 @@ printStat tst = do
     let pktISS = floor ((toRational (pktIS - np)) / dt) :: Int
     let pktOR  = pktOutRcv st
     let qL     = (IntMap.size . pmap) st
-    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktout: %6d qlen: %6d     \r" pktIS  pktISS pktOR qL
+--    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktout: %6d qlen: %6d     \r" pktIS  pktISS pktOR qL
     put (pktIS, t1)
-    lift $ hPutStr stdout stats
+--    lift $ hPutStr stdout stats
     lift $ threadDelay 500000
+
+randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
+
+randomSet n s | S.size s == n = return s
+
+randomSet n s = do
+  i <- liftM mcPrefix randomIO
+  if not (S.member i s)
+    then randomSet n (S.insert i s)
+    else randomSet n s
 
 main :: IO ()
 main = do
   (host:port:_) <- getArgs
   stats <- newTVarIO (PktStats 0 0 IntMap.empty)
-  workers <- forM [1..100] $ \i -> do
+
+  fakeSw <- forM [1..1] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
-    let !(fake'@(FakeSwitch sw _ _ _),_) = makeSwitch (defaultSwGen i ip rnd) 48 [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
-    let fake = fake' { onSendMessage = Just (onSend stats), onRecvMessage = Just (onReceive stats) }
+    macs <- liftM S.toList (randomSet (48*1000) S.empty)
+    let !(fake'@(FakeSwitch sw _ _ _ _),_) = makeSwitch (defaultSwGen i ip rnd) 48 macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+    return $ fake' { onSendMessage = Just (onSend stats), onRecvMessage = Just (onReceive stats) }
+
+  let macs  = map (S.fromList.IntMap.elems.macSpace) fakeSw
+  let macs' = filter (not.S.null) [if x /= y then x `S.intersection` y else S.empty | x <- macs, y <- macs]
+  print (macs')
+--  error "WTF?"
+
+  workers <- forM fakeSw $ \fake -> do
     async $ ofpClient pktGenTest fake (BS8.pack host) (read port)
+
   ps <- async (printStat stats)
   mapM_ wait (workers)
   putStrLn "done"

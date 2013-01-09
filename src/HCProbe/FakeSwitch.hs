@@ -1,10 +1,11 @@
-{-# Language BangPatterns #-}
+{-# Language BangPatterns, ScopedTypeVariables #-}
 module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
                           , makePort
                           , makeSwitch
                           , defaultPortGen
                           , defaultSwGen
                           , fmtMac, fmtPort, fmtSwitch
+                          , mcPrefix
                           , ofpClient
                           , arpGrat
                           , defActions
@@ -36,6 +37,7 @@ import Data.Conduit.Network
 import Data.List
 import Data.Maybe
 import Data.Word
+import qualified Data.IntMap as M 
 import System.Random
 import Text.Printf
 
@@ -58,7 +60,7 @@ makePort :: PortGen
 makePort gen cfg st ft = (port, gen') 
   where pn  = pnum gen
         pnm = (pname gen) pn
-        gen' = gen { pnum = pn + 3, rndGen = (snd.head.reverse) mac' }
+        gen' = gen { pnum = succ pn, rndGen = (snd.head.reverse) mac' }
         mac' = take 3 $ unfoldr ( \g -> Just (rand g, snd (rand g)) ) (rndGen gen)
         macbytes =  [0x00, 0x16, 0x3e] ++ map fst mac' :: [Word8]
         fmac acc b = (acc `shiftL` 8) .|. (fromIntegral b :: Word64)
@@ -83,13 +85,15 @@ defaultSwGen :: Int -> IPv4Addr -> StdGen -> SwitchGen
 defaultSwGen i ip g = SwitchGen i ip g
 
 data FakeSwitch = FakeSwitch {  switchFeatures :: OfpSwitchFeatures
-                              , switchIP       :: IPv4Addr 
+                              , switchIP       :: IPv4Addr
+                              , macSpace       :: M.IntMap [MACAddr]
                               , onSendMessage  :: Maybe (OfpMessage -> IO ())
                               , onRecvMessage  :: Maybe (OfpMessage -> IO ())
                              }
 
 makeSwitch :: SwitchGen
            -> Int
+           -> [MACAddr]
            -> [OfpCapabilities]
            -> [OfpActionType]
            -> [OfpPortConfigFlags]
@@ -97,7 +101,10 @@ makeSwitch :: SwitchGen
            -> [OfpPortFeatureFlags]
            -> (FakeSwitch, SwitchGen)
 
-makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen) Nothing Nothing, gen')
+mcPrefix :: MACAddr -> MACAddr
+mcPrefix = ((.|.)(0x00163e `shiftL` 24)).((.&.)0xFFFFFF)
+
+makeSwitch gen ports mpp cap act cfg st ff = (FakeSwitch features (ipAddr gen) ms Nothing Nothing, gen')
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
                                      , ofp_n_buffers    = fromIntegral $ 8*ports
                                      , ofp_n_tables     = 1
@@ -105,7 +112,7 @@ makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen) Nothi
                                      , ofp_actions      = S.fromList act
                                      , ofp_ports        = pps
                                      }
-        gen' = gen { dpid = succ (dpid gen), swRnd = (rndGen pg') }
+        gen' = gen { dpid = succ (dpid gen), swRnd = rndGen pg' }
         (pps, pg') = flip runState pg $ replicateM ports genPort
         pg = defaultPortGen (swRnd gen)
 
@@ -114,6 +121,26 @@ makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen) Nothi
           let (p,g') = makePort g cfg st ff
           put g'
           return p
+
+        ms = M.fromList $ zip [1..nport] macll
+
+        macll = take nport $ unfoldr (Just.(splitAt nmacpp)) mpp
+        
+        nmacpp  = nmac `div` nport
+
+        nmac  = length mpp
+
+        nport = length pps
+
+
+--        (ms, rg') = flip runState (rndGen pg') $ macs >>= return . M.fromList
+--        macs = forM (map ofp_port_no pps) $! \pn -> do
+--          rmacs <- replicateM mpp $! do
+--            (v :: MACAddr, g') <- liftM random get
+--            put g'
+--            trace (show (mcPrefix v)) $ return ()
+--            return (mcPrefix v)
+--          return (fromIntegral pn, rmacs)
 
 fmtMac :: MACAddr -> String
 fmtMac mac = intercalate ":" $ map (printf "%02X") bytes
@@ -147,7 +174,7 @@ pktSendQLen    = 65536
 ofpClient pktGen sw host port = do
   runTCPClient (clientSettings port host) (client pktGen sw)
 
-client pktInGen fk@(FakeSwitch sw switchIP sH rH) ad = do
+client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = do
 
   runResourceT $ do
 
