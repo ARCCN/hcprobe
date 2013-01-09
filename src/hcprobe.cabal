@@ -32,7 +32,7 @@ executable hcprobe
                        conduit==0.5.*, network-conduit==0.6.*,
                        resourcet, async, network-data, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
-                       transformers, mtl, containers,
+                       transformers, mtl, containers, time,
                        MaybeT
 
   Ghc-options:         -Wall -threaded -rtsopts -O2 -auto-all -caf-all

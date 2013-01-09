@@ -18,6 +18,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Char8 as BS8
 import Data.Word
 import Data.Bits
+import Data.Time
 import Text.Printf
 import Data.Maybe
 import Data.List (intersperse, concat, unfoldr)
@@ -27,6 +28,7 @@ import System.Random
 import System.IO
 import System.Environment (getArgs)
 import Control.Monad
+import Control.Monad.State
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
@@ -39,8 +41,6 @@ mcPrefix = ((.|.)(0x00163e `shiftL` 24)).((.&.)0xFFFFFF)
 macSpaceDim = 100
 
 testTCP dstMac srcMac = do
---  dstMac <- liftM mcPrefix randomIO :: IO MACAddr
---  srcMac <- liftM mcPrefix randomIO :: IO MACAddr
   srcIp  <- randomIO :: IO IPv4Addr
   dstIp  <- randomIO :: IO IPv4Addr
   srcP   <- randomIO :: IO Word16
@@ -62,12 +62,13 @@ testTCP dstMac srcMac = do
                           , testIpID = Nothing
                           }
 
+-- FIXME: improve pktIn/s performance, move mac space to FakeSwitch
 pktGenTest :: FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest fk chan = forever $ do
     tid <- randomIO :: IO Word32
-    delay <- liftM (mod maxTimeout) randomIO :: IO Int
+    delay <- liftM (`mod` maxTimeout) randomIO :: IO Int
     threadDelay delay
-    bid <- liftM ((`mod` nbuf))    randomIO :: IO Word32
+    bid <- liftM ((`mod` nbuf)) randomIO     :: IO Word32
     pid <- liftM ((+1).(`mod` (nports-1)))  randomIO :: IO Int 
     n1  <- randomIO :: IO Int
     n2  <- randomIO :: IO Int
@@ -133,11 +134,23 @@ onReceive s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = atomicall
 onReceive _ (OfpMessage h _)  = do
   return ()
 
-printStat tst = forever $ do
-  st <- atomically $! readTVar tst
+-- TODO: calculate PktIn/s statistics
+printStat tst = do
   hSetBuffering stdout NoBuffering
-  hPutStr stdout $ printf "Stats:  pktin: %8d pktout: %8d qlen: %8d            \r" (pktInSent st) (pktOutRcv st) ((IntMap.size . pmap) st)
-  threadDelay 500000
+  initTime <- getCurrentTime  
+  flip runStateT (0,initTime) $ forever $ do
+    st <- lift $ atomically $! readTVar tst
+    (np,t0) <- get
+    t1 <- lift $ getCurrentTime
+    let pktIS  = pktInSent st
+    let dt     = toRational (t1 `diffUTCTime` t0)
+    let pktISS = floor ((toRational (pktIS - np)) / dt) :: Int
+    let pktOR  = pktOutRcv st
+    let qL     = (IntMap.size . pmap) st
+    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktout: %6d qlen: %6d     \r" pktIS  pktISS pktOR qL
+    put (pktIS, t1)
+    lift $ hPutStr stdout stats
+    lift $ threadDelay 500000
 
 main :: IO ()
 main = do
