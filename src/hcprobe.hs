@@ -67,7 +67,6 @@ pktGenTest :: FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest fk chan = forever $ do
     tid <- randomIO :: IO Word32
     delay <- liftM (`mod` maxTimeout) randomIO :: IO Int
-    threadDelay delay
     bid <- liftM ((`mod` nbuf)) randomIO     :: IO Word32
     pid <- liftM ((+1).(`mod` (nports-1)))  randomIO :: IO Int 
     n1  <- randomIO :: IO Int
@@ -81,7 +80,7 @@ pktGenTest fk chan = forever $ do
                                        pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac)
                                        atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
       _                          -> putStrLn "FUCKUP"
-
+    threadDelay delay
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
