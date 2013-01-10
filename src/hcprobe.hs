@@ -40,10 +40,11 @@ import Control.Concurrent.Async
 import Debug.Trace
 
 macSpaceDim = 100
-switchNum   = 16
+switchNum   = 8 
 maxTimeout  = 1000
 payloadLen  = 64
 statsDelay  = 500000
+pmapThreshhold = 300
 
 testTCP dstMac srcMac = do
   srcIp  <- randomIO :: IO IPv4Addr
@@ -142,10 +143,12 @@ printStat tst = do
     let pktISS = floor ((toRational (pktIS - np)) / dt) :: Int
     let pktOR  = pktOutRcv st
     let qL     = (IntMap.size . pmap) st
-    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktout: %6d qlen: %6d     \r" pktIS  pktISS pktOR qL
+    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktOut: %6d qlen: %6d     \r" pktIS  pktISS pktOR qL
     put (pktIS, t1)
+--    when (IntMap.size (pmap st) > pmapThreshhold ) $ truncatePmap tst st
     lift $ hPutStr stdout stats
     lift $ threadDelay statsDelay
+    where truncatePmap t s = lift $! atomically $! writeTVar t s { pmap = IntMap.empty }
 
 randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
 
@@ -169,10 +172,13 @@ main = do
     let !(fake'@(FakeSwitch sw _ _ _ _),_) = makeSwitch (defaultSwGen i ip rnd) 48 macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
     return $ fake' { onSendMessage = Just (onSend stats), onRecvMessage = Just (onReceive stats) }
 
-  workers <- forM fakeSw $ \fake -> do
-    async $ ofpClient pktGenTest fake (BS8.pack host) (read port)
-
   ps <- async (printStat stats)
-  mapM_ wait (workers)
+
+  workers <- forM fakeSw $ \fake -> async $ forever $ do
+        (async (ofpClient pktGenTest fake (BS8.pack host) (read port))) >>= wait
+        threadDelay 1000000
+
+  waitAnyCatch workers
+
   putStrLn "done"
 

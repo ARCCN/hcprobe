@@ -24,6 +24,7 @@ import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Set as S
 import Control.Applicative ((<$>))
 import qualified Control.Concurrent as M
+import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Monad
@@ -162,12 +163,9 @@ pktSendTimeout = 500000
 pktSendQLen    = 65536
 
 -- FIXME: handle "resource vanished" exception
-ofpClient pktGen sw host port = do
-  runTCPClient (clientSettings port host) (client pktGen sw)
+ofpClient pktGen sw host port = runTCPClient (clientSettings port host) (client pktGen sw)
 
-client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = do
-
-  runResourceT $ do
+client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
     (_, !pktSendQ) <- allocate (newTBMChanIO pktSendQLen) (atomically.closeTBMChan)
 
@@ -192,12 +190,13 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
         liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
 
-
-    let mainThread = receiver
-    let threads = [sender, sendARPGrat, (pktInGen fk pktSendQ)]
-    mapM_ ((flip allocate M.killThread) . M.forkIO) threads
-
-    liftIO mainThread
+    let threads = [receiver, sender, (pktInGen fk pktSendQ)]
+    waitThreads <- liftIO $ mapM async threads
+    mapM_ (flip allocate cancel) (map return waitThreads)
+    liftIO $ do
+      async sendARPGrat
+      waitAnyCatchCancel waitThreads
+    return ()
 
   where
     sendReplyT msg = do
