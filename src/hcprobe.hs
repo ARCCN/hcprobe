@@ -40,9 +40,9 @@ import Control.Concurrent.Async
 import Debug.Trace
 
 macSpaceDim = 100
-switchNum   = 100 
+switchNum   = 16 
 maxTimeout  = 100000
-payloadLen  = 32
+payloadLen  = 1*1024
 statsDelay  = 500000
 pmapThreshhold = 300
 
@@ -53,7 +53,8 @@ testTCP dstMac srcMac = do
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
   flags  <- return [ACK]
-  cargo  <- replicateM payloadLen randomIO :: IO [Word8]
+--  cargo  <- replicateM payloadLen randomIO :: IO [Word8]
+  let cargo = replicate payloadLen 0
   return $! TestPacketTCP { dstMAC = dstMac
                           , srcMAC = srcMac
                           , srcIP  = srcIp
