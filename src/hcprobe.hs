@@ -40,10 +40,10 @@ import Control.Concurrent.Async
 import Debug.Trace
 
 macSpaceDim = 100
-switchNum   = 32
-maxTimeout  = 500000
-payloadLen  = 64
-statsDelay  = 700000
+switchNum   = 100 
+maxTimeout  = 100000
+payloadLen  = 32
+statsDelay  = 500000
 pmapThreshhold = 300
 
 testTCP dstMac srcMac = do
