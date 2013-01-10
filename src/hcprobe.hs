@@ -41,7 +41,7 @@ import Debug.Trace
 
 macSpaceDim = 100
 switchNum   = 32
-maxTimeout  = 500
+maxTimeout  = 500000
 payloadLen  = 64
 statsDelay  = 700000
 pmapThreshhold = 300
