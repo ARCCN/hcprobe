@@ -84,7 +84,7 @@ pktGenTest fk chan = do
         (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
                                          pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
-        _                          -> putStrLn "FUCKUP"
+        _                          -> putStrLn "FUCKUP" -- FIXME: {L} add valid error handling
       threadDelay delay
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
