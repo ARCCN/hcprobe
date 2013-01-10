@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, BangPatterns #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables #-}
 module Main where
 
 import Network.Openflow.Types
@@ -24,6 +24,7 @@ import Text.Printf
 import Data.Maybe
 import Data.List (intersperse, concat, unfoldr)
 import qualified Data.IntMap as IntMap
+import qualified Data.Map as M 
 
 import System.Random
 import System.IO
@@ -71,20 +72,20 @@ pktGenTest fk chan = do
     bid <- liftM ((`mod` nbuf))                randomIO :: IO Word32
     pid <- liftM ((+2).(`mod` (nports-1)))     randomIO :: IO Int 
     pidDst <- liftM ((+2).(`mod` (nports-1)))  randomIO :: IO Int 
-    n1  <- randomIO :: IO Int
-    n2  <- randomIO :: IO Int
 
-    let dct = macSpace fk
---    srcMac' <- liftM Just randomIO :: IO (Maybe MACAddr)
---    dstMac' <- liftM Just randomIO :: IO (Maybe MACAddr)
-    let !srcMac' = IntMap.lookup pid    dct >>= choice n1
-    let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
-    case (srcMac', dstMac') of 
-      (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
-                                       pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac)
-                                       atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
-      _                          -> putStrLn "FUCKUP"
-    threadDelay delay
+    when (pid /= pidDst ) $ do
+      n1  <- randomIO :: IO Int
+      n2  <- randomIO :: IO Int
+
+      let dct = macSpace fk
+      let !srcMac' = IntMap.lookup pid    dct >>= choice n1
+      let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
+      case (srcMac', dstMac') of 
+        (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
+                                         pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac)
+                                         atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
+        _                          -> putStrLn "FUCKUP"
+      threadDelay delay
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
@@ -126,7 +127,6 @@ onReceive s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = atomicall
 onReceive _ (OfpMessage h _)  = do
   return ()
 
--- TODO: calculate PktIn/s statistics
 printStat tst = do
   hSetBuffering stdout NoBuffering
   initTime <- getCurrentTime  
@@ -139,10 +139,10 @@ printStat tst = do
     let pktISS = floor ((toRational (pktIS - np)) / dt) :: Int
     let pktOR  = pktOutRcv st
     let qL     = (IntMap.size . pmap) st
---    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktout: %6d qlen: %6d     \r" pktIS  pktISS pktOR qL
+    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktout: %6d qlen: %6d     \r" pktIS  pktISS pktOR qL
     put (pktIS, t1)
---    lift $ hPutStr stdout stats
-    lift $ threadDelay 500000
+    lift $ hPutStr stdout stats
+    lift $ threadDelay 300000
 
 randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
 
@@ -162,14 +162,9 @@ main = do
   fakeSw <- forM [1..1] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
-    macs <- liftM S.toList (randomSet (48*1000) S.empty)
+    macs <- liftM S.toList (randomSet (48*macSpaceDim) S.empty)
     let !(fake'@(FakeSwitch sw _ _ _ _),_) = makeSwitch (defaultSwGen i ip rnd) 48 macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
     return $ fake' { onSendMessage = Just (onSend stats), onRecvMessage = Just (onReceive stats) }
-
-  let macs  = map (S.fromList.IntMap.elems.macSpace) fakeSw
-  let macs' = filter (not.S.null) [if x /= y then x `S.intersection` y else S.empty | x <- macs, y <- macs]
-  print (macs')
---  error "WTF?"
 
   workers <- forM fakeSw $ \fake -> do
     async $ ofpClient pktGenTest fake (BS8.pack host) (read port)
