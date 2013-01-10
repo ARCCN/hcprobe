@@ -2,5 +2,6 @@
 [ ] TODO: detailed statistics
 [ ] TODO: statistics: average roundtrip time
 [ ] TODO: statistics: mean roundtrip time
+[ ] TODO: statistics: pktIn/s by matched pktOut
 [+] TODO: FakeSwitch threads recover after crash
 [ ] TODO: Test period

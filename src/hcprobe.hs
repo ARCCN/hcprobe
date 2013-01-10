@@ -40,10 +40,10 @@ import Control.Concurrent.Async
 import Debug.Trace
 
 macSpaceDim = 100
-switchNum   = 8 
-maxTimeout  = 1000
+switchNum   = 32
+maxTimeout  = 500
 payloadLen  = 64
-statsDelay  = 500000
+statsDelay  = 700000
 pmapThreshhold = 300
 
 testTCP dstMac srcMac = do
@@ -107,10 +107,13 @@ tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
                             }
         sw  = switchFeatures fk
 
-data PktStats = PktStats { pktInSent :: !Int
-                         , pktOutRcv :: !Int
-                         , pmap      :: !(IntMap.IntMap Int)
+data PktStats = PktStats { pktInSent   :: !Int
+                         , pktOutRcv   :: !Int
+                         , pmap        :: !(IntMap.IntMap Int)
+                         , liveThreads :: !Int
                          }
+
+emptyStats = PktStats 0 0 IntMap.empty 0
 
 onSend :: TVar PktStats -> OfpMessage -> IO ()
 onSend s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = atomically $ do
@@ -143,9 +146,10 @@ printStat tst = do
     let pktISS = floor ((toRational (pktIS - np)) / dt) :: Int
     let pktOR  = pktOutRcv st
     let qL     = (IntMap.size . pmap) st
-    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktOut: %6d qlen: %6d     \r" pktIS  pktISS pktOR qL
+    let tds    = liveThreads st
+    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktOut: %6d qlen: %6d tds: %4d  \r" pktIS  pktISS pktOR qL tds
     put (pktIS, t1)
---    when (IntMap.size (pmap st) > pmapThreshhold ) $ truncatePmap tst st
+    when (IntMap.size (pmap st) > pmapThreshhold ) $ truncatePmap tst st
     lift $ hPutStr stdout stats
     lift $ threadDelay statsDelay
     where truncatePmap t s = lift $! atomically $! writeTVar t s { pmap = IntMap.empty }
@@ -163,7 +167,7 @@ randomSet n s = do
 main :: IO ()
 main = do
   (host:port:_) <- getArgs
-  stats <- newTVarIO (PktStats 0 0 IntMap.empty)
+  stats <- newTVarIO emptyStats
 
   fakeSw <- forM [1..switchNum] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
@@ -175,7 +179,9 @@ main = do
   ps <- async (printStat stats)
 
   workers <- forM fakeSw $ \fake -> async $ forever $ do
+        atomically $ modifyTVar stats ( \s -> s { liveThreads = succ (liveThreads s) } )
         (async (ofpClient pktGenTest fake (BS8.pack host) (read port))) >>= wait
+        atomically $ modifyTVar stats ( \s -> s { liveThreads = pred (liveThreads s) } )
         threadDelay 1000000
 
   waitAnyCatch workers
