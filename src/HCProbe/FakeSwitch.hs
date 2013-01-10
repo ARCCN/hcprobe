@@ -37,6 +37,7 @@ import Data.Conduit.Network
 import Data.List
 import Data.Maybe
 import Data.Word
+import qualified Data.Vector.Unboxed as V
 import qualified Data.IntMap as M 
 import System.Random
 import Text.Printf
@@ -86,7 +87,7 @@ defaultSwGen i ip g = SwitchGen i ip g
 
 data FakeSwitch = FakeSwitch {  switchFeatures :: OfpSwitchFeatures
                               , switchIP       :: IPv4Addr
-                              , macSpace       :: M.IntMap [MACAddr]
+                              , macSpace       :: M.IntMap (V.Vector MACAddr)
                               , onSendMessage  :: Maybe (OfpMessage -> IO ())
                               , onRecvMessage  :: Maybe (OfpMessage -> IO ())
                              }
@@ -122,7 +123,7 @@ makeSwitch gen ports mpp cap act cfg st ff = (FakeSwitch features (ipAddr gen) m
           put g'
           return p
 
-        ms = M.fromList $ zip [1..nport] macll
+        ms = M.fromList $ zip [1..nport] (map V.fromList macll)
 
         macll = take nport $ unfoldr (Just.(splitAt nmacpp)) mpp
         
@@ -131,16 +132,6 @@ makeSwitch gen ports mpp cap act cfg st ff = (FakeSwitch features (ipAddr gen) m
         nmac  = length mpp
 
         nport = length pps
-
-
---        (ms, rg') = flip runState (rndGen pg') $ macs >>= return . M.fromList
---        macs = forM (map ofp_port_no pps) $! \pn -> do
---          rmacs <- replicateM mpp $! do
---            (v :: MACAddr, g') <- liftM random get
---            put g'
---            trace (show (mcPrefix v)) $ return ()
---            return (mcPrefix v)
---          return (fromIntegral pn, rmacs)
 
 fmtMac :: MACAddr -> String
 fmtMac mac = intercalate ":" $ map (printf "%02X") bytes

@@ -22,6 +22,7 @@ import Data.Time
 import qualified Data.Set as S
 import Text.Printf
 import Data.Maybe
+import qualified Data.Vector.Unboxed as V
 import Data.List (intersperse, concat, unfoldr)
 import qualified Data.IntMap as IntMap
 import qualified Data.Map as M 
@@ -38,8 +39,8 @@ import Control.Concurrent.Async
 
 import Debug.Trace
 
-
-macSpaceDim = 100
+macSpaceDim = 500
+switchNum   = 1
 
 testTCP dstMac srcMac = do
   srcIp  <- randomIO :: IO IPv4Addr
@@ -48,7 +49,7 @@ testTCP dstMac srcMac = do
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
   flags  <- return [ACK]
-  cargo  <- replicateM 128 randomIO :: IO [Word8]
+  cargo  <- replicateM 64 randomIO :: IO [Word8]
   return $! TestPacketTCP { dstMAC = dstMac
                           , srcMAC = srcMac
                           , srcIP  = srcIp
@@ -91,8 +92,8 @@ pktGenTest fk chan = do
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
         inports = fromIntegral nports :: Int
         maxTimeout = 1000
-        choice n l  = Just $ l !! (n `mod` length l)
-        choice n [] = Nothing
+        choice n l | V.null l  = Nothing
+                   | otherwise = Just $ l `V.unsafeIndex` (n `mod` V.length l)
 
 tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
   where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
@@ -159,7 +160,7 @@ main = do
   (host:port:_) <- getArgs
   stats <- newTVarIO (PktStats 0 0 IntMap.empty)
 
-  fakeSw <- forM [1..1] $ \i -> do
+  fakeSw <- forM [1..switchNum] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
     macs <- liftM S.toList (randomSet (48*macSpaceDim) S.empty)

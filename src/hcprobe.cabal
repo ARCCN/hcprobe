@@ -20,7 +20,7 @@ library
                       network-conduit==0.6.*, cereal,
                       resourcet, async, network-data,
                       random, digest, stm, stm-conduit, stm-chans,
-                      conduit==0.5.*,
+                      conduit==0.5.*, vector,
                       random, digest,
                       transformers, mtl, containers,
                       MaybeT
@@ -32,7 +32,7 @@ executable hcprobe
                        conduit==0.5.*, network-conduit==0.6.*,
                        resourcet, async, network-data, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
-                       transformers, mtl, containers, time,
+                       transformers, mtl, containers, time, vector,
                        MaybeT
 
   Ghc-options:         -Wall -threaded -rtsopts -O2 -auto-all -caf-all
@@ -44,7 +44,7 @@ executable ethertest
                        conduit==0.5.*, network-conduit==0.6.*,
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
-                       transformers, mtl, containers,
+                       transformers, mtl, containers, vector,
                        MaybeT
 
   Ghc-options:         -Wall -threaded
