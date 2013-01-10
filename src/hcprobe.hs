@@ -39,8 +39,11 @@ import Control.Concurrent.Async
 
 import Debug.Trace
 
-macSpaceDim = 500
-switchNum   = 1
+macSpaceDim = 100
+switchNum   = 16
+maxTimeout  = 1000
+payloadLen  = 64
+statsDelay  = 500000
 
 testTCP dstMac srcMac = do
   srcIp  <- randomIO :: IO IPv4Addr
@@ -49,7 +52,7 @@ testTCP dstMac srcMac = do
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
   flags  <- return [ACK]
-  cargo  <- replicateM 64 randomIO :: IO [Word8]
+  cargo  <- replicateM payloadLen randomIO :: IO [Word8]
   return $! TestPacketTCP { dstMAC = dstMac
                           , srcMAC = srcMac
                           , srcIP  = srcIp
@@ -69,7 +72,6 @@ pktGenTest :: FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest fk chan = do
     forever $ do
     tid <- randomIO :: IO Word32
-    delay <- liftM (`mod` maxTimeout)          randomIO :: IO Int
     bid <- liftM ((`mod` nbuf))                randomIO :: IO Word32
     pid <- liftM ((+2).(`mod` (nports-1)))     randomIO :: IO Int 
     pidDst <- liftM ((+2).(`mod` (nports-1)))  randomIO :: IO Int 
@@ -77,7 +79,6 @@ pktGenTest fk chan = do
     when (pid /= pidDst ) $ do
       n1  <- randomIO :: IO Int
       n2  <- randomIO :: IO Int
-
       let dct = macSpace fk
       let !srcMac' = IntMap.lookup pid    dct >>= choice n1
       let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
@@ -86,12 +87,13 @@ pktGenTest fk chan = do
                                          pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
         _                          -> putStrLn "FUCKUP" -- FIXME: {L} add valid error handling
+
+      delay <- liftM (`mod` maxTimeout) randomIO :: IO Int
       threadDelay delay
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
         inports = fromIntegral nports :: Int
-        maxTimeout = 1000
         choice n l | V.null l  = Nothing
                    | otherwise = Just $ l `V.unsafeIndex` (n `mod` V.length l)
 
@@ -143,7 +145,7 @@ printStat tst = do
     let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktout: %6d qlen: %6d     \r" pktIS  pktISS pktOR qL
     put (pktIS, t1)
     lift $ hPutStr stdout stats
-    lift $ threadDelay 300000
+    lift $ threadDelay statsDelay
 
 randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
 

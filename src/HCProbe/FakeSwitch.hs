@@ -213,7 +213,6 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = do
     -- TODO: implement the following messages
     processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
       maybe (return ()) (\x -> (liftIO.x) m) rH
-      return ()
 
     processMessage _ OFPT_HELLO (OfpMessage hdr _) = sendReply (headReply hdr OFPT_HELLO)
 
