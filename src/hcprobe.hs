@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
 module Main where
 
 import Network.Openflow.Types
@@ -32,6 +32,7 @@ import System.IO
 import System.Environment (getArgs)
 import Control.Monad
 import Control.Monad.State
+import Control.Monad.Maybe
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
@@ -39,12 +40,18 @@ import Control.Concurrent.Async
 
 import Debug.Trace
 
-macSpaceDim = 100
-switchNum   = 32
-maxTimeout  = 1000
-payloadLen  = 64
-statsDelay  = 500000
-pmapThreshold = 1000
+macSpaceDim  = 100
+switchNum    = 64 
+maxTimeout   = 100
+payloadLen   = 64
+statsDelay   = 500000
+
+pktInQLen     = 1000
+pktInQTimeout = 1.0
+
+whenJustM :: Monad m => Maybe a -> (a -> m ()) -> m ()
+whenJustM (Just v) m  = m v
+whenJustM Nothing  _  = return ()
 
 testTCP dstMac srcMac = do
   srcIp  <- randomIO :: IO IPv4Addr
@@ -108,58 +115,92 @@ tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
                             }
         sw  = switchFeatures fk
 
-data PktStats = PktStats { pktInSent   :: !Int
-                         , pktOutRcv   :: !Int
-                         , pktLost     :: !Int
-                         , pmap        :: !(IntMap.IntMap Int)
-                         , liveThreads :: !Int
+-- FIXME: same pmap for different threads --- this is a bug!
+
+data PktStatsEvent =   PktInSent
+                     | PktOutRecv !NominalDiffTime
+                     | PktLost    !Int
+
+type PacketQ = IntMap.IntMap UTCTime
+
+empyPacketQ :: PacketQ
+empyPacketQ = IntMap.empty
+
+onSend :: TVar PacketQ -> TBMChan PktStatsEvent -> OfpMessage -> IO ()
+onSend q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
+  now <- getCurrentTime
+  atomically $ do
+    modifyTVar q (IntMap.insert (fromIntegral bid) now)
+    writeTBMChan s PktInSent
+  sweepQ now
+
+  where
+    sweepQ now = atomically $ do
+      pq <- readTVar q
+      when (IntMap.size pq > pktInQLen) $ do
+      let (lost, rest) = IntMap.partition ((>pktInQTimeout).toRational.diffUTCTime now) pq
+      writeTVar q $! rest
+      when ((not.IntMap.null) lost) $ do trace ("LOST " ++ show (IntMap.size lost)) $ return ()
+      writeTBMChan s $! PktLost (IntMap.size lost)
+
+onSend _ _ _ = return ()
+
+onReceive :: TVar PacketQ -> TBMChan PktStatsEvent -> OfpMessage -> IO ()
+onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = do
+  now <- getCurrentTime
+  pq <- (atomically.readTVar) q
+
+  whenJustM (IntMap.lookup ibid pq) $ \dt -> atomically $ do
+    writeTBMChan s (PktOutRecv (now `diffUTCTime` dt))
+    modifyTVar q $ IntMap.delete ibid
+
+  where ibid = fromIntegral bid
+
+onReceive _ _ (OfpMessage h _)  = do
+  return ()
+
+data PktStats = PktStats { pktStatsSentTotal :: !Int
+                         , pktStatsRecvTotal :: !Int
+                         , pktStatsLostTotal :: !Int
                          }
 
-emptyStats = PktStats 0 0 0 IntMap.empty 0
+emptyStats :: PktStats
+emptyStats = PktStats 0 0 0
 
-onSend :: TVar PktStats -> OfpMessage -> IO ()
-onSend s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = atomically $ do
-  st <- readTVar s
-  writeTVar s $! st { pktInSent = succ (pktInSent st)
-                    , pmap = (IntMap.insert (fromIntegral bid) 0 (pmap st))
-                    }
+updateStats :: TBMChan PktStatsEvent -> TVar PktStats -> IO ()
+updateStats q s = forever $ (atomically (readTBMChan q)) >>= maybe skip withEvent
+  where
+    withEvent (PktOutRecv _) =
+      atomically $ modifyTVar s $! \st -> st { pktStatsRecvTotal = succ (pktStatsRecvTotal st) }
 
-onSend _ _ = return ()
+    withEvent (PktLost n) =
+      atomically $ modifyTVar s $! \st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st) }
 
-onReceive :: TVar PktStats -> OfpMessage -> IO ()
-onReceive s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = atomically $ do
-    st <- readTVar s
-    when (IntMap.member (fromIntegral bid) (pmap st) ) $ do
-      writeTVar s $! trunc $ st { pktOutRcv = succ (pktOutRcv st)
-                                , pmap = IntMap.delete (fromIntegral bid) (pmap st)
-                                }
-    where trunc s = if pmapSz > pmapThreshold
-                    then s { pmap = IntMap.empty, pktLost = (pktLost s) + pmapSz }
-                    else s
-            where pmapSz = IntMap.size (pmap s)
+    withEvent pktInSent =
+      atomically $ modifyTVar s $! \st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st) }
 
-onReceive _ (OfpMessage h _)  = do
-  return ()
+    skip = return ()
+
+type HCState = (Int,Int,UTCTime)    
+newtype IOStat a = IOStat { runIOStat :: StateT HCState IO a
+                          } deriving(Monad, MonadIO, MonadState HCState)
 
 printStat tst = do
   hSetBuffering stdout NoBuffering
-  initTime <- getCurrentTime  
-  flip runStateT (0,0,initTime) $ forever $ do
-    st <- lift $ atomically $! readTVar tst
-    (np,op,t0) <- get
-    t1 <- lift $ getCurrentTime
-    let pktIS  = pktInSent st
-    let dt     = toRational (t1 `diffUTCTime` t0)
-    let pktISS = floor ((toRational (pktIS - np)) / dt) :: Int
-    let pktOR  = pktOutRcv st
-    let pktORS = floor ((toRational (pktOR - op))/ dt) :: Int
-    let qL     = (IntMap.size . pmap) st
-    let tds    = liveThreads st
-    let pLost  = pktLost st
-    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktOut: %5d pktOut/s: %5d pktLost: %5d qlen: %6d tds: %4d  \r" pktIS  pktISS pktOR pktORS pLost qL tds
-    put (pktIS, pktOR, t1)
-    lift $ hPutStr stdout stats
-    lift $ threadDelay statsDelay
+  initTime <- getCurrentTime
+  flip runStateT (0,0,initTime) $ runIOStat $ forever $ do
+      now <- liftIO $ getCurrentTime
+      st  <- liftIO $ atomically $ readTVar tst
+      (psent, precv, ptime) <- get
+      let sent = pktStatsSentTotal st
+      let recv = pktStatsRecvTotal st
+      let dt   = toRational (now `diffUTCTime` ptime)
+      let sps  = floor ((toRational (sent - psent)) / dt) :: Int
+      let rps  = floor ((toRational (recv - precv)) / dt) :: Int
+      let lost = pktStatsLostTotal st
+      put (sent, recv, now)
+      let s = printf "sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) lost: %5d   \r" sent sps recv rps lost
+      liftIO $ hPutStr stdout s >> threadDelay statsDelay
 
 randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
 
@@ -174,21 +215,24 @@ randomSet n s = do
 main :: IO ()
 main = do
   (host:port:_) <- getArgs
-  stats <- newTVarIO emptyStats
+  stats  <- newTVarIO emptyStats
+  statsQ <- newTBMChanIO 100000
 
   fakeSw <- forM [1..switchNum] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
     macs <- liftM S.toList (randomSet (48*macSpaceDim) S.empty)
     let !(fake'@(FakeSwitch sw _ _ _ _),_) = makeSwitch (defaultSwGen i ip rnd) 48 macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
-    return $ fake' { onSendMessage = Just (onSend stats), onRecvMessage = Just (onReceive stats) }
+    pktQ <- newTVarIO empyPacketQ
+    return $ fake' { onSendMessage = Just (onSend pktQ statsQ), onRecvMessage = Just (onReceive pktQ statsQ) }
 
-  ps <- async (printStat stats)
+  async (updateStats statsQ stats)
+  async (printStat stats)
 
   workers <- forM fakeSw $ \fake -> async $ forever $ do
-        atomically $ modifyTVar stats ( \s -> s { liveThreads = succ (liveThreads s) } )
+--        atomically $ modifyTVar stats ( \s -> s { liveThreads = succ (liveThreads s) } )
         (async (ofpClient pktGenTest fake (BS8.pack host) (read port))) >>= wait
-        atomically $ modifyTVar stats ( \s -> s { liveThreads = pred (liveThreads s) } )
+--        atomically $ modifyTVar stats ( \s -> s { liveThreads = pred (liveThreads s) } )
         threadDelay 1000000
 
   waitAnyCatch workers
