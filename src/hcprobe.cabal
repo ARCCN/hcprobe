@@ -34,8 +34,8 @@ executable hcprobe
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, time, vector,
                        MaybeT
-
-  Ghc-options:         -Wall -threaded -rtsopts -O2 -auto-all -caf-all
+  -- fllvm
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
 executable ethertest 
   main-is:           ethertest.hs

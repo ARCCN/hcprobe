@@ -34,6 +34,7 @@ import Control.Monad
 import Control.Monad.State
 import Control.Monad.Maybe
 import Control.Concurrent
+import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Concurrent.Async
@@ -42,8 +43,8 @@ import Debug.Trace
 
 macSpaceDim  = 100
 switchNum    = 16
-maxTimeout   = 100
-payloadLen   = 128
+maxTimeout   = 10
+payloadLen   = 0
 statsDelay   = 500000
 
 pktInQLen     = 10000
@@ -76,14 +77,21 @@ testTCP dstMac srcMac = do
                           , testIpID = Nothing
                           }
 
--- FIXME: improve pktIn/s performance, move mac space to FakeSwitch
-pktGenTest :: FakeSwitch -> TBMChan OfpMessage -> IO ()
-pktGenTest fk chan = do
-    forever $ do
+type PacketQ = IntMap.IntMap UTCTime
+
+empyPacketQ :: PacketQ
+empyPacketQ = IntMap.empty
+
+-- FIXME: improve pktIn/s performance
+-- FIXME: improve mac space generation performace
+
+pktGenTest :: TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
+pktGenTest q fk chan = forever $ do
+    pq  <- atomically $ readTVar q
     tid <- randomIO :: IO Word32
-    bid <- liftM ((`mod` nbuf))                randomIO :: IO Word32
-    pid <- liftM ((+2).(`mod` (nports-1)))     randomIO :: IO Int 
-    pidDst <- liftM ((+2).(`mod` (nports-1)))  randomIO :: IO Int 
+    bid <- liftM (fromIntegral.head.filter (not.flip IntMap.member pq).randoms) newStdGen
+    pid <- liftM ((+2).(`mod` (nports-1)))     randomIO :: IO Int
+    pidDst <- liftM ((+2).(`mod` (nports-1)))  randomIO :: IO Int
 
     when (pid /= pidDst ) $ do
       n1  <- randomIO :: IO Int
@@ -95,7 +103,7 @@ pktGenTest fk chan = do
         (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
                                          pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
-        _                          -> putStrLn "FUCKUP" -- FIXME: {L} add valid error handling
+        _                          -> return ()
 
       delay <- liftM (`mod` maxTimeout) randomIO :: IO Int
       threadDelay delay
@@ -121,10 +129,6 @@ data PktStatsEvent =   PktInSent
                      | PktOutRecv NominalDiffTime
                      | PktLost    Int
 
-type PacketQ = IntMap.IntMap UTCTime
-
-empyPacketQ :: PacketQ
-empyPacketQ = IntMap.empty
 
 onSend :: TVar PacketQ -> TBMChan PktStatsEvent -> OfpMessage -> IO ()
 onSend q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
@@ -167,17 +171,17 @@ data PktStats = PktStats { pktStatsSentTotal :: !Int
 emptyStats :: PktStats
 emptyStats = PktStats 0 0 0 0
 
-updateStats :: TBMChan PktStatsEvent -> TVar PktStats -> IO ()
+updateStats :: TBMChan PktStatsEvent -> MVar PktStats -> IO ()
 updateStats q s = forever $ (atomically (readTBMChan q)) >>= maybe skip withEvent
   where
     withEvent (PktOutRecv _) =
-      atomically $ modifyTVar s $! \st -> st { pktStatsRecvTotal = succ (pktStatsRecvTotal st) }
+      modifyMVar_ s $! \st -> return $ st { pktStatsRecvTotal = succ (pktStatsRecvTotal st) }
 
     withEvent (PktLost n) =
-      atomically $ modifyTVar s $! \st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st) }
+      modifyMVar_ s $! \st -> return $ st { pktStatsLostTotal = succ (pktStatsLostTotal st) }
 
     withEvent pktInSent =
-      atomically $ modifyTVar s $! \st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st) }
+      modifyMVar_ s $! \st -> return $ st { pktStatsSentTotal = succ (pktStatsSentTotal st) }
 
     skip = return ()
 
@@ -193,7 +197,7 @@ printStat tst = do
       now <- liftIO $ getCurrentTime
       let !dt   = toRational (now `diffUTCTime` ptime)
       when ( fromRational dt > 0 ) $ do
-        st  <- liftIO $ atomically $ readTVar tst
+        st  <- liftIO $ readMVar tst
         let !sent = pktStatsSentTotal st
         let !recv = pktStatsRecvTotal st
         let !sps  = floor ((toRational (sent - psent)) / dt) :: Int
@@ -218,21 +222,22 @@ randomSet n s = do
 main :: IO ()
 main = do
   (host:port:_) <- getArgs
-  stats  <- newTVarIO emptyStats
+  stats  <- newMVar emptyStats
   statsQ <- newTBMChanIO 10000
 
   fakeSw <- forM [1..switchNum] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
     macs <- liftM S.toList (randomSet (48*macSpaceDim) S.empty)
-    let !(fake'@(FakeSwitch sw _ _ _ _),_) = makeSwitch (defaultSwGen i ip rnd) 48 macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
-    pktQ <- newTVarIO empyPacketQ
-    return $ fake' { onSendMessage = Just (onSend pktQ statsQ), onRecvMessage = Just (onReceive pktQ statsQ) }
+    return $ fst $ makeSwitch (defaultSwGen i ip rnd) 48 macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
 
-  workers <- forM fakeSw $ \fake -> async $ forever $ do
-        (async (ofpClient pktGenTest fake (BS8.pack host) (read port))) >>= wait
-        atomically $ modifyTVar stats ( \s -> s { pktStatsConnLost = succ (pktStatsConnLost s) } )
-        threadDelay 1000000
+  workers <- forM fakeSw $ \fake' -> do
+        pktQ <- newTVarIO empyPacketQ
+        let fake = fake' { onSendMessage = Just (onSend pktQ statsQ), onRecvMessage = Just (onReceive pktQ statsQ) }
+        async $ forever $ do
+          (async (ofpClient (pktGenTest pktQ) fake (BS8.pack host) (read port))) >>= wait
+          modifyMVar_ stats ( \s -> return $ s { pktStatsConnLost = succ (pktStatsConnLost s) } )
+          threadDelay 1000000
   
   async (printStat stats)
   async (updateStats statsQ stats)
