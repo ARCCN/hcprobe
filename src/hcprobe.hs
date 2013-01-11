@@ -41,13 +41,13 @@ import Control.Concurrent.Async
 import Debug.Trace
 
 macSpaceDim  = 100
-switchNum    = 64 
+switchNum    = 16
 maxTimeout   = 100
-payloadLen   = 64
+payloadLen   = 128
 statsDelay   = 500000
 
-pktInQLen     = 1000
-pktInQTimeout = 1.0
+pktInQLen     = 10000
+pktInQTimeout = 0.01
 
 whenJustM :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenJustM (Just v) m  = m v
@@ -118,8 +118,8 @@ tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
 -- FIXME: same pmap for different threads --- this is a bug!
 
 data PktStatsEvent =   PktInSent
-                     | PktOutRecv !NominalDiffTime
-                     | PktLost    !Int
+                     | PktOutRecv NominalDiffTime
+                     | PktLost    Int
 
 type PacketQ = IntMap.IntMap UTCTime
 
@@ -140,7 +140,6 @@ onSend q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
       when (IntMap.size pq > pktInQLen) $ do
       let (lost, rest) = IntMap.partition ((>pktInQTimeout).toRational.diffUTCTime now) pq
       writeTVar q $! rest
-      when ((not.IntMap.null) lost) $ do trace ("LOST " ++ show (IntMap.size lost)) $ return ()
       writeTBMChan s $! PktLost (IntMap.size lost)
 
 onSend _ _ _ = return ()
@@ -162,10 +161,11 @@ onReceive _ _ (OfpMessage h _)  = do
 data PktStats = PktStats { pktStatsSentTotal :: !Int
                          , pktStatsRecvTotal :: !Int
                          , pktStatsLostTotal :: !Int
+                         , pktStatsConnLost  :: !Int
                          }
 
 emptyStats :: PktStats
-emptyStats = PktStats 0 0 0
+emptyStats = PktStats 0 0 0 0
 
 updateStats :: TBMChan PktStatsEvent -> TVar PktStats -> IO ()
 updateStats q s = forever $ (atomically (readTBMChan q)) >>= maybe skip withEvent
@@ -189,18 +189,21 @@ printStat tst = do
   hSetBuffering stdout NoBuffering
   initTime <- getCurrentTime
   flip runStateT (0,0,initTime) $ runIOStat $ forever $ do
-      now <- liftIO $ getCurrentTime
-      st  <- liftIO $ atomically $ readTVar tst
       (psent, precv, ptime) <- get
-      let sent = pktStatsSentTotal st
-      let recv = pktStatsRecvTotal st
-      let dt   = toRational (now `diffUTCTime` ptime)
-      let sps  = floor ((toRational (sent - psent)) / dt) :: Int
-      let rps  = floor ((toRational (recv - precv)) / dt) :: Int
-      let lost = pktStatsLostTotal st
-      put (sent, recv, now)
-      let s = printf "sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) lost: %5d   \r" sent sps recv rps lost
-      liftIO $ hPutStr stdout s >> threadDelay statsDelay
+      now <- liftIO $ getCurrentTime
+      let !dt   = toRational (now `diffUTCTime` ptime)
+      when ( fromRational dt > 0 ) $ do
+        st  <- liftIO $ atomically $ readTVar tst
+        let !sent = pktStatsSentTotal st
+        let !recv = pktStatsRecvTotal st
+        let !sps  = floor ((toRational (sent - psent)) / dt) :: Int
+        let !rps  = floor ((toRational (recv - precv)) / dt) :: Int
+        let !lost = pktStatsLostTotal st
+        let !err  = pktStatsConnLost st
+        put (sent, recv, now)
+        let s = printf "sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) lost: %5d err: %5d  \r" sent sps recv rps lost err
+        liftIO $ hPutStr stdout s >> threadDelay statsDelay
+  return ()
 
 randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
 
@@ -216,7 +219,7 @@ main :: IO ()
 main = do
   (host:port:_) <- getArgs
   stats  <- newTVarIO emptyStats
-  statsQ <- newTBMChanIO 100000
+  statsQ <- newTBMChanIO 10000
 
   fakeSw <- forM [1..switchNum] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
@@ -226,14 +229,13 @@ main = do
     pktQ <- newTVarIO empyPacketQ
     return $ fake' { onSendMessage = Just (onSend pktQ statsQ), onRecvMessage = Just (onReceive pktQ statsQ) }
 
-  async (updateStats statsQ stats)
-  async (printStat stats)
-
   workers <- forM fakeSw $ \fake -> async $ forever $ do
---        atomically $ modifyTVar stats ( \s -> s { liveThreads = succ (liveThreads s) } )
         (async (ofpClient pktGenTest fake (BS8.pack host) (read port))) >>= wait
---        atomically $ modifyTVar stats ( \s -> s { liveThreads = pred (liveThreads s) } )
+        atomically $ modifyTVar stats ( \s -> s { pktStatsConnLost = succ (pktStatsConnLost s) } )
         threadDelay 1000000
+  
+  async (printStat stats)
+  async (updateStats statsQ stats)
 
   waitAnyCatch workers
 
