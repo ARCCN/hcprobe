@@ -40,11 +40,11 @@ import Control.Concurrent.Async
 import Debug.Trace
 
 macSpaceDim = 100
-switchNum   = 16 
-maxTimeout  = 100000
-payloadLen  = 1*1024
+switchNum   = 32
+maxTimeout  = 1000
+payloadLen  = 64
 statsDelay  = 500000
-pmapThreshhold = 300
+pmapThreshold = 1000
 
 testTCP dstMac srcMac = do
   srcIp  <- randomIO :: IO IPv4Addr
@@ -110,17 +110,18 @@ tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
 
 data PktStats = PktStats { pktInSent   :: !Int
                          , pktOutRcv   :: !Int
+                         , pktLost     :: !Int
                          , pmap        :: !(IntMap.IntMap Int)
                          , liveThreads :: !Int
                          }
 
-emptyStats = PktStats 0 0 IntMap.empty 0
+emptyStats = PktStats 0 0 0 IntMap.empty 0
 
 onSend :: TVar PktStats -> OfpMessage -> IO ()
 onSend s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = atomically $ do
   st <- readTVar s
   writeTVar s $! st { pktInSent = succ (pktInSent st)
-                    , pmap = (IntMap.insert (fromIntegral bid) 0 (pmap st)) -- TODO: truncate map on overflow
+                    , pmap = (IntMap.insert (fromIntegral bid) 0 (pmap st))
                     }
 
 onSend _ _ = return ()
@@ -128,9 +129,14 @@ onSend _ _ = return ()
 onReceive :: TVar PktStats -> OfpMessage -> IO ()
 onReceive s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = atomically $ do
     st <- readTVar s
-    writeTVar s $! st { pktOutRcv = succ (pktOutRcv st)
-                      , pmap = IntMap.delete (fromIntegral bid) (pmap st) -- TODO: truncate map on overflow
-                      }
+    when (IntMap.member (fromIntegral bid) (pmap st) ) $ do
+      writeTVar s $! trunc $ st { pktOutRcv = succ (pktOutRcv st)
+                                , pmap = IntMap.delete (fromIntegral bid) (pmap st)
+                                }
+    where trunc s = if pmapSz > pmapThreshold
+                    then s { pmap = IntMap.empty, pktLost = (pktLost s) + pmapSz }
+                    else s
+            where pmapSz = IntMap.size (pmap s)
 
 onReceive _ (OfpMessage h _)  = do
   return ()
@@ -138,22 +144,22 @@ onReceive _ (OfpMessage h _)  = do
 printStat tst = do
   hSetBuffering stdout NoBuffering
   initTime <- getCurrentTime  
-  flip runStateT (0,initTime) $ forever $ do
+  flip runStateT (0,0,initTime) $ forever $ do
     st <- lift $ atomically $! readTVar tst
-    (np,t0) <- get
+    (np,op,t0) <- get
     t1 <- lift $ getCurrentTime
     let pktIS  = pktInSent st
     let dt     = toRational (t1 `diffUTCTime` t0)
     let pktISS = floor ((toRational (pktIS - np)) / dt) :: Int
     let pktOR  = pktOutRcv st
+    let pktORS = floor ((toRational (pktOR - op))/ dt) :: Int
     let qL     = (IntMap.size . pmap) st
     let tds    = liveThreads st
-    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktOut: %6d qlen: %6d tds: %4d  \r" pktIS  pktISS pktOR qL tds
-    put (pktIS, t1)
-    when (IntMap.size (pmap st) > pmapThreshhold ) $ truncatePmap tst st
+    let pLost  = pktLost st
+    let stats  = printf "Stats:  pktIn: %6d pktIn/s: %6d pktOut: %5d pktOut/s: %5d pktLost: %5d qlen: %6d tds: %4d  \r" pktIS  pktISS pktOR pktORS pLost qL tds
+    put (pktIS, pktOR, t1)
     lift $ hPutStr stdout stats
     lift $ threadDelay statsDelay
-    where truncatePmap t s = lift $! atomically $! writeTVar t s { pmap = IntMap.empty }
 
 randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
 
@@ -187,5 +193,6 @@ main = do
 
   waitAnyCatch workers
 
+  putStrLn ""
   putStrLn "done"
 
