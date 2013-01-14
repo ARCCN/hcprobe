@@ -198,8 +198,9 @@ printStat tst = do
         let !rps  = floor ((toRational (recv - precv)) / dt) :: Int
         let !lost = pktStatsLostTotal st
         let !err  = pktStatsConnLost st
+        let !t    = (fromRational.toRational) $ now `diffUTCTime` initTime :: Double
         put (sent, recv, now)
-        let s = printf "sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" sent sps recv rps mean lost err
+        let s = printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" t sent sps recv rps mean lost err
         liftIO $ hPutStr stdout s >> threadDelay statsDelay
   return ()
 
@@ -252,7 +253,7 @@ main = do
 
   async (printStat (stats : map snd w))
   async $ do
-    threadDelay (testDuration * 1000000)
+    threadDelay ((testDuration * 1000000) + 350000)
     mapM_ cancel workers
 
   waitAnyCatch workers
