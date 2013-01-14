@@ -45,12 +45,14 @@ import qualified Statistics.Sample as S
 
 import Debug.Trace
 
-macSpaceDim  = 100
-switchNum    = 32
-maxTimeout   = 10
-payloadLen   = 32
-statsDelay   = 500000
-testDuration = 10
+macSpaceDim    = 100
+switchNum      = 32
+maxTimeout     = 10
+payloadLen     = 32
+samplingPeriod = 100000
+statsDelay     = 300000
+testDuration   = 10*1000000
+logFileName    = Just "report.log"
 
 pktInQLen     = 10000
 pktInQTimeout = 0.5
@@ -179,9 +181,18 @@ type HCState = (Int,Int,UTCTime)
 newtype IOStat a = IOStat { runIOStat :: StateT HCState IO a
                           } deriving(Monad, MonadIO, MonadState HCState)
 
-printStat :: [TVar PktStats] -> IO ()
-printStat tst = do
-  hSetBuffering stdout NoBuffering
+data LogEntry = LogEntry { logTimestamp     :: !NominalDiffTime
+                         , logSendPerSecond :: !Int
+                         , logRecvPerSecond :: !Int
+                         , logSent          :: !Int
+                         , logRecv          :: !Int
+                         , logMeanRtt       :: !Double
+                         , logErrors        :: !Int
+                         , logLost          :: !Int
+                         }
+
+updateLog :: TBMChan LogEntry -> [TVar PktStats] -> IO ()
+updateLog chan tst = do
   initTime <- getCurrentTime
   flip runStateT (0,0,initTime) $ runIOStat $ forever $ do
       (psent, precv, ptime) <- get
@@ -198,10 +209,18 @@ printStat tst = do
         let !rps  = floor ((toRational (recv - precv)) / dt) :: Int
         let !lost = pktStatsLostTotal st
         let !err  = pktStatsConnLost st
-        let !t    = (fromRational.toRational) $ now `diffUTCTime` initTime :: Double
         put (sent, recv, now)
-        let s = printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" t sent sps recv rps mean lost err
-        liftIO $ hPutStr stdout s >> threadDelay statsDelay
+        liftIO $ atomically $ writeTBMChan chan $ LogEntry { logTimestamp     = now `diffUTCTime` initTime
+                                                           , logSendPerSecond = sps
+                                                           , logRecvPerSecond = rps
+                                                           , logSent          = sent
+                                                           , logRecv          = recv
+                                                           , logMeanRtt       = mean
+                                                           , logErrors        = err
+                                                           , logLost          = lost
+                                                           }
+        liftIO $ threadDelay samplingPeriod
+
   return ()
 
   where
@@ -217,6 +236,30 @@ printStat tst = do
     clost = pktStatsConnLost
 
 
+writeLog :: TBMChan LogEntry -> IO ()
+writeLog chan = forever $ do
+  entry <- atomically $ readTBMChan chan
+  threadDelay $ samplingPeriod `div` 2
+
+displayStats :: TBMChan LogEntry -> IO ()
+displayStats chan = do
+  hSetBuffering stdout NoBuffering
+  initTime <- getCurrentTime
+  forever $ do
+    logm <- atomically $ peekTBMChan chan
+    whenJustM logm $ \log -> do
+      let !ts   = (fromRational.toRational.logTimestamp) log :: Double
+      let !sent = logSent log
+      let !recv = logRecv log
+      let !sps  = logSendPerSecond log
+      let !rps  = logRecvPerSecond log
+      let !lost = logLost log
+      let !err  = logErrors log
+      let !mean = logMeanRtt log
+      let s = printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
+      hPutStr stdout s
+      threadDelay statsDelay
+
 randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
 
 randomSet n s | S.size s == n = return s
@@ -230,8 +273,9 @@ randomSet n s = do
 main :: IO ()
 main = do
   (host:port:_) <- getArgs
-  stats  <- newTVarIO emptyStats
-  statsQ <- newTBMChanIO 10000
+  stats   <- newTVarIO emptyStats
+  statsQ  <- newTBMChanIO 10000
+  testLog <- newTBMChanIO 10000
 
   fakeSw <- forM [1..switchNum] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
@@ -251,9 +295,12 @@ main = do
   
   let workers = map fst w        
 
-  async (printStat (stats : map snd w))
+  async (updateLog testLog (stats : map snd w))
+  async (writeLog testLog)
+  async (displayStats testLog)
+
   async $ do
-    threadDelay ((testDuration * 1000000) + 350000)
+    threadDelay (testDuration + 350000)
     mapM_ cancel workers
 
   waitAnyCatch workers
