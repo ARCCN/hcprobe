@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables, GeneralizedNewtypeDeriving, DeriveDataTypeable #-}
 module Main where
 
 import Network.Openflow.Types
@@ -22,6 +22,7 @@ import Data.Time
 import qualified Data.Set as S
 import Text.Printf
 import Data.Maybe
+import Data.Typeable
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector as BV
 import Data.List (intersperse, concat, unfoldr)
@@ -32,6 +33,7 @@ import qualified Data.Map as M
 import System.Random
 import System.IO
 import System.Environment (getArgs)
+import Control.Exception
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Maybe
@@ -51,7 +53,7 @@ maxTimeout     = 10
 payloadLen     = 32
 samplingPeriod = 100000
 statsDelay     = 300000
-testDuration   = 10*1000000
+testDuration   = 300*1000000
 logFileName    = Just "report.log"
 
 pktInQLen     = 10000
@@ -237,9 +239,21 @@ updateLog chan tst = do
 
 
 writeLog :: TBMChan LogEntry -> IO ()
-writeLog chan = forever $ do
-  entry <- atomically $ readTBMChan chan
-  threadDelay $ samplingPeriod `div` 2
+writeLog chan = whenJustM logFileName $ \fn -> withFile fn WriteMode $ \h -> do
+  forever $ do
+    log' <- atomically $ readTBMChan chan
+    whenJustM log' $ \log -> do
+      let !ts   = (fromRational.toRational.logTimestamp) log :: Double
+      let !sent = logSent log
+      let !recv = logRecv log
+      let !sps  = logSendPerSecond log
+      let !rps  = logRecvPerSecond log
+      let !lost = logLost log
+      let !err  = logErrors log
+      let !mean = logMeanRtt log
+      let !s = printf "%6.4f\t%6d\t%6d\t%6d\t%6d\t%6.4f\t%6d\t%6d" ts sent sps recv rps mean lost err
+      hPutStrLn h s
+    threadDelay $ samplingPeriod `div` 2
 
 displayStats :: TBMChan LogEntry -> IO ()
 displayStats chan = do
@@ -270,6 +284,12 @@ randomSet n s = do
     then randomSet n (S.insert i s)
     else randomSet n s
 
+
+data MyException = FuckException
+   deriving (Show, Typeable)
+
+instance Exception MyException
+
 main :: IO ()
 main = do
   (host:port:_) <- getArgs
@@ -295,15 +315,14 @@ main = do
   
   let workers = map fst w        
 
-  async (updateLog testLog (stats : map snd w))
-  async (writeLog testLog)
-  async (displayStats testLog)
+  misc  <- mapM async [ updateLog testLog (stats : map snd w)
+                      , writeLog testLog
+                      , displayStats testLog
+                      ]
 
-  async $ do
-    threadDelay (testDuration + 350000)
-    mapM_ cancel workers
+  async $ threadDelay (testDuration + 350000) >> mapM_ cancel (misc ++ workers)
 
-  waitAnyCatch workers
+  mapM_ waitCatch (workers ++ misc)
 
   putStrLn ""
   putStrLn "done"
