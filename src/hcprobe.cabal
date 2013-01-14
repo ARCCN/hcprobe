@@ -21,7 +21,7 @@ library
                       resourcet, async, network-data,
                       random, digest, stm, stm-conduit, stm-chans,
                       conduit==0.5.*, vector,
-                      random, digest,
+                      random, digest, statistics,
                       transformers, mtl, containers,
                       MaybeT
 
@@ -33,6 +33,7 @@ executable hcprobe
                        resourcet, async, network-data, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, time, vector,
+                       statistics,
                        MaybeT
   -- fllvm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
