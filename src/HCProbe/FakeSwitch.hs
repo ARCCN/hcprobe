@@ -162,7 +162,6 @@ data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
 pktSendTimeout = 500000
 pktSendQLen    = 65536
 
--- FIXME: handle "resource vanished" exception
 ofpClient pktGen sw host port = runTCPClient (clientSettings port host) (client pktGen sw)
 
 client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
