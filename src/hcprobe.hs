@@ -48,10 +48,10 @@ import qualified Statistics.Sample as S
 import Debug.Trace
 
 macSpaceDim    = 100
-switchNum      = 32
+switchNum      = 64
 maxTimeout     = 10
 payloadLen     = 32
-samplingPeriod = 100000
+samplingPeriod = 300000
 statsDelay     = 300000
 testDuration   = 300*1000000
 logFileName    = Just "report.log"
@@ -283,12 +283,6 @@ randomSet n s = do
   if not (S.member i s)
     then randomSet n (S.insert i s)
     else randomSet n s
-
-
-data MyException = FuckException
-   deriving (Show, Typeable)
-
-instance Exception MyException
 
 main :: IO ()
 main = do
