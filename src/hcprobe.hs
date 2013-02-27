@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables, GeneralizedNewtypeDeriving, DeriveDataTypeable #-}
+﻿{-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables, GeneralizedNewtypeDeriving, DeriveDataTypeable #-}
 module Main where
 
 import Network.Openflow.Types
@@ -9,8 +9,10 @@ import Network.Openflow.Ethernet.TCP
 import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Messages
 import Network.Openflow.Misc
+
 import HCProbe.FakeSwitch
 import HCProbe.TCP
+import HCProbe.Configurator
 
 import Data.Binary.Put ( runPut )
 import qualified Data.ByteString as BS
@@ -43,27 +45,18 @@ import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Concurrent.Async
 
+import System.IO.Error
+
 import qualified Statistics.Sample as S
 
 import Debug.Trace
 
-macSpaceDim    = 100
-switchNum      = 64
-maxTimeout     = 10
-payloadLen     = 32
-samplingPeriod = 300000
-statsDelay     = 300000
-testDuration   = 300*1000000
-logFileName    = Just "report.log"
-
-pktInQLen     = 10000
-pktInQTimeout = 0.5
 
 whenJustM :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenJustM (Just v) m  = m v
 whenJustM Nothing  _  = return ()
 
-testTCP dstMac srcMac = do
+testTCP dstMac srcMac params = do
   srcIp  <- randomIO :: IO IPv4Addr
   dstIp  <- randomIO :: IO IPv4Addr
   srcP   <- randomIO :: IO Word16
@@ -71,7 +64,7 @@ testTCP dstMac srcMac = do
   wss    <- randomIO :: IO Int 
   flags  <- return [ACK]
 --  cargo  <- replicateM payloadLen randomIO :: IO [Word8]
-  let cargo = replicate payloadLen 0
+  let cargo = replicate (payloadLen params) 0
   return $! TestPacketTCP { dstMAC = dstMac
                           , srcMAC = srcMac
                           , srcIP  = srcIp
@@ -94,8 +87,8 @@ empyPacketQ = IntMap.empty
 -- FIXME: improve pktIn/s performance
 -- FIXME: improve mac space generation performace
 
-pktGenTest :: TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
-pktGenTest q fk chan = forever $ do
+pktGenTest :: TVar PacketQ -> Parameters -> FakeSwitch -> TBMChan OfpMessage -> IO ()
+pktGenTest q params fk chan  = forever $ do
     pq  <- atomically $ readTVar q
     tid <- randomIO :: IO Word32
     bid <- liftM (fromIntegral.head.filter (not.flip IntMap.member pq).randoms) newStdGen
@@ -110,11 +103,11 @@ pktGenTest q fk chan = forever $ do
       let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
       case (srcMac', dstMac') of 
         (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
-                                         pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac)
+                                         pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac params)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
         _                          -> return ()
 
-      delay <- liftM (`mod` maxTimeout) randomIO :: IO Int
+      delay <- liftM (`mod` maxTimeout params) randomIO :: IO Int
       threadDelay delay
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
@@ -142,8 +135,8 @@ data PktStats = PktStats { pktStatsSentTotal :: !Int
 emptyStats :: PktStats
 emptyStats = PktStats 0 0 0 0 Nothing
 
-onSend :: TVar PacketQ -> TVar PktStats -> OfpMessage -> IO ()
-onSend q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
+onSend :: TVar PacketQ -> TVar PktStats -> Parameters -> OfpMessage -> IO ()
+onSend q s params (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
   now <- getCurrentTime
   atomically $ do
     modifyTVar q (IntMap.insert (fromIntegral bid) now)
@@ -154,13 +147,14 @@ onSend q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
   where
     sweepQ now = atomically $ do
       pq <- readTVar q
-      when (IntMap.size pq > pktInQLen) $ do
-      let (lost, rest) = IntMap.partition ((>pktInQTimeout).toRational.diffUTCTime now) pq
+      when (IntMap.size pq > pktInQLen params) $ do
+      let rationalTimeout = toRational (pktInQTimeout params)
+      let (lost, rest) = IntMap.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
       writeTVar q $! rest
       modifyTVar s (\st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st)
                               })
 
-onSend _ _ _ = return ()
+onSend _ _ _ _ = return ()
 
 onReceive :: TVar PacketQ -> TVar PktStats -> OfpMessage -> IO ()
 onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = do
@@ -193,8 +187,8 @@ data LogEntry = LogEntry { logTimestamp     :: !NominalDiffTime
                          , logLost          :: !Int
                          }
 
-updateLog :: TBMChan LogEntry -> [TVar PktStats] -> IO ()
-updateLog chan tst = do
+updateLog :: TBMChan LogEntry -> [TVar PktStats] -> Parameters -> IO ()
+updateLog chan tst params = do
   initTime <- getCurrentTime
   flip runStateT (0,0,initTime) $ runIOStat $ forever $ do
       (psent, precv, ptime) <- get
@@ -221,7 +215,7 @@ updateLog chan tst = do
                                                            , logErrors        = err
                                                            , logLost          = lost
                                                            }
-        liftIO $ threadDelay samplingPeriod
+        liftIO $ threadDelay (samplingPeriod params)
 
   return ()
 
@@ -238,8 +232,8 @@ updateLog chan tst = do
     clost = pktStatsConnLost
 
 
-writeLog :: TBMChan LogEntry -> IO ()
-writeLog chan = whenJustM logFileName $ \fn -> withFile fn WriteMode $ \h -> do
+writeLog :: TBMChan LogEntry -> Parameters -> IO ()
+writeLog chan params = whenJustM (logFileName params) $ \fn -> withFile fn WriteMode $ \h -> do
   forever $ do
     log' <- atomically $ readTBMChan chan
     whenJustM log' $ \log -> do
@@ -253,10 +247,10 @@ writeLog chan = whenJustM logFileName $ \fn -> withFile fn WriteMode $ \h -> do
       let !mean = logMeanRtt log
       let !s = printf "%6.4f\t%6d\t%6d\t%6d\t%6d\t%6.4f\t%6d\t%6d" ts sent sps recv rps mean lost err
       hPutStrLn h s
-    threadDelay $ samplingPeriod `div` 2
+    threadDelay $ (samplingPeriod params) `div` 2
 
-displayStats :: TBMChan LogEntry -> IO ()
-displayStats chan = do
+displayStats :: TBMChan LogEntry -> Parameters -> IO ()
+displayStats chan params = do
   hSetBuffering stdout NoBuffering
   initTime <- getCurrentTime
   forever $ do
@@ -272,7 +266,7 @@ displayStats chan = do
       let !mean = logMeanRtt log
       let s = printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
       hPutStr stdout s
-      threadDelay statsDelay
+      threadDelay $ statsDelay params
 
 randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
 
@@ -284,40 +278,44 @@ randomSet n s = do
     then randomSet n (S.insert i s)
     else randomSet n s
 
-main :: IO ()
-main = do
-  (host:port:_) <- getArgs
+toTryMain :: IO ()
+toTryMain = do
+  params <- getParameters
+  
   stats   <- newTVarIO emptyStats
   statsQ  <- newTBMChanIO 10000
   testLog <- newTBMChanIO 10000
 
-  fakeSw <- forM [1..switchNum] $ \i -> do
+  fakeSw <- forM [1..(switchNum params)] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
-    macs <- liftM S.toList (randomSet (48*macSpaceDim) S.empty)
+    macs <- liftM S.toList (randomSet (48*(macSpaceDim params)) S.empty)
     return $ fst $ makeSwitch (defaultSwGen i ip rnd) 48 macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
 
   w <- forM fakeSw $ \fake' -> do
         pktQ <- newTVarIO empyPacketQ
         stat <- newTVarIO emptyStats
-        let fake = fake' { onSendMessage = Just (onSend pktQ stat), onRecvMessage = Just (onReceive pktQ stat) }
+        let fake = fake' { onSendMessage = Just (onSend pktQ stat params), onRecvMessage = Just (onReceive pktQ stat) }
         w <- async $ forever $ do
-          (async (ofpClient (pktGenTest pktQ) fake (BS8.pack host) (read port))) >>= wait
+          (async (ofpClient (pktGenTest pktQ params) fake (BS8.pack (host params)) (read (port params)))) >>= wait
           atomically $ modifyTVar stats (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
           threadDelay 1000000
         return (w,stat)
   
   let workers = map fst w        
 
-  misc  <- mapM async [ updateLog testLog (stats : map snd w)
-                      , writeLog testLog
-                      , displayStats testLog
+  misc  <- mapM async [ updateLog testLog (stats : map snd w) params
+                      , writeLog testLog params
+                      , displayStats testLog params
                       ]
 
-  async $ threadDelay (testDuration + 350000) >> mapM_ cancel (misc ++ workers)
+  async $ threadDelay (testDuration params + 350000) >> mapM_ cancel (misc ++ workers)
 
   mapM_ waitCatch (workers ++ misc)
 
   putStrLn ""
   putStrLn "done"
 
+main :: IO ()
+main = do
+	toTryMain --`catch` parseHandler
