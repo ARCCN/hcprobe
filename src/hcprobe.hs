@@ -284,9 +284,10 @@ randomSet n s = do
 
 toTryMain :: IO ()
 toTryMain = do
-  params <- getParameters -- Read parameters from cmd Args and config file
-			  -- All wariables like macSpaceDim, switchNum, etc. was replased
-			  -- by expression like (macSpaceDim params) (switchNum params) etc.
+  params <- getParameters   -- Read parameters from cmd Args and config file
+                            -- All wariables like macSpaceDim, switchNum, etc. was replased
+                            -- by expression like (macSpaceDim params) (switchNum params) etc.
+  print $ logFileName params
   
   stats   <- newTVarIO emptyStats
   statsQ  <- newTBMChanIO 10000
@@ -324,4 +325,4 @@ toTryMain = do
 
 main :: IO ()
 main = do
-	toTryMain --`catch` parseHandler
+    toTryMain --`catch` parseHandler
