@@ -12,6 +12,10 @@ import Network.Openflow.Misc
 
 import HCProbe.FakeSwitch
 import HCProbe.TCP
+-- Module with configurations reader
+-- Read parameters from cmd args and/or configfile
+-- First reads configfile then some parametes can be replased in cmd args
+-- Parameters, don't meeted in config file or in cmd args setted as default.
 import HCProbe.Configurator
 
 import Data.Binary.Put ( runPut )
@@ -280,7 +284,9 @@ randomSet n s = do
 
 toTryMain :: IO ()
 toTryMain = do
-  params <- getParameters
+  params <- getParameters -- Read parameters from cmd Args and config file
+			  -- All wariables like macSpaceDim, switchNum, etc. was replased
+			  -- by expression like (macSpaceDim params) (switchNum params) etc.
   
   stats   <- newTVarIO emptyStats
   statsQ  <- newTBMChanIO 10000

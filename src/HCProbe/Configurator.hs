@@ -4,7 +4,9 @@ module HCProbe.Configurator
 , logFileName
 , getParameters
 ) where
-	
+
+-- TODO see line 38
+
 import System.Console.CmdArgs
 import System.IO
 
@@ -14,7 +16,9 @@ import Data.Either.Utils
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Maybe
+import Control.Monad.Error
 
+--Default falues
 macSpaceDim_DEF    = 100
 switchNum_DEF      = 64
 maxTimeout_DEF     = 10
@@ -22,7 +26,7 @@ payloadLen_DEF     = 32
 samplingPeriod_DEF = 300000
 statsDelay_DEF     = 300000
 testDuration_DEF   = 300*1000000
-logFileName_DEF    = "report.log"
+logFileName_DEF    = ""
 
 pktInQLen_DEF     = 10000
 pktInQTimeout_DEF = 0.5
@@ -30,8 +34,11 @@ pktInQTimeout_DEF = 0.5
 host_DEF	= "127.0.0.1"
 port_DEF	= "6633"
 
+--Default config filepath
+-- TODO try to make program to read it from cmd args.
 confFilePath	= "hcprobe.conf"
 
+--Structure with parameters
 data Parameters = Parameters
 	{ macSpaceDim		:: Int
 	, switchNum		:: Int
@@ -49,11 +56,17 @@ data Parameters = Parameters
 	, port	:: String
 	} deriving (Show, Data, Typeable)
 	
+-- Program use Maybe String to get logFileName value
+-- We can't use Maybe type in cmdArgs lib, so we say that
+-- empty string mean NO logFile 
+-- TODO logFileName' shouldn't be accesible from other program
 logFileName :: Parameters => Maybe String
 logFileName param  = if logFileName' param == ""
 			then Nothing
 			else Just $ logFileName' param 
 
+-- Setting Parameters struture to use with cmdArgs
+-- TODO make fine help
 parametersDef = Parameters { macSpaceDim = macSpaceDim_DEF 		&= help "MAC Space Dim" 	&= typ "NUM"
 			   , switchNum = switchNum_DEF 			&= help "Number of swithes" 	&= typ "NUM"
 			   , maxTimeout = maxTimeout_DEF 		&= help "Maximum timeout" 	&= typ "NUM"
@@ -71,26 +84,30 @@ parametersDef = Parameters { macSpaceDim = macSpaceDim_DEF 		&= help "MAC Space 
 			   } &=
 			   help "HCProbe"
 
+--Read parameters from config file
 parametersConf :: Parameters -> IO Parameters
 parametersConf params = do
 	val <- CF.readfile CF.emptyCP confFilePath
         let cp = forceEither val 
-        res <- if (CF.has_option cp "DEFAULT" "macSpaceDim")
-		then do putStrLn "YES"
-			return params { macSpaceDim = forceEither $ CF.get cp "DEFAULT" "macSpaceDim" } 
-		else do putStrLn "NO"
-			return params
-	if (CF.has_option cp "DEFAULT" "switchNum")
-		then return res { switchNum = forceEither $ CF.get cp "DEFAULT" "switchNum" } 
-		else return res
--- 	res <- when (has_option cp "DEFAULT" "macSpaceDim")
--- 		return res { macSpaceDim = forceEither $ get cp "DEFAULT" "macSpaceDim" } 
--- 	res <- when (has_option cp "DEFAULT" "macSpaceDim")
--- 		return res { macSpaceDim = forceEither $ get cp "DEFAULT" "macSpaceDim" } 
+        foldM  applyConf params (forceEither $ CF.items cp "DEFAULT")
+	where applyConf :: Parameters -> (CF.OptionSpec, String) -> IO Parameters
+	      applyConf params ("macspacedim",val) = return $ params { macSpaceDim = read val}
+	      applyConf params ("switchnum",val) = return $ params { switchNum = read val}
+	      applyConf params ("maxtimeout",val) = return $ params { maxTimeout = read val}
+	      applyConf params ("payloadlen",val) = return $ params { payloadLen = read val}
+	      applyConf params ("samplingperiod",val) = return $ params { samplingPeriod = read val}
+	      applyConf params ("statsdelay",val) = return $ params { statsDelay = read val}
+	      applyConf params ("testduration",val) = return $ params { testDuration = read val}
+	      applyConf params ("logfilename",val) = return $ params { logFileName' = val}
+	      
+	      applyConf params ("pktinqlen",val) = return $ params { pktInQLen = read val}
+	      applyConf params ("pktinqtimeout",val) = return $ params { pktInQTimeout = read val}
+	      
+	      applyConf params ("host",val) = return $ params { host = val}
+	      applyConf params ("port",val) = return $ params { port = val}
+	      applyConf params (_,_) = return params
 
 	
 			   
 getParameters :: IO Parameters
-getParameters = do 
-	param <- parametersConf parametersDef
-	cmdArgs param
+getParameters = return parametersDef >>= parametersConf >>= cmdArgs
