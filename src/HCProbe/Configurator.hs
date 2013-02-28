@@ -1,9 +1,7 @@
-﻿{-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables, GeneralizedNewtypeDeriving, DeriveDataTypeable #-}
-module HCProbe.Configurator 
-( Parameters (..)
--- , logFileName
-, getParameters
-) where
+{-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables, GeneralizedNewtypeDeriving, DeriveDataTypeable #-}
+module HCProbe.Configurator ( Parameters (..)
+                            , getParameters
+                            ) where
 
 -- TODO see line 38, line 59
 
