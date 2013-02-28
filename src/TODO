@@ -1,3 +1,4 @@
+[ ] TODO: Wrap Parameters and all code that uses it into Reader + IO monad transformer
 [~] FIXME: hcprobe: toEnum{OfpType}: tag (24) is outside of enumeration's range (0,21)
 [~] TODO: detailed statistics
 [-] TODO: statistics: average roundtrip time
