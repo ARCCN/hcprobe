@@ -24,7 +24,7 @@ library
                       random, digest, statistics,
                       transformers, mtl, containers,
                       MaybeT, MissingH,
-                      cmdargs, ConfigFile
+                      cmdargs, ConfigFile, directory
 
 executable hcprobe
   main-is:           hcprobe.hs
@@ -36,7 +36,7 @@ executable hcprobe
                        transformers, mtl, containers, time, vector,
                        statistics,
                        MaybeT, MissingH,
-                       cmdargs, ConfigFile
+                       cmdargs, ConfigFile, directory
   -- fllvm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
@@ -49,7 +49,7 @@ executable ethertest
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
-                       cmdargs, ConfigFile
+                       cmdargs, ConfigFile, directory
 
   Ghc-options:         -Wall -threaded
 

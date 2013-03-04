@@ -287,7 +287,7 @@ toTryMain = do
   params <- getParameters   -- Read parameters from cmd Args and config file
                             -- All wariables like macSpaceDim, switchNum, etc. was replased
                             -- by expression like (macSpaceDim params) (switchNum params) etc.
-  print $ logFileName params
+  --print $ macSpaceDim params
   
   stats   <- newTVarIO emptyStats
   statsQ  <- newTBMChanIO 10000
