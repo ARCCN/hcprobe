@@ -268,36 +268,43 @@ displayStats chan params = do
       let !lost = logLost log
       let !err  = logErrors log
       let !mean = logMeanRtt log
-      let s = printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
+      let !s = printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
       hPutStr stdout s
       threadDelay $ statsDelay params
 
-randomSet :: Int -> S.Set MACAddr -> IO (S.Set MACAddr)
+randomSet :: Word64 -> S.Set MACAddr -> IO (S.Set MACAddr)
 
-randomSet n s | S.size s == n = return s
+--randomSet n s | S.size s == n = return s
 
 randomSet n s = do
-  i <- liftM mcPrefix randomIO
-  if not (S.member i s)
-    then randomSet n (S.insert i s)
-    else randomSet n s
+  i <- randomIO :: IO Word8
+  let macList = [1..fromIntegral n] :: [MACAddr]
+  return $ foldl (insertSet $ fromIntegral i) s macList 
+  where insertSet i c v =
+            if S.member (i*v) c
+                then insertSet (i+1) c v
+                else S.insert (mcPrefix (i*v)) c
+  --if not (S.member i s)
+    --then randomSet n (S.insert i s)
+    --else randomSet n s
 
 toTryMain :: IO ()
 toTryMain = do
   params <- getParameters   -- Read parameters from cmd Args and config file
                             -- All wariables like macSpaceDim, switchNum, etc. was replased
                             -- by expression like (macSpaceDim params) (switchNum params) etc.
-  --print $ macSpaceDim params
+ -- print $ macSpaceDim params
   
   stats   <- newTVarIO emptyStats
   statsQ  <- newTBMChanIO 10000
   testLog <- newTBMChanIO 10000
 
-  fakeSw <- forM [1..(switchNum params)] $ \i -> do
+  fakeSw <- forM [1..switchNum params] $ \i -> do
     let ip = (fromIntegral i) .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
-    macs <- liftM S.toList (randomSet (48*(macSpaceDim params)) S.empty)
-    return $ fst $ makeSwitch (defaultSwGen i ip rnd) 48 macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+    macs <- liftM S.toList (randomSet ((fromIntegral $ portNum params)*(macSpaceDim params)+1) S.empty)
+--    print $ length macs
+    return $ fst $ makeSwitch (defaultSwGen i ip rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
 
   w <- forM fakeSw $ \fake' -> do
         pktQ <- newTVarIO empyPacketQ

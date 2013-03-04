@@ -19,9 +19,12 @@ import Control.Monad.Error
 import Control.Exception
 import System.Directory
 
+import Data.Word
+
 --Default values
 macSpaceDimDEF    = 100
 switchNumDEF      = 64
+portNumDEF        = 48
 maxTimeoutDEF     = 10
 payloadLenDEF     = 32
 samplingPeriodDEF = 300000
@@ -40,8 +43,9 @@ configDEF        = "hcprobe.conf"
 
 --Structure with parameters
 data Parameters = Parameters { config           :: Maybe String -- If user don't cpecify the config file, use default
-                             , macSpaceDim      :: Int
+                             , macSpaceDim      :: Word64
                              , switchNum        :: Int
+                             , portNum          :: Int
                              , maxTimeout       :: Int
                              , payloadLen       :: Int
                              , samplingPeriod   :: Int
@@ -58,15 +62,16 @@ data Parameters = Parameters { config           :: Maybe String -- If user don't
 
 -- Setting Parameters struture to use with cmdArgs
 -- TODO make fine help
-parametersDef = Parameters { config = Nothing                          &= help "Config file path"      &= typ "PATH"
-                           , macSpaceDim = macSpaceDimDEF              &= help "MAC Space Dim"         &= typ "NUM"
-                           , switchNum = switchNumDEF                  &= help "Number of swithes"     &= typ "NUM"
-                           , maxTimeout = maxTimeoutDEF                &= help "Maximum timeout"       &= typ "NUM"
-                           , payloadLen = payloadLenDEF                &= help "Payload length"        &= typ "NUM"
-                           , samplingPeriod = samplingPeriodDEF        &= help "Sampling period"       &= typ "NUM"
-                           , statsDelay = statsDelayDEF                &= help "Stats delay"           &= typ "NUM"
-                           , testDuration = testDurationDEF            &= help "Test duration"         &= typ "NUM"
-                           , logFileName = logFileNameDEF              &= help "Log path"              &= typ "PATH"
+parametersDef = Parameters { config = Nothing                          &= help "Config file path"           &= typ "PATH"
+                           , macSpaceDim = macSpaceDimDEF              &= help "MAC Space Dim"              &= typ "NUM"
+                           , switchNum = switchNumDEF                  &= help "Number of swithes"          &= typ "NUM"
+                           , portNum = portNumDEF                      &= help "Number of ports per Switch" &= typ "NUM"
+                           , maxTimeout = maxTimeoutDEF                &= help "Maximum timeout"            &= typ "NUM"
+                           , payloadLen = payloadLenDEF                &= help "Payload length"             &= typ "NUM"
+                           , samplingPeriod = samplingPeriodDEF        &= help "Sampling period"            &= typ "NUM"
+                           , statsDelay = statsDelayDEF                &= help "Stats delay"                &= typ "NUM"
+                           , testDuration = testDurationDEF            &= help "Test duration"              &= typ "NUM"
+                           , logFileName = logFileNameDEF              &= help "Log path"                   &= typ "PATH"
                            
                            , pktInQLen = pktInQLenDEF             &= help "In packet Q length"         &= typ "NUM"
                            , pktInQTimeout = pktInQTimeoutDEF     &= help "In packet Q timeout"        &= typ "RATIONAL"
@@ -103,6 +108,7 @@ parametersConf params = do
           applyConf :: Parameters -> (CF.OptionSpec, String) -> IO Parameters
           applyConf params ("macspacedim",val)      = return $ params { macSpaceDim = read val}
           applyConf params ("switchnum",val)        = return $ params { switchNum = read val}
+          applyConf params ("portnum",val)          = return $ params { portNum = read val}
           applyConf params ("maxtimeout",val)       = return $ params { maxTimeout = read val}
           applyConf params ("payloadlen",val)       = return $ params { payloadLen = read val}
           applyConf params ("samplingperiod",val)   = return $ params { samplingPeriod = read val}
