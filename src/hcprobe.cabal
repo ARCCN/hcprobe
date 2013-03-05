@@ -24,6 +24,7 @@ library
                       random, digest, statistics,
                       transformers, mtl, containers,
                       MaybeT, MissingH,
+                      mersenne-random-pure64, mersenne-random,
                       cmdargs, ConfigFile, directory
 
 executable hcprobe
@@ -35,7 +36,8 @@ executable hcprobe
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, time, vector,
                        statistics,
-                       MaybeT, MissingH,
+                       MaybeT, MissingH, 
+                       mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, directory
   -- fllvm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
@@ -48,7 +50,8 @@ executable ethertest
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       MaybeT, MissingH,
+                       MaybeT, MissingH, 
+                       mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, directory
 
   Ghc-options:         -Wall -threaded

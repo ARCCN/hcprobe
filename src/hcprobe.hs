@@ -36,6 +36,7 @@ import qualified Data.IntMap as IntMap
 import qualified Data.Map as M 
 
 import System.Random
+import qualified System.Random.Mersenne as MR
 import System.IO
 import System.Environment (getArgs)
 import Control.Exception
@@ -59,7 +60,7 @@ whenJustM :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenJustM (Just v) m  = m v
 whenJustM Nothing  _  = return ()
 
-testTCP dstMac srcMac params = do
+testTCP params dstMac srcMac = do
   srcIp  <- randomIO :: IO IPv4Addr
   dstIp  <- randomIO :: IO IPv4Addr
   srcP   <- randomIO :: IO Word16
@@ -89,27 +90,26 @@ empyPacketQ = IntMap.empty
 
 -- FIXME: improve pktIn/s performance
 
-pktGenTest :: TVar PacketQ -> Parameters -> FakeSwitch -> TBMChan OfpMessage -> IO ()
-pktGenTest q params fk chan  = forever $ do
+pktGenTest :: Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
+pktGenTest params q fk chan  = forever $ do
     pq  <- atomically $ readTVar q
-    tid <- randomIO :: IO Word32
-    bid <- liftM (fromIntegral.head.filter (not.flip IntMap.member pq).randoms) newStdGen
-    pid <- liftM ((+2).(`mod` (nports-1)))     randomIO :: IO Int
-    pidDst <- liftM ((+2).(`mod` (nports-1)))  randomIO :: IO Int
+    tid <- MR.randomIO :: IO Word32
+    bid <- liftM (fromIntegral.head.filter (not.flip IntMap.member pq).(randoms)) newStdGen -- TODO Use MTGen
+    pid <- liftM ((+2).(`mod` (nports-1)))     MR.randomIO :: IO Int
+    pidDst <- liftM ((+2).(`mod` (nports-1)))  MR.randomIO :: IO Int
 
     when (pid /= pidDst ) $ do
-      n1  <- randomIO :: IO Int
-      n2  <- randomIO :: IO Int
+      n1  <- MR.randomIO :: IO Int
+      n2  <- MR.randomIO :: IO Int
       let dct = macSpace fk
       let !srcMac' = IntMap.lookup pid    dct >>= choice n1
       let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
       case (srcMac', dstMac') of 
-        (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
-                                         pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac params)
+        (Just srcMac, Just dstMac) -> do pl  <- liftM (encodePutM.putEthernetFrame) (testTCP params dstMac srcMac )
                                          atomically $ writeTBMChan chan $! tcpTestPkt fk tid bid (fromIntegral pid) pl
         _                          -> return ()
 
-      delay <- liftM (`mod` maxTimeout params) randomIO :: IO Int
+      delay <- liftM (`mod` maxTimeout params) MR.randomIO :: IO Int
       threadDelay delay
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
@@ -137,8 +137,8 @@ data PktStats = PktStats { pktStatsSentTotal :: !Int
 emptyStats :: PktStats
 emptyStats = PktStats 0 0 0 0 Nothing
 
-onSend :: TVar PacketQ -> TVar PktStats -> Parameters -> OfpMessage -> IO ()
-onSend q s params (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
+onSend :: Parameters -> TVar PacketQ -> TVar PktStats -> OfpMessage -> IO ()
+onSend params q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
   now <- getCurrentTime
   atomically $ do
     modifyTVar q (IntMap.insert (fromIntegral bid) now)
@@ -189,8 +189,8 @@ data LogEntry = LogEntry { logTimestamp     :: !NominalDiffTime
                          , logLost          :: !Int
                          }
 
-updateLog :: TBMChan LogEntry -> [TVar PktStats] -> Parameters -> IO ()
-updateLog chan tst params = do
+updateLog :: Parameters -> TBMChan LogEntry -> [TVar PktStats] -> IO ()
+updateLog params chan tst = do
   initTime <- getCurrentTime
   flip runStateT (0,0,initTime) $ runIOStat $ forever $ do
       (psent, precv, ptime) <- get
@@ -234,8 +234,8 @@ updateLog chan tst params = do
     clost = pktStatsConnLost
 
 
-writeLog :: TBMChan LogEntry -> Parameters -> IO ()
-writeLog chan params = whenJustM (logFileName params) $ \fn -> withFile fn WriteMode $ \h ->
+writeLog :: Parameters -> TBMChan LogEntry -> IO ()
+writeLog params chan = whenJustM (logFileName params) $ \fn -> withFile fn WriteMode $ \h ->
   forever $ do
     hSetBuffering h NoBuffering -- If buffering on, tail won't be pused to file
     log' <- atomically $ readTBMChan chan
@@ -252,16 +252,15 @@ writeLog chan params = whenJustM (logFileName params) $ \fn -> withFile fn Write
       hPutStrLn h s
     threadDelay $ samplingPeriod params `div` 2
 
-displayStats :: TBMChan LogEntry -> Parameters -> IO ()
-displayStats chan params = do
+displayStats :: Parameters -> TBMChan LogEntry -> IO ()
+displayStats params chan = do
   hSetBuffering stdout NoBuffering
   initTime <- getCurrentTime
   forever $ do
-    logm <- atomically (
-                if isNothing $ logFileName params
-                    then readTBMChan chan
-                    else peekTBMChan chan
-                        )
+    let reader = if isNothing $ logFileName params
+                    then readTBMChan
+                    else peekTBMChan
+    logm <- atomically $ reader chan
     whenJustM logm $ \log -> do
 --      putStrLn "Log OK"
       let !ts   = (fromRational.toRational.logTimestamp) log :: Double
@@ -313,18 +312,18 @@ toTryMain = do
   w <- forM fakeSw $ \fake' -> do
         pktQ <- newTVarIO empyPacketQ
         stat <- newTVarIO emptyStats
-        let fake = fake' { onSendMessage = Just (onSend pktQ stat params), onRecvMessage = Just (onReceive pktQ stat) }
+        let fake = fake' { onSendMessage = Just (onSend params pktQ stat), onRecvMessage = Just (onReceive pktQ stat) }
         w <- async $ forever $ do
-          async (ofpClient (pktGenTest pktQ params) fake (BS8.pack (host params)) (read (port params))) >>= wait
+          async (ofpClient (pktGenTest params pktQ) fake (BS8.pack (host params)) (read (port params))) >>= wait
           atomically $ modifyTVar stats (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
           threadDelay 1000000
         return (w,stat)
   
   let workers = map fst w        
 
-  misc  <- mapM async [ updateLog testLog (stats : map snd w) params
-                      , writeLog testLog params
-                      , displayStats testLog params
+  misc  <- mapM async [ updateLog params testLog (stats : map snd w) 
+                      , writeLog params testLog
+                      , displayStats params testLog
                       ]
 
   async $ threadDelay (testDuration params + 350000) >> mapM_ cancel (misc ++ workers)
