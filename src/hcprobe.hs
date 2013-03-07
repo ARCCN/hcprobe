@@ -94,7 +94,8 @@ pktGenTest :: Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> 
 pktGenTest params q fk chan  = forever $ do
     pq  <- atomically $ readTVar q
     tid <- MR.randomIO :: IO Word32
-    bid <- liftM (fromIntegral.head.filter (not.flip IntMap.member pq).(randoms)) newStdGen -- TODO Use MTGen
+    rands <- MR.newMTGen Nothing >>= MR.randoms
+    let bid = fromIntegral $ head $ filter (not.flip IntMap.member pq) rands -- TODO try to put all in one expression.
     pid <- liftM ((+2).(`mod` (nports-1)))     MR.randomIO :: IO Int
     pidDst <- liftM ((+2).(`mod` (nports-1)))  MR.randomIO :: IO Int
 
@@ -286,7 +287,7 @@ randomSet n s = do
   where insertSet i c v =
             if S.member (i*v) c
                 then insertSet (i+1) c v
-                else S.insert (mcPrefix (i*v)) c
+                else S.insert (mcPrefix (i*v)) c   -- TODO ask about mcPrefix
   --if not (S.member i s)
     --then randomSet n (S.insert i s)
     --else randomSet n s
