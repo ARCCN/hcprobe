@@ -88,13 +88,16 @@ type PacketQ = IntMap.IntMap UTCTime
 empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
--- FIXME: improve pktIn/s performance
-
 pktGenTest :: Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest params q fk chan  = forever $ do
     pq  <- atomically $ readTVar q
     tid <- MR.randomIO :: IO Word32
-    rands <- MR.newMTGen Nothing >>= MR.randoms
+
+--    putStrLn "AAAA"  
+   -- mtgen <- MR.newMTGen Nothing 
+   -- putStrLn "BBBB"  
+
+    rands <-   MR.getStdGen >>= MR.randoms --return [1..100] -- MR.randoms mtgen
     let bid = fromIntegral $ head $ filter (not.flip IntMap.member pq) rands -- TODO try to put all in one expression.
     pid <- liftM ((+2).(`mod` (nports-1)))     MR.randomIO :: IO Int
     pidDst <- liftM ((+2).(`mod` (nports-1)))  MR.randomIO :: IO Int
@@ -110,8 +113,9 @@ pktGenTest params q fk chan  = forever $ do
                                          atomically $ writeTBMChan chan $! tcpTestPkt fk tid bid (fromIntegral pid) pl
         _                          -> return ()
 
-      delay <- liftM (`mod` maxTimeout params) MR.randomIO :: IO Int
-      threadDelay delay
+    delay <- liftM ((+ ((maxTimeout params) `div` 2)).(`mod` ((maxTimeout params) `div` 2))) MR.randomIO :: IO Int
+ --   print delay
+    threadDelay delay
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
@@ -287,7 +291,7 @@ randomSet n s = do
   where insertSet i c v =
             if S.member (i*v) c
                 then insertSet (i+1) c v
-                else S.insert (mcPrefix (i*v)) c   -- TODO ask about mcPrefix
+                else S.insert (mcPrefix (i*v)) c 
   --if not (S.member i s)
     --then randomSet n (S.insert i s)
     --else randomSet n s
@@ -303,6 +307,8 @@ toTryMain = do
   statsQ  <- newTBMChanIO 10000
   testLog <- newTBMChanIO 10000
 
+--  mtgen <- MR.newMTGen Nothing
+
   fakeSw <- forM [1..switchNum params] $ \i -> do
     let ip = fromIntegral i .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
@@ -310,6 +316,7 @@ toTryMain = do
 --    print $ length macs
     return $ fst $ makeSwitch (defaultSwGen i ip rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
 
+    
   w <- forM fakeSw $ \fake' -> do
         pktQ <- newTVarIO empyPacketQ
         stat <- newTVarIO emptyStats

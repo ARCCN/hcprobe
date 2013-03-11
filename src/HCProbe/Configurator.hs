@@ -62,22 +62,22 @@ data Parameters = Parameters { config           :: Maybe String -- If user don't
 
 -- Setting Parameters struture to use with cmdArgs
 -- TODO make fine help
-parametersDef = Parameters { config = Nothing                          &= help "Config file path"           &= typ "PATH"
-                           , macSpaceDim = macSpaceDimDEF              &= help "MAC Space Dim"              &= typ "NUM"
-                           , switchNum = switchNumDEF                  &= help "Number of swithes"          &= typ "NUM"
-                           , portNum = portNumDEF                      &= help "Number of ports per Switch" &= typ "NUM"
-                           , maxTimeout = maxTimeoutDEF                &= help "Maximum timeout"            &= typ "NUM"
-                           , payloadLen = payloadLenDEF                &= help "Payload length"             &= typ "NUM"
-                           , samplingPeriod = samplingPeriodDEF        &= help "Sampling period"            &= typ "NUM"
-                           , statsDelay = statsDelayDEF                &= help "Stats delay"                &= typ "NUM"
-                           , testDuration = testDurationDEF            &= help "Test duration"              &= typ "NUM"
-                           , logFileName = logFileNameDEF              &= help "Log path"                   &= typ "PATH"
+parametersDef = Parameters { config = Nothing                          &= help "Config file path"                 &= typ "PATH"
+                           , macSpaceDim = macSpaceDimDEF              &= help "MAC Space Dim (100)"              &= typ "NUM"
+                           , switchNum = switchNumDEF                  &= help "Number of swithes (64)"           &= typ "NUM"
+                           , portNum = portNumDEF                      &= help "Number of ports per Switch (48)"  &= typ "NUM"
+                           , maxTimeout = maxTimeoutDEF                &= help "Maximum timeout (10)"             &= typ "NUM"
+                           , payloadLen = payloadLenDEF                &= help "Payload length (32)"              &= typ "NUM"
+                           , samplingPeriod = samplingPeriodDEF        &= help "Sampling period (300 000)"        &= typ "NUM"
+                           , statsDelay = statsDelayDEF                &= help "Stats delay (300 000)"            &= typ "NUM"
+                           , testDuration = testDurationDEF            &= help "Test duration (300 000 000)"      &= typ "NUM"
+                           , logFileName = logFileNameDEF              &= help "Log path"                         &= typ "PATH"
                            
-                           , pktInQLen = pktInQLenDEF             &= help "In packet Q length"         &= typ "NUM"
-                           , pktInQTimeout = pktInQTimeoutDEF     &= help "In packet Q timeout"        &= typ "RATIONAL"
+                           , pktInQLen = pktInQLenDEF             &= help "In packet Q length (1000)"        &= typ "NUM"
+                           , pktInQTimeout = pktInQTimeoutDEF     &= help "In packet Q timeout (0.5)"        &= typ "RATIONAL"
                            
-                           , host = hostDEF         &= help "Controller's host"         &= typ "ADDRES"
-                           , port = portDEF         &= help "Controller's port"         &= typ "NUM"
+                           , host = hostDEF         &= help "Controller's host (127.0.0.1)"    &= typ "ADDRES"
+                           , port = portDEF         &= help "Controller's port (6633)"         &= typ "NUM"
                            } &=
                            help "HCProbe"
 
