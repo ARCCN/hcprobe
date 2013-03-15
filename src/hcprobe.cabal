@@ -47,7 +47,7 @@ executable ethertest
   -- other-modules:    
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit==0.5.*, network-conduit==0.6.*,
-                       resourcet, async, cereal,
+                       resourcet, async, cereal,time,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH, 

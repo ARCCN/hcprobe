@@ -261,10 +261,11 @@ displayStats :: Parameters -> TBMChan LogEntry -> IO ()
 displayStats params chan = do
   hSetBuffering stdout NoBuffering
   initTime <- getCurrentTime
-  forever $ do
-    let reader = if isNothing $ logFileName params
+  let reader = if isNothing $ logFileName params
                     then readTBMChan
                     else peekTBMChan
+    
+  forever $ do
     logm <- atomically $ reader chan
     whenJustM logm $ \log -> do
 --      putStrLn "Log OK"
@@ -288,10 +289,10 @@ randomSet n s = do
   i <- randomIO :: IO Word8
   let macList = [1..fromIntegral n] :: [MACAddr]
   return $ foldl (insertSet $ fromIntegral i) s macList 
-  where insertSet i c v =
-            if S.member (i*v) c
-                then insertSet (i+1) c v
-                else S.insert (mcPrefix (i*v)) c 
+  where insertSet i c v =                          --Insert i*v value to map
+            if S.member (i*v) c                    --If this value is already exists in map
+                then insertSet (i+1) c v           --Try to ad (i+1)*v value to map
+                else S.insert (mcPrefix (i*v)) c   --If all ok, add i*v value to map
   --if not (S.member i s)
     --then randomSet n (S.insert i s)
     --else randomSet n s

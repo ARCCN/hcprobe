@@ -25,6 +25,8 @@ import Data.Word
 import Data.Maybe
 import Control.Monad
 import Text.Printf
+import Data.Time
+
 
 import System.Random
 import System.Environment (getArgs)
@@ -116,7 +118,21 @@ checksum s = words >>= return . trunc . (foldl' (\acc w -> trace (printf "%08X\n
 main = do
 --  crcTest5
   tcp <- testTCP
-  let bs = bsStrict $ runPut $ putEthernetFrame tcp
+  n <- liftM (read.head) getArgs
+  initTime <- getCurrentTime
+  
+  let bs = runPut $ replicateM_ n $ putEthernetFrame tcp
 --  let bs = bsStrict $ runPut $ putEthernetFrame (ARPGratuitousReply 0 0)
 --  let bs = bsStrict $ runPut $ putEthernetFrame (ARPGratuitousReply 0 0)  
-  putStr (hexdumpBs 16 " " "\n" bs)
+--  mapM (putStrLn.hexdumpBs 16 " " "\n")  bsl
+--    print $ bs
+--  mapM (\_->putStrLn "abc") bsl
+  print $ BL.length bs
+
+  now <- getCurrentTime
+
+  putStr "Time for calc is: "
+  let timeDif = now `diffUTCTime` initTime
+  print timeDif
+  putStr "Time per package: "
+  print $ timeDif / (fromIntegral n)
