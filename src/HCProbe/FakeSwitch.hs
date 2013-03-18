@@ -187,7 +187,7 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
     let sendARPGrat = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
+        liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT'
 
     let threads = [receiver, sender, (pktInGen fk pktSendQ)]
     waitThreads <- liftIO $ mapM async threads
@@ -199,7 +199,13 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
   where
     sendReplyT msg = do
-      liftIO $ dump "OUT:" (ofp_header msg) replyBs
+      --liftIO $ dump "OUT:" (msg) 
+      yield msg $$ (appSink ad)
+      --maybe (return ()) (\x -> (liftIO.x) msg) sH
+      --where replyBs = msg --encodePutM msg
+      
+    sendReplyT' msg = do
+      --liftIO $ dump "OUT:" (ofp_header msg) 
       yield replyBs $$ (appSink ad)
       maybe (return ()) (\x -> (liftIO.x) msg) sH
       where replyBs = encodeMsg msg

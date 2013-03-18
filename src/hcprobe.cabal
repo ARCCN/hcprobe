@@ -27,21 +27,6 @@ library
                       mersenne-random-pure64, mersenne-random,
                       cmdargs, ConfigFile, directory
 
-executable hcprobe
-  main-is:           hcprobe.hs
-  -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
-                       conduit==0.5.*, network-conduit==0.6.*,
-                       resourcet, async, network-data, cereal,
-                       random, digest, stm, stm-conduit, stm-chans,
-                       transformers, mtl, containers, time, vector,
-                       statistics,
-                       MaybeT, MissingH, 
-                       mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory
-  -- fllvm
-  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
-
 executable ethertest 
   main-is:           ethertest.hs
   -- other-modules:    
@@ -53,6 +38,18 @@ executable ethertest
                        MaybeT, MissingH, 
                        mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, directory
-
-  Ghc-options:         -Wall -threaded
-
+                       
+executable cbench-like 
+  main-is:           cbench-like.hs
+ -- other-modules:    
+  build-depends:       base, binary, binary-strict, bytestring,
+                       conduit==0.5.*, network-conduit==0.6.*,
+                       resourcet, async, network-data, cereal,
+                       random, digest, stm, stm-conduit, stm-chans,
+                       transformers, mtl, containers, time, vector,
+                       statistics,
+                       MaybeT, MissingH, 
+                       mersenne-random-pure64,  mersenne-random,
+                       cmdargs, ConfigFile, directory
+  -- fllvm
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
