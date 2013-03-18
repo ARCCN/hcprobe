@@ -93,10 +93,6 @@ pktGenTest params q fk chan  = forever $ do
     pq  <- atomically $ readTVar q
     tid <- MR.randomIO :: IO Word32
 
---    putStrLn "AAAA"  
-   -- mtgen <- MR.newMTGen Nothing 
-   -- putStrLn "BBBB"  
-
     rands <-   MR.getStdGen >>= MR.randoms --return [1..100] -- MR.randoms mtgen
     let bid = fromIntegral $ head $ filter (not.flip IntMap.member pq) rands -- TODO try to put all in one expression.
     pid <- liftM ((+2).(`mod` (nports-1)))     MR.randomIO :: IO Int
@@ -114,7 +110,6 @@ pktGenTest params q fk chan  = forever $ do
         _                          -> return ()
 
     delay <- liftM ((+ ((maxTimeout params) `div` 2)).(`mod` ((maxTimeout params) `div` 2))) MR.randomIO :: IO Int
- --   print delay
     threadDelay delay
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
@@ -302,19 +297,16 @@ toTryMain = do
   params <- getParameters   -- Read parameters from cmd Args and config file
                             -- All wariables like macSpaceDim, switchNum, etc. was replased
                             -- by expression like (macSpaceDim params) (switchNum params) etc.
- -- print $ macSpaceDim params
   
   stats   <- newTVarIO emptyStats
   statsQ  <- newTBMChanIO 10000
   testLog <- newTBMChanIO 10000
 
---  mtgen <- MR.newMTGen Nothing
 
   fakeSw <- forM [1..switchNum params] $ \i -> do
     let ip = fromIntegral i .|. (0x10 `shiftL` 24)
     rnd <- newStdGen
     macs <- liftM S.toList (randomSet (fromIntegral (portNum params) * macSpaceDim params+1) S.empty)
---    print $ length macs
     return $ fst $ makeSwitch (defaultSwGen i ip rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
 
     

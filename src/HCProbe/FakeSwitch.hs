@@ -11,6 +11,7 @@ module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
                           , defActions
                           , defaultPacketInPort
                           , encodeMsg
+                          , dump
                           ) where
 
 import HCProbe.ARP
