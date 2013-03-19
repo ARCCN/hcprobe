@@ -25,7 +25,8 @@ library
                       transformers, mtl, containers,
                       MaybeT, MissingH,
                       cmdargs, ConfigFile,
-                      nettle-openflow >= 0.2.0
+                      nettle-openflow >= 0.2.0,
+                      crc16-table
 
   Ghc-options:        -Wall -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -41,7 +42,8 @@ executable hcprobe
                        statistics,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0
+                       nettle-openflow >= 0.2.0,
+                       crc16-table
   -- fllvm
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -55,7 +57,8 @@ executable ethertest
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0
+                       nettle-openflow >= 0.2.0,
+                       crc16-table
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -70,7 +73,8 @@ executable TestPkgGen
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0
+                       nettle-openflow >= 0.2.0,
+                       crc16-table
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -86,7 +90,8 @@ executable TestARPGen
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0
+                       nettle-openflow >= 0.2.0,
+                       crc16-table
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -101,7 +106,8 @@ executable TestTCPGen
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0
+                       nettle-openflow >= 0.2.0,
+                       crc16-table
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -117,7 +123,8 @@ executable TestMisc
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0
+                       nettle-openflow >= 0.2.0,
+                       crc16-table
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
 

@@ -19,9 +19,11 @@ import Control.Monad
 import Text.Printf
 import Debug.Trace
 
+import Data.Digest.Table.CRC16
+
 -- TODO: move to Nettle.OpenFlow.StrictPut
 putWord16le :: Word16 -> PutM ()
-putWord16le w = putWord8 (fromIntegral w `shiftR` 8) >> putWord8 (fromIntegral w)
+putWord16le w = trace (printf "CS16: %02x\n" w) $ putWord8 (fromIntegral $ w .&. 0xFF) >> putWord8 (fromIntegral w `shiftR` 8)
 {-# INLINE putWord16le #-}
 
 -- TODO: may be improved by unsafe shifts

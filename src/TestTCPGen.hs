@@ -15,7 +15,7 @@ import System.IO
 import qualified Data.ByteString as BS
 
 
-pktNum = 1000000
+pktNum = 1
 
 testTCP ip0 ip1 = do
   TestPacketTCP { dstMAC = 0 

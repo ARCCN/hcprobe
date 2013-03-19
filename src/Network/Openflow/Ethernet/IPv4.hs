@@ -41,6 +41,8 @@ putIPv4Pkt x = do
     hdr = runPutToByteString 256 (putHdr Nothing)
     body = runPutToByteString 2048 (ipPutPayload x)
 
+    rotate x = (x `shiftR` 8) + (x `shiftL` 8)
+
     putHdr cs = do
       putWord8    lenIhl     -- version, ihl
       putWord8    tos
@@ -49,7 +51,7 @@ putIPv4Pkt x = do
       putWord16be flagsOff
       putWord8    ttl
       putWord8    proto
-      putWord16le (maybe 0 id cs)
+      putWord16be (maybe 0 rotate cs)
       putIP       ipS
       putIP       ipD
 
