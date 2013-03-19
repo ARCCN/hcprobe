@@ -6,7 +6,7 @@ import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
 
 import Data.Word
-import Data.Binary.Put
+import Nettle.OpenFlow.StrictPut 
 
 
 

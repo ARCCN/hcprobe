@@ -1,4 +1,5 @@
-module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ, 
+module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ,
+                               putWord16le,
                                bsStrict, bsLazy, encodePutM, ipv4,
                                csum16, hexdumpBs
                              ) where
@@ -7,7 +8,8 @@ import Network.Openflow.Types
 import Network.Openflow.Ethernet.Types
 import Data.Word
 import Data.Bits
-import Data.Binary.Put
+import Nettle.OpenFlow.StrictPut 
+import qualified Data.Binary.Put as BP 
 import Data.Binary.Strict.Get
 import Data.List
 import Data.Either
@@ -16,6 +18,11 @@ import qualified Data.ByteString.Lazy as BL
 import Control.Monad
 import Text.Printf
 import Debug.Trace
+
+-- TODO: move to Nettle.OpenFlow.StrictPut
+putWord16le :: Word16 -> PutM ()
+putWord16le w = putWord8 (fromIntegral w `shiftR` 8) >> putWord8 (fromIntegral w)
+{-# INLINE putWord16le #-}
 
 -- TODO: may be improved by unsafe shifts
 unpack64 :: Word64 -> [Word8]
@@ -28,9 +35,11 @@ putASCIIZ sz bs = putByteString bs' >> replicateM_ (sz - (BS.length bs')) (putWo
 
 putMAC :: MACAddr -> PutM ()
 putMAC mac = mapM_ putWord8 (drop 2 (unpack64 mac))
+{-# INLINE putMAC #-}
 
 putIP :: IPv4Addr -> PutM ()
 putIP ip = putWord32be ip
+{-# INLINE putIP #-}
 
 bsStrict = BS.concat . BL.toChunks
 
@@ -44,7 +53,7 @@ hexdumpBs n ds ts bs = concat $ concat rows
         chunk [] = Nothing
         chunk xs = Just (intersperse ds (take n xs) ++ [ts], drop n xs)
 
-encodePutM = bsStrict . runPut
+encodePutM = bsStrict . BP.runPut
 
 ipv4 :: Word8->Word8->Word8->Word8 -> IPv4Addr
 ipv4 a b c d = wa .|. wb .|. wc .|. wd

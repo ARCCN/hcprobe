@@ -5,7 +5,7 @@ import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
 import Data.Word
 import qualified Data.ByteString as BS
-import Data.Binary.Put
+import Nettle.OpenFlow.StrictPut 
 import Data.Bits
 
 import Data.Maybe
@@ -38,8 +38,8 @@ putIPv4Pkt x = do
   let crc16 = csum16 hdrF
   putHdr crc16 >> putByteString body
   where
-    hdr = (bsStrict.runPut) (putHdr Nothing)
-    body = (bsStrict . runPut) (ipPutPayload x)
+    hdr = runPutToByteString 256 (putHdr Nothing)
+    body = runPutToByteString 2048 (ipPutPayload x)
 
     putHdr cs = do
       putWord8    lenIhl     -- version, ihl

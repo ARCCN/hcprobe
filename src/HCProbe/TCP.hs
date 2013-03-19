@@ -5,7 +5,7 @@ import Network.Openflow.Ethernet.Types
 import Network.Openflow.Ethernet.IPv4
 import Network.Openflow.Ethernet.TCP
 import qualified Data.ByteString as BS
-import Data.Binary.Put
+import Nettle.OpenFlow.StrictPut 
 import Data.Word
 
 data TestPacketTCP = TestPacketTCP { dstMAC    :: !MACAddr

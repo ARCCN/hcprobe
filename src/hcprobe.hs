@@ -10,6 +10,7 @@ import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Messages
 import Network.Openflow.Misc
 
+
 import HCProbe.FakeSwitch
 import HCProbe.TCP
 -- Module with configurations reader
@@ -17,6 +18,8 @@ import HCProbe.TCP
 -- First reads configfile then some parametes can be replased in cmd args
 -- Parameters, don't meeted in config file or in cmd args setted as default.
 import HCProbe.Configurator
+
+import qualified Nettle.OpenFlow.StrictPut as SP 
 
 import Data.Binary.Put ( runPut )
 import qualified Data.ByteString as BS
@@ -55,6 +58,7 @@ import qualified Statistics.Sample as S
 
 import Debug.Trace
 
+ethernetFrameMaxSize = 2048
 
 whenJustM :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenJustM (Just v) m  = m v
@@ -107,7 +111,7 @@ pktGenTest q params fk chan  = forever $ do
       let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
       case (srcMac', dstMac') of 
         (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
-                                         pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac params)
+                                         pl  <- liftM (SP.runPutToByteString ethernetFrameMaxSize.putEthernetFrame) (testTCP dstMac srcMac params)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
         _                          -> return ()
 

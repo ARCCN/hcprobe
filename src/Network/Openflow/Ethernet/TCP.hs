@@ -7,7 +7,7 @@ import Control.Monad
 import qualified Data.Set as S
 import qualified Data.ByteString as BS
 import Data.Word
-import Data.Binary.Put
+import Nettle.OpenFlow.StrictPut 
 import Data.Bits
 import Data.List (foldl')
 
@@ -36,6 +36,10 @@ class TCP a where
   tcpUrgentPtr  :: a -> Word16
   tcpPutPayload :: a -> PutM ()
 
+
+-- TODO: header generation may be improved
+-- TODO: checksum generation may be improved
+
 putTCP :: TCP a => a -> PutM ()
 putTCP x = do
 --  trace ( (printf "%04X" (fromJust $ csum16 pkt))) $ return ()
@@ -56,15 +60,15 @@ putTCP x = do
 
         padding = replicateM_ ( hlen' `mod` 4 ) (putWord8 0)
 
-        pseudoHdr = bsStrict $ runPut $ do
+        pseudoHdr = runPutToByteString 256 $ do
           putIP (tcpSrcAddr x)
           putIP (tcpDstAddr x)
           putWord8 0
           putWord8 (tcpProto x)
           putWord16be (fromIntegral $ (fromIntegral hlen) + BS.length body)
 
-        hdr = (bsStrict . runPut) (putHeader Nothing)
-        body = (bsStrict . runPut) (tcpPutPayload x)
+        hdr =  runPutToByteString 128  (putHeader Nothing)
+        body = runPutToByteString 2048 (tcpPutPayload x)
         pkt = BS.concat [pseudoHdr, hdr, body]
       
         hlen =  hlen' + hlen' `mod` 4
