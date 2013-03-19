@@ -40,7 +40,6 @@ testTCP = do
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
   flags  <- return [ACK]
-  cargo  <- replicateM 128 randomIO :: IO [Word8]
   return $ TestPacketTCP { dstMAC = dstMac
                          , srcMAC = srcMac
                          , srcIP  = srcIp
@@ -49,7 +48,7 @@ testTCP = do
                          , srcPort = srcP
                          , testWSS = Just wss
                          , testFlags = Just flags
-                         , payLoad = BS.pack cargo
+                         , testPayloadLen = 128 
                          , testSeqNo = Nothing
                          , testAckNo = Nothing
                          , testIpID = Nothing

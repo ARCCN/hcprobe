@@ -71,8 +71,6 @@ testTCP dstMac srcMac params = do
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
   flags  <- return [ACK]
---  cargo  <- replicateM payloadLen randomIO :: IO [Word8]
-  let cargo = replicate (payloadLen params) 0
   return $! TestPacketTCP { dstMAC = dstMac
                           , srcMAC = srcMac
                           , srcIP  = srcIp
@@ -81,7 +79,7 @@ testTCP dstMac srcMac params = do
                           , srcPort = srcP
                           , testWSS = Just wss
                           , testFlags = Just flags
-                          , payLoad = BS.pack cargo
+                          , testPayloadLen = (payloadLen params) 
                           , testSeqNo = Nothing
                           , testAckNo = Nothing
                           , testIpID = Nothing

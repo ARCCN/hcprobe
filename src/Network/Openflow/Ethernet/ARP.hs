@@ -8,8 +8,6 @@ import Network.Openflow.Misc
 import Data.Word
 import Nettle.OpenFlow.StrictPut 
 
-
-
 class ARPReply a where
   hardwareType    :: a -> Word16
   ipProtocolType  :: a -> Word16

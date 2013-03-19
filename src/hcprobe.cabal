@@ -75,6 +75,37 @@ executable TestPkgGen
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
 
+executable TestARPGen 
+  main-is:             TestARPGen.hs 
+  -- other-modules:    
+  build-depends:       base, binary, binary-strict, bytestring,
+                       conduit==0.5.*, network-conduit==0.6.*,
+                       parallel, deepseq,
+                       resourcet, async, cereal,
+                       random, digest, stm, stm-conduit, stm-chans,
+                       transformers, mtl, containers, vector,
+                       MaybeT, MissingH,
+                       cmdargs, ConfigFile,
+                       nettle-openflow >= 0.2.0
+
+  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
+
+executable TestTCPGen
+  main-is:             TestTCPGen.hs
+  -- other-modules:    
+  build-depends:       base, binary, binary-strict, bytestring,
+                       conduit==0.5.*, network-conduit==0.6.*,
+                       parallel, deepseq,
+                       resourcet, async, cereal,
+                       random, digest, stm, stm-conduit, stm-chans,
+                       transformers, mtl, containers, vector,
+                       MaybeT, MissingH,
+                       cmdargs, ConfigFile,
+                       nettle-openflow >= 0.2.0
+
+  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
+
+
 executable TestMisc
   main-is:             TestMisc.hs 
   -- other-modules:    

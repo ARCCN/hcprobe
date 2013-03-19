@@ -4,6 +4,7 @@ module HCProbe.TCP (TestPacketTCP(..)) where
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Ethernet.IPv4
 import Network.Openflow.Ethernet.TCP
+import Network.Openflow.Ethernet.Generator
 import qualified Data.ByteString as BS
 import Nettle.OpenFlow.StrictPut 
 import Data.Word
@@ -19,7 +20,7 @@ data TestPacketTCP = TestPacketTCP { dstMAC    :: !MACAddr
                                    , testAckNo :: !(Maybe Int)
                                    , testWSS   :: !(Maybe Int)
                                    , testFlags :: !(Maybe [TCPFlag])
-                                   , payLoad   :: !BS.ByteString
+                                   , testPayloadLen :: !Int 
                                    }
 
 
@@ -55,5 +56,5 @@ instance TCP TestPacketTCP where
   tcpFlags      = (maybe [] id).testFlags
   tcpWinSize    = (maybe 0 fromIntegral).testWSS
   tcpUrgentPtr  = const 0 
-  tcpPutPayload = putByteString.payLoad
+  tcpPutPayload = putEmptyPayload.testPayloadLen
 
