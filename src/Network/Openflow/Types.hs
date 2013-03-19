@@ -1,4 +1,6 @@
 {-# Language BangPatterns #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpMessageData(..)
                               , OfpCapabilities(..), OfpSwitchFeatures(..), OfpPhyPort(..)
                               , OfpPortConfigFlags(..), OfpPortStateFlags(..), OfpPortFeatureFlags(..)
@@ -14,6 +16,7 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , ofErrorCode
                               , openflow_1_0
                               , defaultSwitchConfig
+                              , listToFlags
                               ) where
 
 import Network.Openflow.Ethernet.Types (MACAddr)
@@ -21,6 +24,7 @@ import Data.Word
 import qualified Data.ByteString as BS
 import qualified Data.Set as S
 import Data.Bits
+import Data.Flags
 
 openflow_1_0 :: Word8
 openflow_1_0 = 0x01
@@ -28,6 +32,7 @@ openflow_1_0 = 0x01
 -- TODO: split to several files
 -- TODO: replace Data.Set to something more effective for bitmaps
 
+type FlagSet = Word32
 
 data OfpHeader = OfpHeader { ofp_hdr_version :: !Word8
                            , ofp_hdr_type    :: !OfpType 
@@ -98,10 +103,20 @@ data OfpType  =
 data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: !Word64
                                            , ofp_n_buffers    :: !Word32
                                            , ofp_n_tables     :: !Word8
-                                           , ofp_capabilities :: !(S.Set OfpCapabilities)
+                                           , ofp_capabilities :: !FlagSet
                                            , ofp_actions      :: !(S.Set OfpActionType)
                                            , ofp_ports        :: ![OfpPhyPort]
                                            } deriving (Show)
+
+ofpc_flow_stats   = 2^0             --  Flow statistics
+ofpc_table_stats  = 2^1             --  Table statistics
+ofpc_port_stats   = 2^2             --  Port statistics
+ofpc_stp          = 2^3             --  802.1d spanning tree
+ofpc_reserved     = 2^4             --  Reserved, must be zero
+ofpc_ip_reasm     = 2^5             --  Can reassemble ip fragments
+ofpc_queue_stats  = 2^6             --  Queue statistics
+ofpc_arp_match_ip = 2^7             --  Match ip addresses in arp pkts
+
 
 data OfpCapabilities =   OFPC_FLOW_STATS             --  Flow statistics
                        | OFPC_TABLE_STATS            --  Table statistics
@@ -309,4 +324,17 @@ data OfpPacketOutData = OfpPacketOutData { ofp_pkt_out_buffer_id :: !Word32
                                          , ofp_pkt_out_in_port   :: !Word16
                                          -- TODO: implement rest of message
                                          }
+listToFlags :: (a -> FlagSet) -> [a] -> FlagSet
+listToFlags f = foldl (\acc val -> acc .|. (f val) ) 0
 
+flagsToList :: (FlagSet -> a) -> FlagSet -> [a]
+flagsToList f set = testFlag f set 1 []
+    where --TODO try without recursion (find fold/map functions for bitsets)
+        testFlag f set bitn list = 
+          let mask = bit bitn in
+          if testBit set bitn 
+            then testFlag f (clearBit set bitn) (bitn+1) ( (f mask):list )
+            else 
+              if set == 0
+                then list
+                else testFlag f set (bitn+1) list

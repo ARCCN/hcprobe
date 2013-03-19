@@ -137,7 +137,8 @@ putMessageData (OfpFeatureReply f) = do
   putWord32be (ofp_n_buffers f)
   putWord8    (ofp_n_tables f)
   replicateM_ 3 (putWord8 0)
-  putWord32be (bitFlags ofCapabilities (ofp_capabilities f))
+--  putWord32be (bitFlags ofCapabilities (ofp_capabilities f))
+  putWord32be $ ofp_capabilities f
   putWord32be (bitFlags ofActionType   (ofp_actions f))
   mapM_ putOfpPort (ofp_ports f)
 

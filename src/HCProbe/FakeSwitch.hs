@@ -111,7 +111,7 @@ makeSwitch gen ports mpp cap act cfg st ff = (FakeSwitch features (ipAddr gen) m
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
                                      , ofp_n_buffers    = fromIntegral $ 8*ports
                                      , ofp_n_tables     = 1
-                                     , ofp_capabilities = S.fromList cap
+                                     , ofp_capabilities = listToFlags ofCapabilities cap
                                      , ofp_actions      = S.fromList act
                                      , ofp_ports        = pps
                                      }
@@ -150,7 +150,8 @@ fmtPort p = printf "%02d %-6s HWAddr:%18s, ST: %s, FT: %s" pno pname mac st ft
 fmtSwitch :: OfpSwitchFeatures -> String
 fmtSwitch f = printf "DPID: %s, %s\n" dp cap ++ intercalate "\n" ports
   where dp  = fmtMac (ofp_datapath_id f)
-        cap = show (S.toList (ofp_capabilities f))
+        --FIXME implement
+        cap = "NOT_IMPLEMENTED" --show (S.toList (ofp_capabilities f)) 
         ports = map fmtPort (ofp_ports f) 
 
 encodeMsg = encodePutM . putMessage

@@ -23,7 +23,7 @@ library
                       conduit==0.5.*, vector,
                       random, digest, statistics,
                       transformers, mtl, containers,
-                      MaybeT, MissingH,
+                      MaybeT, MissingH,data-flags,
                       mersenne-random-pure64, mersenne-random,
                       cmdargs, ConfigFile, directory
 
@@ -35,7 +35,7 @@ executable ethertest
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       MaybeT, MissingH, time, 
+                       MaybeT, MissingH, time,data-flags,
                        mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, directory
                        
@@ -63,7 +63,7 @@ executable testclient
                        resourcet, async, cereal,time,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       MaybeT, MissingH, 
+                       MaybeT, MissingH, data-flags,
                        mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, directory
 

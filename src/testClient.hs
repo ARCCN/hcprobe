@@ -78,7 +78,7 @@ pktSendMsg = OfpMessage hd dt
     where
         hd = header pktMsgOfVersion pktMsgOfSwitch OFPT_FEATURES_REPLY
         dt = OfpFeatureReply $ OfpSwitchFeatures 1000 100 1 cb at pktMsgOfpPhyPorts
-        cb = S.fromList pktMsgCapabuilities
+        cb = listToFlags ofCapabilities pktMsgCapabuilities
         at = S.fromList pktMsgActionType 
 
 ofClient fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = replicateM_ pktSendNumber $ do
