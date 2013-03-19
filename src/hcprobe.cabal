@@ -24,7 +24,11 @@ library
                       random, digest, statistics,
                       transformers, mtl, containers,
                       MaybeT, MissingH,
-                      cmdargs, ConfigFile
+                      cmdargs, ConfigFile,
+                      nettle-openflow >= 0.2.0
+
+  Ghc-options:        -Wall -O2 -fllvm -optlo-O3 -funbox-strict-fields
+
 
 executable hcprobe
   main-is:           hcprobe.hs
@@ -36,9 +40,10 @@ executable hcprobe
                        transformers, mtl, containers, time, vector,
                        statistics,
                        MaybeT, MissingH,
-                       cmdargs, ConfigFile
+                       cmdargs, ConfigFile,
+                      nettle-openflow >= 0.2.0
   -- fllvm
-  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
+  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
 
 executable ethertest 
   main-is:           ethertest.hs
@@ -51,5 +56,18 @@ executable ethertest
                        MaybeT, MissingH,
                        cmdargs, ConfigFile
 
-  Ghc-options:         -Wall -threaded
+  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
 
+executable TestPkgGen 
+  main-is:             TestPkgGen.hs 
+  -- other-modules:    
+  build-depends:       base, binary, binary-strict, bytestring,
+                       conduit==0.5.*, network-conduit==0.6.*,
+                       resourcet, async, cereal,
+                       random, digest, stm, stm-conduit, stm-chans,
+                       transformers, mtl, containers, vector,
+                       MaybeT, MissingH,
+                       cmdargs, ConfigFile,
+                       nettle-openflow >= 0.2.0
+
+  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all

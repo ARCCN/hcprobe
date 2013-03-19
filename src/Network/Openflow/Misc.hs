@@ -17,8 +17,10 @@ import Control.Monad
 import Text.Printf
 import Debug.Trace
 
+-- TODO: may be improved by unsafe shifts
 unpack64 :: Word64 -> [Word8]
 unpack64 x = map (fromIntegral.(shiftR x)) [56,48..0]
+{-# INLINE unpack64 #-}
 
 putASCIIZ :: Int -> BS.ByteString -> PutM ()
 putASCIIZ sz bs = putByteString bs' >> replicateM_ (sz - (BS.length bs')) (putWord8 0)

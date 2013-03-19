@@ -9,7 +9,6 @@ import Data.Word
 
 
 import Debug.Trace
-import Text.Printf
 
 -- TODO: possibly, there is a way to calculate crc32 on the fly,
 --       without generating the actual bytestring         
