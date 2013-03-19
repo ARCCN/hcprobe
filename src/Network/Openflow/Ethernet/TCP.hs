@@ -85,4 +85,6 @@ putTCP x = do
         wss     = tcpWinSize x
         isUrgent = ( flags .&. (fromIntegral $ fromEnum URG) ) /= 0
 
+        csum16 = const $ Just 0
+
 
