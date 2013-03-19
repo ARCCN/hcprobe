@@ -18,9 +18,9 @@ import System.Random
 data TestEthernetFrame = TestEthernetFrame !Int !MACAddr !MACAddr
 
 instance EthernetFrame TestEthernetFrame where
-  dstMacAddress  = const 0
+  dstMacAddress  _ = 0
   {-# INLINE dstMacAddress #-}
-  srcMacAddress  = const 0
+  srcMacAddress _  = 0
   {-# INLINE srcMacAddress #-}
   vlanID         = const Nothing
   {-# INLINE vlanID #-}
