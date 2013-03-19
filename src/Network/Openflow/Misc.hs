@@ -34,7 +34,10 @@ putASCIIZ sz bs = putByteString bs' >> replicateM_ (sz - (BS.length bs')) (putWo
   where bs' = BS.take (sz - 1) bs
 
 putMAC :: MACAddr -> PutM ()
-putMAC mac = mapM_ putWord8 (drop 2 (unpack64 mac))
+putMAC mac = do
+  putWord16be (fromIntegral $ mac' `shiftR` 32)
+  putWord32be (fromIntegral $ mac .&. 0xFFFFFFFF)
+  where mac' = (mac .&. 0xFFFFFFFFFFFF)
 {-# INLINE putMAC #-}
 
 putIP :: IPv4Addr -> PutM ()

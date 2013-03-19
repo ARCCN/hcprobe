@@ -1,19 +1,21 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, MagicHash #-}
 module Main where
 
 import Network.Openflow.Ethernet.Types
-import Network.Openflow.Ethernet.TCP
 import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Misc
-import HCProbe.TCP
-import HCProbe.FakeSwitch (mcPrefix)
 
-import Nettle.OpenFlow.StrictPut
-import Data.Word
+import qualified Data.ByteString as BS
+
+import Data.Int
 import Control.Monad
 import System.IO
-import qualified Data.ByteString as BS
-import System.Random
+import Data.Word
+import Data.Bits
+
+import Nettle.OpenFlow.StrictPut
+
+import Network.Openflow.Misc (unpack64)
 
 data TestEthernetFrame = TestEthernetFrame !Int !MACAddr !MACAddr
 
@@ -29,11 +31,21 @@ instance EthernetFrame TestEthernetFrame where
   putPayload  (TestEthernetFrame n _ _)  = putEmptyPayload n 
   {-# INLINE putPayload #-}
 
+makeEthernetFrameStrict :: EthernetFrame a => a -> BS.ByteString
+makeEthernetFrameStrict x = runPutToByteString 2048 frame
+  where
+    frame    = do
+      putMAC (dstMacAddress x)
+      putMAC (srcMacAddress x)
+      putVLAN (vlanID x) 
+      putWord16be (typeCode x)
+      putPayload x 
+      putWord32be 0
+
 pktNum = 1000000
 
 main = do
+  let pl = BS.replicate  1024 0
   forM_ [1..pktNum] $ \i -> do
---    tcp <- testTCP' i i
-    let s = makeEthernetFrame (TestEthernetFrame 64 i i)
+    let s = makeEthernetFrameStrict (TestEthernetFrame 64 i i) 
     BS.hPutStr stdout s
-
