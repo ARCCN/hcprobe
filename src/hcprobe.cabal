@@ -43,7 +43,7 @@ executable hcprobe
                        cmdargs, ConfigFile,
                        nettle-openflow >= 0.2.0
   -- fllvm
-  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
+  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
 executable ethertest 
   main-is:           ethertest.hs
@@ -57,27 +57,14 @@ executable ethertest
                        cmdargs, ConfigFile,
                        nettle-openflow >= 0.2.0
 
-  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
-
-executable TestPkgGen0 
-  main-is:             TestPkgGen0.hs 
-  -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
-                       conduit==0.5.*, network-conduit==0.6.*,
-                       resourcet, async, cereal,
-                       random, digest, stm, stm-conduit, stm-chans,
-                       transformers, mtl, containers, vector,
-                       MaybeT, MissingH,
-                       cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0
-
-  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
+  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
 executable TestPkgGen 
   main-is:             TestPkgGen.hs 
   -- other-modules:    
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit==0.5.*, network-conduit==0.6.*,
+                       parallel, deepseq,
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
@@ -85,7 +72,7 @@ executable TestPkgGen
                        cmdargs, ConfigFile,
                        nettle-openflow >= 0.2.0
 
-  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
+  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
 
 executable TestMisc

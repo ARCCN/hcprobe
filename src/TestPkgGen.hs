@@ -13,7 +13,6 @@ import Data.Word
 import Control.Monad
 import System.IO
 import qualified Data.ByteString as BS
-import System.Random
 
 data TestEthernetFrame = TestEthernetFrame !Int !MACAddr !MACAddr
 
@@ -32,8 +31,7 @@ instance EthernetFrame TestEthernetFrame where
 pktNum = 1000000
 
 main = do
-  forM_ [1..pktNum] $ \i -> do
---    tcp <- testTCP' i i
-    let s = makeEthernetFrame (TestEthernetFrame 64 i i)
-    BS.hPutStr stdout s
+  let pkts = [TestEthernetFrame 128 i i | i <- [1..pktNum]]
+  let chunks = map makeEthernetFrame pkts
+  mapM_ (BS.hPutStr stdout) chunks 
 
