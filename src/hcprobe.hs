@@ -45,7 +45,7 @@ import System.Environment (getArgs)
 import Control.Exception
 import Control.Monad
 import Control.Monad.State
-import Control.Monad.Maybe
+import Control.Error
 import Control.Concurrent
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
