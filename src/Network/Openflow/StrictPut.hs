@@ -62,13 +62,13 @@ runPutToByteString maxSize put =
   
 instance Monad PutM where
   return x = PutM (\ptr -> return (x, ptr))
-  {-# INLINE return #-}
+  {-# INLINABLE return #-}
   (PutM m) >>= f = PutM (\(!ptr) -> do { (a, ptr') <- m ptr ; let (PutM g) = f a in g ptr' } )
-  {-# INLINE (>>=) #-}
+  {-# INLINABLE (>>=) #-}
   
 putWord8 :: Word8 -> Put
 putWord8 !w = PutM (\(!ptr) -> do { poke ptr w; return ((), ptr `plusPtr` 1) })
-{-# INLINE putWord8 #-}
+{-# INLINABLE putWord8 #-}
 
 putWord16be :: Word16 -> Put
 putWord16be !w = PutM f
@@ -76,7 +76,7 @@ putWord16be !w = PutM f
           do poke ptr (fromIntegral (shiftr_w16 w 8) :: Word8)
              poke (ptr `plusPtr` 1) (fromIntegral (w) :: Word8)
              return ((), ptr `plusPtr` 2)
-{-# INLINE putWord16be #-}
+{-# INLINABLE putWord16be #-}
 
 -- | Write a Word32 in big endian format
 putWord32be :: Word32 -> Put
@@ -87,7 +87,7 @@ putWord32be !w = PutM f
              poke (p `plusPtr` 2) (fromIntegral (shiftr_w32 w 8) :: Word8)
              poke (p `plusPtr` 3) (fromIntegral (w) :: Word8)
              return ((), p `plusPtr` 4)
-{-# INLINE putWord32be #-}
+{-# INLINABLE putWord32be #-}
 
 -- | Write a Word64 in big endian format
 putWord64be :: Word64 -> Put
@@ -121,7 +121,7 @@ putWord64be !w = PutM $ \(!p) -> do
   poke (p `plusPtr` 7) (fromIntegral (w) :: Word8)
   return ((), p `plusPtr` 8)
 #endif
-{-# INLINE putWord64be #-}
+{-# INLINABLE putWord64be #-}
 
 putByteString :: S.ByteString -> Put
 putByteString !bs = PutM f
@@ -129,7 +129,7 @@ putByteString !bs = PutM f
           let (fp, offset, len) = S.toForeignPtr bs
           in do withForeignPtr fp $ \bsptr -> S.memcpy ptr (bsptr `plusPtr` offset) (fromIntegral len)
                 return ((), ptr `plusPtr` len)
-{-# INLINE putByteString #-}
+{-# INLINABLE putByteString #-}
 
 -- | get current address
 
@@ -159,21 +159,21 @@ undelay :: DelayedPut a
         -> a 
         -> PutM ()
 undelay (DelayedPut f) !x = PutM $ \p -> f x >> return ((),p)
-{-# INLINE undelay #-}
+{-# INLINABLE undelay #-}
 
 delayedWord8 :: PutM (DelayedPut Word8)
 delayedWord8 = PutM $ \p -> return (DelayedPut $ runPut p . putWord8, p `plusPtr` 1)
-{-# INLINE delayedWord8 #-}
+{-# INLINABLE delayedWord8 #-}
 
 delayedWord16be :: PutM (DelayedPut Word16)
 delayedWord16be = PutM $ \p -> return (DelayedPut $ runPut p . putWord16be,  p `plusPtr` 2)
-{-# INLINE delayedWord16be #-}
+{-# INLINABLE delayedWord16be #-}
 
-{-# INLINE shiftr_w16 #-}
+{-# INLINABLE shiftr_w16 #-}
 shiftr_w16 :: Word16 -> Int -> Word16
-{-# INLINE shiftr_w32 #-}
+{-# INLINABLE shiftr_w32 #-}
 shiftr_w32 :: Word32 -> Int -> Word32
-{-# INLINE shiftr_w64 #-}
+{-# INLINABLE shiftr_w64 #-}
 shiftr_w64 :: Word64 -> Int -> Word64
 
 
