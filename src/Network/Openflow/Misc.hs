@@ -2,7 +2,7 @@
 module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ,
                                putWord16le,
                                bsStrict, bsLazy, encodePutM, ipv4,
-                               csum16, csum16', csum16'', hexdumpBs
+                               csum16, csum16', csum16'', hexdumpBs, icsum16', fin_icsum16'
                              ) where
 
 import Network.Openflow.Types
@@ -98,9 +98,17 @@ rotate' x = x `rotateL` 8
 {-# INLINE rotate' #-}
 
 csum16' :: BS.ByteString -> Word16
-csum16' bs = rotate' $ trunc $ V.foldl' (\a -> (+a).fromIntegral) (0 :: Word32) bv
-  where bv = byteStringToVector bs :: V.Vector Word16
+csum16' = fin_icsum16' . (icsum16' 0)
 {-# INLINE csum16' #-}
+
+icsum16' :: Word32 -> BS.ByteString -> Word32
+icsum16' i bs = V.foldl' (\a -> (+a).fromIntegral) (i :: Word32) bv
+  where bv = byteStringToVector bs :: V.Vector Word16
+{-# INLINE icsum16' #-}
+
+fin_icsum16' :: Word32 -> Word16
+fin_icsum16' = rotate' . trunc
+{-# INLINE fin_icsum16' #-}
 
 csum16'' :: BS.ByteString -> Word16
 csum16'' bs = r $ csum bs
