@@ -37,56 +37,42 @@ class TCP a where
   tcpUrgentPtr  :: a -> Word16
   tcpPutPayload :: a -> PutM ()
 
-
 -- TODO: header generation may be improved
 -- TODO: checksum generation may be improved
-
 putTCP :: TCP a => a -> PutM ()
 putTCP x = do
 --  trace ( (printf "%04X" (fromJust $ csum16 pkt))) $ return ()
 --  trace ( (hexdumpBs 160 " " "" pkt) ++ "\n") $ return ()
-  putHeader (Just (csum16' pkt)) >> putByteString body
-
-  where putHeader Nothing = do
+           start <- marker
   {- 2  -} putWord16be srcPort
   {- 4  -} putWord16be dstPort
   {- 8  -} putWord32be seqno
   {- 12 -} putWord32be ackno
-  {- 13 -} putWord8    (fromIntegral dataoff)
-  {- 14 -} putWord8    flags
+  {- 13 -} dataoff <- delayedWord8  -- data offset
+  {- 14 -} putWord8 flags
   {- 16 -} putWord16be wss
-  {- 18 -} putWord16be 0 -- crc
+  {- 18 -} acrc <- delayedWord16be -- CRC
   {- 20 -} when isUrgent $ putWord16be (tcpUrgentPtr x)
-  {- ?? -} padding
-
-        putHeader (Just cs) = do
-          putByteString (BS.take 16 hdr)
-          putWord16be   cs
-          putByteString (BS.drop 18 hdr)
-
-        padding = replicateM_ ( hlen' `mod` 4 ) (putWord8 0)
-
-        pseudoHdr = runPutToByteString 16 $ do
+           hlen <- distance start
+           replicateM_ (hlen `mod` 4) (putWord8 0)
+           undelay dataoff . fromIntegral =<< distance start
+           tcpPutPayload x
+           hlen' <- distance start
+           let crc = 0 `icsum16'` (pseudoHdr hlen')
+                       `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen hlen' (toAddr start))
+           undelay acrc (fin_icsum16' crc)
+  where
+    pseudoHdr y = runPutToByteString 16 $ do
           putIP (tcpSrcAddr x)
           putIP (tcpDstAddr x)
           putWord8 0
           putWord8 (tcpProto x)
-          putWord16be (fromIntegral $ hlen + BS.length body)
-
-        hdr =  runPutToByteString 32   (putHeader Nothing)
-        body = runPutToByteString 2048 (tcpPutPayload x)
-        pkt = BS.concat [pseudoHdr, hdr, body]
-
-        hlen =  hlen' + hlen' `mod` 4
-
-        hlen' | isUrgent  = 20 
-              | otherwise = 18
-
-        srcPort = tcpSrcPort x
-        dstPort = tcpDstPort x
-        seqno   = tcpSeqNo x
-        ackno   = tcpAckNo x
-        dataoff = (((hlen `div` 4) .&. 0xF) `shiftL` 4)
-        flags   = (fromIntegral $ fromEnum (tcpFlags x))
-        wss     = tcpWinSize x
-        isUrgent = ( flags .&. (fromIntegral $ fromEnum URG) ) /= 0
+          putWord16be (fromIntegral y)
+    srcPort = tcpSrcPort x
+    dstPort = tcpDstPort x
+    seqno   = tcpSeqNo x
+    ackno   = tcpAckNo x
+    -- dataoff = (((hlen `div` 4) .&. 0xF) `shiftL` 4)
+    flags   = (fromIntegral $ fromEnum (tcpFlags x))
+    wss     = tcpWinSize x
+    isUrgent = ( flags .&. (fromIntegral $ fromEnum URG) ) /= 0
