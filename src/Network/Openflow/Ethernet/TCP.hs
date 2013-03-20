@@ -73,6 +73,6 @@ putTCP x = do
     seqno   = tcpSeqNo x
     ackno   = tcpAckNo x
     -- dataoff = (((hlen `div` 4) .&. 0xF) `shiftL` 4)
-    flags   = (fromIntegral $ fromEnum (tcpFlags x))
+    flags   = (fromIntegral $! fromEnum (tcpFlags x))
     wss     = tcpWinSize x
     isUrgent = ( flags .&. (fromIntegral $ fromEnum URG) ) /= 0
