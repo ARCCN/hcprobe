@@ -4,16 +4,17 @@ module Network.Openflow.Ethernet.TCP (TCPFlag(..), TCP(..), putTCP) where
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
 import Control.Monad
-import qualified Data.Set as S
-import qualified Data.ByteString as BS
+-- import qualified Data.Set as S
+-- import qualified Data.ByteString as BS
+import qualified Data.ByteString.Unsafe as BS
 import Data.Word
-import Nettle.OpenFlow.StrictPut 
+import Network.Openflow.StrictPut
 import Data.Bits
 import Data.List (foldl')
+import System.IO.Unsafe
 
-import Debug.Trace
-import Data.Maybe
-import Text.Printf
+-- import Debug.Trace
+-- import Text.Printf
 
 type TCPPort = Word16
 

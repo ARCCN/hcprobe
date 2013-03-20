@@ -3,7 +3,7 @@ module Network.Openflow.Ethernet.Generator where
 
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
-import Nettle.OpenFlow.StrictPut 
+import Network.Openflow.StrictPut
 import Data.Digest.CRC32
 import Data.Word
 import qualified Data.ByteString as BS

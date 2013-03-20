@@ -11,12 +11,10 @@ import Data.Word
 import Data.Bits
 import qualified Data.Vector.Storable as V
 import Control.Applicative
-import Nettle.OpenFlow.StrictPut 
+import Network.Openflow.StrictPut
 import qualified Data.Binary.Put as BP 
 import Data.Binary.Get
-import qualified Data.Binary.Strict.Get as SG
 import Data.List
-import Data.Either
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BSI
 import qualified Data.ByteString.Lazy as BL
@@ -53,8 +51,10 @@ putIP :: IPv4Addr -> PutM ()
 putIP ip = putWord32be ip
 {-# INLINE putIP #-}
 
+bsStrict :: BL.ByteString -> BSI.ByteString
 bsStrict = BS.concat . BL.toChunks
 
+bsLazy :: BSI.ByteString -> BL.ByteString
 bsLazy s = BL.fromChunks [s]
 
 hexdumpBs :: Int -> String -> String -> BS.ByteString -> String
@@ -65,6 +65,7 @@ hexdumpBs n ds ts bs = concat $ concat rows
         chunk [] = Nothing
         chunk xs = Just (intersperse ds (take n xs) ++ [ts], drop n xs)
 
+encodePutM :: BP.Put -> BSI.ByteString
 encodePutM = bsStrict . BP.runPut
 
 ipv4 :: Word8->Word8->Word8->Word8 -> IPv4Addr

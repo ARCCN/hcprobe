@@ -25,7 +25,7 @@ import Data.Maybe
 import Control.Monad
 import Text.Printf
 
-import Nettle.OpenFlow.StrictPut
+import Network.Openflow.StrictPut
 
 import System.Random
 import System.Environment (getArgs)

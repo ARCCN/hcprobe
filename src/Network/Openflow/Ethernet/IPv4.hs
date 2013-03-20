@@ -5,7 +5,7 @@ import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
 import Data.Word
 import qualified Data.ByteString as BS
-import Nettle.OpenFlow.StrictPut 
+import Network.Openflow.StrictPut
 import Data.Bits
 
 import Data.Maybe

@@ -6,7 +6,7 @@ import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
 
 import Data.Word
-import Nettle.OpenFlow.StrictPut 
+import Network.Openflow.StrictPut
 
 class ARPReply a where
   hardwareType    :: a -> Word16

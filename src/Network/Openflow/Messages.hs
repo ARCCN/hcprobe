@@ -16,7 +16,7 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
 import Network.Openflow.Types
 import Network.Openflow.Misc
 import Data.Binary.Put
-import qualified Nettle.OpenFlow.StrictPut as SP 
+import qualified Network.Openflow.StrictPut as SP
 import Data.Binary.Strict.Get
 import Data.Word ( Word8, Word16, Word32, Word64 )
 import Data.Bits

@@ -2,7 +2,7 @@ module Main where
 
 import Test.HUnit
 import Network.Openflow.Misc
-import Nettle.OpenFlow.StrictPut
+import Network.Openflow.StrictPut
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
 import Data.ByteString (ByteString)

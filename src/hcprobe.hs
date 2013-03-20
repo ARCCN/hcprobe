@@ -19,7 +19,7 @@ import HCProbe.TCP
 -- Parameters, don't meeted in config file or in cmd args setted as default.
 import HCProbe.Configurator
 
-import qualified Nettle.OpenFlow.StrictPut as SP 
+import qualified Network.Openflow.StrictPut as SP
 
 import Data.Binary.Put ( runPut )
 import qualified Data.ByteString as BS

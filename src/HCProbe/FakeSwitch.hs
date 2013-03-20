@@ -40,7 +40,7 @@ import Data.Maybe
 import Data.Word
 import qualified Data.Vector.Unboxed as V
 import qualified Data.IntMap as M 
-import Nettle.OpenFlow.StrictPut
+import Network.Openflow.StrictPut
 import System.Random
 import Text.Printf
 
