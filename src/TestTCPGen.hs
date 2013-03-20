@@ -4,13 +4,13 @@ module Main where
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Ethernet.TCP
 import Network.Openflow.Ethernet.Generator
-import Network.Openflow.Misc
+-- import Network.Openflow.Misc
 import HCProbe.TCP
-import HCProbe.FakeSwitch (mcPrefix)
+-- import HCProbe.FakeSwitch (mcPrefix)
 
-import Nettle.OpenFlow.StrictPut
+-- import Nettle.OpenFlow.StrictPut
 import Data.Word
-import Data.Maybe
+-- import Data.Maybe
 import Control.Monad
 import System.IO
 import System.Environment
@@ -18,8 +18,12 @@ import qualified Data.ByteString as BS
 
 import Safe
 
+pktNum :: Word32
 pktNum = 1
 
+testTCP :: IPv4Addr
+        -> IPv4Addr 
+        -> TestPacketTCP
 testTCP ip0 ip1 = do
   TestPacketTCP { dstMAC = 0 
                 , srcMAC = 1 
@@ -35,6 +39,7 @@ testTCP ip0 ip1 = do
                 , testIpID = Nothing
                 }
 
+main :: IO ()
 main = do
   pnum <- liftM (maybe pktNum read.headMay) getArgs
   let pkts = [testTCP i (i*3)  | i <- [1..pnum]]
