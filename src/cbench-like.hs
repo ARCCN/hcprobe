@@ -125,7 +125,7 @@ empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
 pktGenTest :: Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan BS.ByteString -> IO ()
-pktGenTest params q fk chan  = forever $ forM_ [1..64] $ \i -> forM_ [1..10000] $ \j -> do
+pktGenTest params q fk chan  = forM_ [1..64] $ \i -> forM_ [1..10000] $ \j -> do --forever $ 
     pq  <- atomically $ readTVar q
     --tid <- MR.randomIO :: IO Word32
 
@@ -178,14 +178,14 @@ data PktStats = PktStats { pktStatsSentTotal :: !Int
 emptyStats :: PktStats
 emptyStats = PktStats 0 0 0 0 Nothing
 
-onSend :: Parameters -> TVar PacketQ -> TVar PktStats -> OfpMessage -> IO ()
-onSend params q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
+onSend :: Parameters -> TVar PacketQ -> TVar PktStats -> BS.ByteString -> IO ()--OfpMessage -> IO ()
+onSend params q s _ = do--(OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
   now <- getCurrentTime
   atomically $ do
-    modifyTVar q (IntMap.insert (fromIntegral bid) now)
+    --modifyTVar q (IntMap.insert (fromIntegral bid) now)
     modifyTVar s (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st)
                             })
-  sweepQ now
+  --sweepQ now
 
   where
     sweepQ now = atomically $ do
@@ -200,17 +200,20 @@ onSend params q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
 onSend _ _ _ _ = return ()
 
 onReceive :: TVar PacketQ -> TVar PktStats -> OfpMessage -> IO ()
-onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = do
+onReceive q s _ = do--(OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = do
   now <- getCurrentTime
-  pq <- (atomically.readTVar) q
+  --pq <- (atomically.readTVar) q
 
-  whenJustM (IntMap.lookup ibid pq) $ \dt -> atomically $ do
+  atomically $ do
     modifyTVar s (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st)
-                            , pktStatsRoundtripTime = Just( now `diffUTCTime` dt )
                             })
-    modifyTVar q $ IntMap.delete ibid
+  --whenJustM (IntMap.lookup ibid pq) $ \dt -> atomically $ do
+  --modifyTVar s (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st)
+                            --, pktStatsRoundtripTime = Just 1--Just( now `diffUTCTime` dt )
+  --                          })
+    --modifyTVar q $ IntMap.delete ibid
 
-  where ibid = fromIntegral bid
+  --where ibid = fromIntegral bid
 
 onReceive _ _ (OfpMessage h _)  = 
   return ()
@@ -357,7 +360,7 @@ toTryMain = do
         pktQ <- newTVarIO empyPacketQ
         stat <- newTVarIO emptyStats
         let fake = fake' { onSendMessage = Just (onSend params pktQ stat), onRecvMessage = Just (onReceive pktQ stat) }
-        w <- forever $ do
+        w <- async $ forever $ do
           async (ofpClient (pktGenTest params pktQ) fake (BS8.pack (host params)) (read (port params))) >>= wait
           atomically $ modifyTVar stats (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
           threadDelay 1000000
