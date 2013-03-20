@@ -46,7 +46,7 @@ putTCP x = do
 --  trace ( (hexdumpBs 160 " " "" pkt) ++ "\n") $ return ()
   putHeader (Just (csum16' pkt)) >> putByteString body
 
-  where putHeader cs = do
+  where putHeader Nothing = do
   {- 2  -} putWord16be srcPort
   {- 4  -} putWord16be dstPort
   {- 8  -} putWord32be seqno
@@ -54,9 +54,14 @@ putTCP x = do
   {- 13 -} putWord8    (fromIntegral dataoff)
   {- 14 -} putWord8    flags
   {- 16 -} putWord16be wss
-  {- 18 -} putWord16be (maybe 0 id cs)
+  {- 18 -} putWord16be 0
   {- 20 -} when isUrgent $ putWord16be (tcpUrgentPtr x)
   {- ?? -} padding
+
+        putHeader (Just cs) = do
+          putByteString (BS.take 16 hdr)
+          putWord16be   cs
+          putByteString (BS.drop 18 hdr)
 
         padding = replicateM_ ( hlen' `mod` 4 ) (putWord8 0)
 
@@ -70,7 +75,7 @@ putTCP x = do
         hdr =  runPutToByteString 128  (putHeader Nothing)
         body = runPutToByteString 2048 (tcpPutPayload x)
         pkt = BS.concat [pseudoHdr, hdr, body]
-      
+
         hlen =  hlen' + hlen' `mod` 4
 
         hlen' | isUrgent  = 20 
