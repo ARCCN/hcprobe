@@ -1,25 +1,32 @@
+{-# Language BangPatterns #-}
 module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ,
                                putWord16le,
                                bsStrict, bsLazy, encodePutM, ipv4,
-                               csum16, hexdumpBs
+                               csum16, csum16', hexdumpBs
                              ) where
 
 import Network.Openflow.Types
 import Network.Openflow.Ethernet.Types
 import Data.Word
 import Data.Bits
+import qualified Data.Vector.Storable as V
+import Control.Applicative
 import Nettle.OpenFlow.StrictPut 
 import qualified Data.Binary.Put as BP 
-import Data.Binary.Strict.Get
+import Data.Binary.Get
+import qualified Data.Binary.Strict.Get as SG
 import Data.List
 import Data.Either
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Internal as BSI
 import qualified Data.ByteString.Lazy as BL
 import Control.Monad
+
+import Foreign.Storable
+import Foreign.ForeignPtr
+
 import Text.Printf
 import Debug.Trace
-
-import Data.Digest.Table.CRC16
 
 -- TODO: move to Nettle.OpenFlow.StrictPut
 putWord16le :: Word16 -> PutM ()
@@ -67,15 +74,40 @@ ipv4 a b c d = wa .|. wb .|. wc .|. wd
         wc = fromIntegral c `shiftL`  8
         wd = fromIntegral d
 
-csum16 :: BS.ByteString -> Maybe Word16
-csum16 s = words >>= return . rotate . trunc . (foldl' (\acc w -> acc + fromIntegral w) 0)
-  where withResult (Left _, _)  = Nothing
-        withResult (Right s, _) = Just s
-        words = withResult $ flip runGet s (replicateM (BS.length s `div` 2) $ getWord16le)
-        trunc :: Word32 -> Word16
-        trunc w = fromIntegral $ complement $ (w .&. 0xFFFF) + (w `shiftR` 16)
-
-        rotate :: Word16 -> Word16
-        rotate x = (x `shiftR` 8) + (x `shiftL` 8)
+csum16 :: BS.ByteString -> Word16
+csum16 bs = withResult (pushEndOfInput $ pushChunk (runGetIncremental crc) bs)
+  where
+    withResult (Done _ _ x) = x
+    withResult _ = 0 
+    crc = rotate' . trunc <$> go (0::Word32)
+    go !x = do
+      e <- isEmpty
+      if e then return x
+           else do y <- fromIntegral <$> getWord16le
+                   go (x+y)
+    {-# INLINE go #-}
 {-# INLINE csum16 #-}
 
+trunc :: Word32 -> Word16
+trunc w = fromIntegral $ complement $ (w .&. 0xFFFF) + (w `shiftR` 16)
+{-# INLINE trunc #-}
+
+rotate' :: Word16 -> Word16
+rotate' x = x `rotateL` 8
+{-# INLINE rotate' #-}
+
+csum16' :: BS.ByteString -> Word16
+csum16' bs = rotate' $ trunc $ V.foldl' (\a -> (+a).fromIntegral) (0 :: Word32) bv
+  where bv = byteStringToVector bs :: V.Vector Word16
+{-# INLINE csum16' #-}
+
+
+byteStringToVector :: (Storable a) => BS.ByteString -> V.Vector a
+byteStringToVector bs = vec 
+  where
+    vec = V.unsafeFromForeignPtr (castForeignPtr fptr) (scale off) (scale len)
+    (fptr, off, len) = BSI.toForeignPtr bs
+    scale = (`div` sizeOfElem vec)
+    sizeOfElem :: (Storable a) => V.Vector a -> Int
+    sizeOfElem vec = sizeOf (undefined `asTypeOf` V.head vec)
+{-# INLINE byteStringToVector  #-}

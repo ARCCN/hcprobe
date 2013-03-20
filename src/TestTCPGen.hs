@@ -10,10 +10,13 @@ import HCProbe.FakeSwitch (mcPrefix)
 
 import Nettle.OpenFlow.StrictPut
 import Data.Word
+import Data.Maybe
 import Control.Monad
 import System.IO
+import System.Environment
 import qualified Data.ByteString as BS
 
+import Safe
 
 pktNum = 1
 
@@ -33,7 +36,8 @@ testTCP ip0 ip1 = do
                 }
 
 main = do
-  let pkts = [testTCP i (i*3)  | i <- [1..pktNum]]
+  pnum <- liftM (maybe pktNum read.headMay) getArgs
+  let pkts = [testTCP i (i*3)  | i <- [1..pnum]]
   let chunks = map makeEthernetFrame pkts
   mapM_ (BS.hPutStr stdout) chunks 
 

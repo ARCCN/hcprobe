@@ -76,7 +76,7 @@ crcTest3 = do
            , 0x0a, 0x0c] :: [Word8]
 
   let c = csum16 (BS.pack w8)
-  printf "%04X\n" (fromJust c)
+  printf "%04X\n" (c)
 
 crcTest4 :: IO ()
 crcTest4 = do

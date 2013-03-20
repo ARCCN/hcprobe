@@ -44,7 +44,7 @@ putTCP :: TCP a => a -> PutM ()
 putTCP x = do
 --  trace ( (printf "%04X" (fromJust $ csum16 pkt))) $ return ()
 --  trace ( (hexdumpBs 160 " " "" pkt) ++ "\n") $ return ()
-  putHeader (csum16 pkt) >> putByteString body
+  putHeader (Just (csum16' pkt)) >> putByteString body
 
   where putHeader cs = do
   {- 2  -} putWord16be srcPort

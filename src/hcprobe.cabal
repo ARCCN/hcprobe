@@ -16,7 +16,7 @@ cabal-version:       >=1.8
 
 library
     exposed-modules:  Network.Openflow.Types
-    build-depends:    base, binary, binary-strict, bytestring,
+    build-depends:    base, binary >= 0.7.0.0, binary-strict, bytestring,
                       network-conduit==0.6.*, cereal,
                       resourcet, async, network-data,
                       random, digest, stm, stm-conduit, stm-chans,
@@ -25,8 +25,7 @@ library
                       transformers, mtl, containers,
                       MaybeT, MissingH,
                       cmdargs, ConfigFile,
-                      nettle-openflow >= 0.2.0,
-                      crc16-table
+                      nettle-openflow >= 0.2.0
 
   Ghc-options:        -Wall -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -34,7 +33,7 @@ library
 executable hcprobe
   main-is:           hcprobe.hs
   -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit==0.5.*, network-conduit==0.6.*,
                        resourcet, async, network-data, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
@@ -42,30 +41,28 @@ executable hcprobe
                        statistics,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0,
-                       crc16-table
+                       nettle-openflow >= 0.2.0
   -- fllvm
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
 executable ethertest 
   main-is:           ethertest.hs
   -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit==0.5.*, network-conduit==0.6.*,
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0,
-                       crc16-table
+                       nettle-openflow >= 0.2.0
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
 executable TestPkgGen 
   main-is:             TestPkgGen.hs 
   -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit==0.5.*, network-conduit==0.6.*,
                        parallel, deepseq,
                        resourcet, async, cereal,
@@ -73,8 +70,7 @@ executable TestPkgGen
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0,
-                       crc16-table
+                       nettle-openflow >= 0.2.0
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -82,32 +78,28 @@ executable TestPkgGen
 executable TestARPGen 
   main-is:             TestARPGen.hs 
   -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit==0.5.*, network-conduit==0.6.*,
-                       parallel, deepseq,
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0,
-                       crc16-table
+                       nettle-openflow >= 0.2.0
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
 executable TestTCPGen
   main-is:             TestTCPGen.hs
   -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit==0.5.*, network-conduit==0.6.*,
-                       parallel, deepseq,
-                       resourcet, async, cereal,
+                       resourcet, async, cereal, safe,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0,
-                       crc16-table
+                       nettle-openflow >= 0.2.0
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -115,7 +107,7 @@ executable TestTCPGen
 executable TestMisc
   main-is:             TestMisc.hs 
   -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        HUnit,
                        conduit==0.5.*, network-conduit==0.6.*,
                        resourcet, async, cereal,
@@ -123,8 +115,7 @@ executable TestMisc
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH,
                        cmdargs, ConfigFile,
-                       nettle-openflow >= 0.2.0,
-                       crc16-table
+                       nettle-openflow >= 0.2.0
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
 

@@ -35,8 +35,8 @@ class IPv4 a where
 putIPv4Pkt :: IPv4 a => a -> PutM ()
 putIPv4Pkt x = do
   let hdrF = hdr
-  let crc16 = csum16 hdrF
-  putHdr crc16 >> putByteString body
+  let crc16 = csum16' hdrF
+  putHdr (Just crc16) >> putByteString body
   where
     hdr = runPutToByteString 256 (putHdr Nothing)
     body = runPutToByteString 2048 (ipPutPayload x)
