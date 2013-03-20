@@ -22,9 +22,12 @@ test_putMAC1 = TestCase (assertEqual "macEqual" macStrict macBS)
 test_csum16_1 = TestCase (assertEqual "csum16_fast" (csum16' s) (csum16 s))
   where s = BS8.pack "01234567"
 
+test_csum16_2 = TestCase (assertEqual "csum16_fast" (csum16'' s) (csum16 s))
+  where s = BS8.pack "01234567"
 
 allTests = TestList [TestLabel "putMAC#1" test_putMAC1
                     ,TestLabel "csum16#1" test_csum16_1
+                    ,TestLabel "csum16#2" test_csum16_2
                     ]
 
 main = runTestTT allTests 
