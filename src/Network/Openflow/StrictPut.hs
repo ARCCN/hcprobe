@@ -162,11 +162,13 @@ undelay (DelayedPut f) !x = PutM $ \p -> f x >> return ((),p)
 {-# INLINABLE undelay #-}
 
 delayedWord8 :: PutM (DelayedPut Word8)
-delayedWord8 = PutM $ \p -> return (DelayedPut $ runPut p . putWord8, p `plusPtr` 1)
+delayedWord8 = PutM $ \p -> runPut p (putWord8 0) >> 
+                            return (DelayedPut $ runPut p . putWord8, p `plusPtr` 1)
 {-# INLINABLE delayedWord8 #-}
 
 delayedWord16be :: PutM (DelayedPut Word16)
-delayedWord16be = PutM $ \p -> return (DelayedPut $ runPut p . putWord16be,  p `plusPtr` 2)
+delayedWord16be = PutM $ \p -> runPut p (putWord8 0>>putWord8 0) >>
+                               return (DelayedPut $ runPut p . putWord16be,  p `plusPtr` 2)
 {-# INLINABLE delayedWord16be #-}
 
 {-# INLINABLE shiftr_w16 #-}
