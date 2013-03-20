@@ -34,14 +34,14 @@ class IPv4 a where
 
 putIPv4Pkt :: IPv4 a => a -> PutM ()
 putIPv4Pkt x = do
-  let hdrF = hdr
-  let crc16 = csum16' hdrF
+  let !hdrF = hdr
+  let !crc16 = csum16' hdrF
   putHdr (Just crc16) >> putByteString body
   where
-    hdr = runPutToByteString 256 (putHdr Nothing)
-    body = runPutToByteString 2048 (ipPutPayload x)
+    hdr  = runPutToByteString  32   (putHdr Nothing)
+    body = runPutToByteString 2048  (ipPutPayload x)
 
-    putHdr cs = do
+    putHdr Nothing = do
       putWord8    lenIhl     -- version, ihl
       putWord8    tos
       putWord16be totLen
@@ -49,9 +49,14 @@ putIPv4Pkt x = do
       putWord16be flagsOff
       putWord8    ttl
       putWord8    proto
-      putWord16be (maybe 0 id cs)
+      putWord16be 0 -- crc
       putIP       ipS
       putIP       ipD
+
+    putHdr (Just cs) = do
+      putByteString (BS.take 10 hdr)
+      putWord16be cs -- crc
+      putByteString (BS.drop 12 hdr)
 
     lenIhl = (ihl .&. 0xF) .|. (ver `shiftL` 4 .&. 0xF0)
     ihl    = ipHeaderLen x
