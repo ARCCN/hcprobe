@@ -54,7 +54,7 @@ putTCP x = do
   {- 13 -} putWord8    (fromIntegral dataoff)
   {- 14 -} putWord8    flags
   {- 16 -} putWord16be wss
-  {- 18 -} putWord16be 0
+  {- 18 -} putWord16be 0 -- crc
   {- 20 -} when isUrgent $ putWord16be (tcpUrgentPtr x)
   {- ?? -} padding
 
@@ -65,14 +65,14 @@ putTCP x = do
 
         padding = replicateM_ ( hlen' `mod` 4 ) (putWord8 0)
 
-        pseudoHdr = runPutToByteString 256 $ do
+        pseudoHdr = runPutToByteString 16 $ do
           putIP (tcpSrcAddr x)
           putIP (tcpDstAddr x)
           putWord8 0
           putWord8 (tcpProto x)
-          putWord16be (fromIntegral $ (fromIntegral hlen) + BS.length body)
+          putWord16be (fromIntegral $ hlen + BS.length body)
 
-        hdr =  runPutToByteString 128  (putHeader Nothing)
+        hdr =  runPutToByteString 32   (putHeader Nothing)
         body = runPutToByteString 2048 (tcpPutPayload x)
         pkt = BS.concat [pseudoHdr, hdr, body]
 

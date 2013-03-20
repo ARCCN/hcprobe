@@ -39,7 +39,7 @@ putIPv4Pkt x = do
   putHdr (Just crc16) >> putByteString body
   where
     hdr  = runPutToByteString  32   (putHdr Nothing)
-    body = runPutToByteString 2048  (ipPutPayload x)
+    body = runPutToByteString 1800  (ipPutPayload x)
 
     putHdr Nothing = do
       putWord8    lenIhl     -- version, ihl

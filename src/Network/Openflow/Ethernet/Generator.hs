@@ -48,4 +48,3 @@ putEmptyPayload n | n `mod` 8 == 0 = replicateM_ (n `div` 8) (putWord64be 0)
                   | otherwise      = replicateM_ n           (putWord8    0)
 {-# INLINE putEmptyPayload #-}
 
-

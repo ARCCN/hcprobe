@@ -105,9 +105,9 @@ csum16'' :: BS.ByteString -> Word16
 csum16'' bs = r $ csum bs
   where csum = BS.foldl' fn (0 :: Word32, False, 0 :: Word16)
         fn (crc, False, _) v  = (crc, True, fromIntegral v)
-        fn (crc, True, x)  v  = (crc + fromIntegral (x + ((fromIntegral v) `shiftL` 8)), False, 0)
+        fn (crc, True, x)  v  = (crc + fromIntegral (x + ((fromIntegral v) `shiftR` 8)), False, 0)
         {-# INLINE fn #-}
-        r  (crc, _, _) = (rotate' . trunc) crc
+        r  (crc, _, _) = (trunc) crc
 {-# INLINE csum16'' #-}
 
 byteStringToVector :: (Storable a) => BS.ByteString -> V.Vector a
