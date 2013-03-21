@@ -3,11 +3,11 @@ module Main where
 
 import Network.Openflow.Types 
 import Network.Openflow.Ethernet.Types
-import Network.Openflow.Ethernet.ARP
+-- import Network.Openflow.Ethernet.ARP
 import Network.Openflow.Ethernet.TCP
 import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Messages
-import Network.Openflow.Misc
+-- import Network.Openflow.Misc
 
 
 import HCProbe.FakeSwitch
@@ -20,9 +20,9 @@ import HCProbe.Configurator
 
 import qualified Network.Openflow.StrictPut as SP
 
-import Data.Binary.Put ( runPut )
+-- import Data.Binary.Put ( runPut )
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BL
+-- import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Char8 as BS8
 import Data.Word
 import Data.Bits
@@ -30,34 +30,35 @@ import Data.Time
 import qualified Data.Set as S
 import Text.Printf
 import Data.Maybe
-import Data.Typeable
+-- import Data.Typeable
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector as BV
-import Data.List (intersperse, concat, unfoldr)
-import qualified Data.List as L
+-- import Data.List (intersperse, concat, unfoldr)
+-- import qualified Data.List as L
 import qualified Data.IntMap as IntMap
-import qualified Data.Map as M 
+-- import qualified Data.Map as M 
 
-import System.Random
-import qualified System.Random.Mersenne as MR
+import qualified System.Random as R
+import {-qualified-} System.Random.Mersenne as MR
 import System.IO
-import System.Environment (getArgs)
-import Control.Exception
+-- import System.Environment (getArgs)
+-- import Control.Exception
 import Control.Monad
 import Control.Monad.State
-import Control.Error
+-- import Control.Error
 import Control.Concurrent
-import Control.Concurrent.MVar
+-- import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Concurrent.Async
 
-import System.IO.Error
+-- import System.IO.Error
 
 import qualified Statistics.Sample as S
 
-import Debug.Trace
+-- import Debug.Trace
 
+ethernetFrameMaxSize :: Integer
 ethernetFrameMaxSize = 2048
 
 whenJustM :: Monad m => Maybe a -> (a -> m ()) -> m ()
@@ -70,9 +71,9 @@ testTCP params dstMac srcMac = do
   srcP   <- randomIO :: IO Word16
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
-  let flags  = [ACK]
+  -- let flags  = [ACK]
 --  cargo  <- replicateM payloadLen randomIO :: IO [Word8]
-  let cargo = replicate (payloadLen params) 0
+  -- let cargo = replicate (payloadLen params) 0
   return $! TestPacketTCP { dstMAC = dstMac
                           , srcMAC = srcMac
                           , srcIP  = srcIp
@@ -96,7 +97,7 @@ empyPacketQ = IntMap.empty
 pktGenTest :: Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
     pq  <- atomically $ readTVar q
-    tid <- MR.randomIO :: IO Word32
+    -- tid <- MR.randomIO :: IO Word32
 
 --    rands <-   MR.getStdGen >>= MR.randoms --return [1..100] -- MR.randoms mtgen
 --    let bid = fromIntegral $ head $ filter (not.flip IntMap.member pq) rands -- TODO try to put all in one expression.
@@ -123,18 +124,18 @@ pktGenTest params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
-        inports = fromIntegral nports :: Int
+        -- inports = fromIntegral nports :: Int
         choice n l | V.null l  = Nothing
                    | otherwise = Just $ l `V.unsafeIndex` (n `mod` V.length l)
 
-tcpTestPkt fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
+tcpTestPkt _fk tid bid pid pl = OfpMessage hdr (OfpPacketInReply  pktIn)
   where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
         pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = bid
                             , ofp_pkt_in_in_port   = pid 
                             , ofp_pkt_in_reason    = OFPR_NO_MATCH
                             , ofp_pkt_in_data      = pl
                             }
-        sw  = switchFeatures fk
+        -- sw  = switchFeatures fk
 
 data PktStats = PktStats { pktStatsSentTotal :: !Int
                          , pktStatsRecvTotal :: !Int
@@ -160,7 +161,7 @@ onSend params q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
       pq <- readTVar q
       when (IntMap.size pq > pktInQLen params) $ do
       let rationalTimeout = toRational (pktInQTimeout params)
-      let (lost, rest) = IntMap.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
+      let (_lost, rest) = IntMap.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
       writeTVar q $! rest
       modifyTVar s (\st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st)
                               })
@@ -168,7 +169,7 @@ onSend params q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
 onSend _ _ _ _ = return ()
 
 onReceive :: TVar PacketQ -> TVar PktStats -> OfpMessage -> IO ()
-onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = do
+onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = do
   now <- getCurrentTime
   pq <- (atomically.readTVar) q
 
@@ -180,7 +181,7 @@ onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid pid))) = do
 
   where ibid = fromIntegral bid
 
-onReceive _ _ (OfpMessage h _)  = 
+onReceive _ _ (OfpMessage _h _)  = 
   return ()
 
 
@@ -264,7 +265,7 @@ writeLog params chan = whenJustM (logFileName params) $ \fn -> withFile fn Write
 displayStats :: Parameters -> TBMChan LogEntry -> IO ()
 displayStats params chan = do
   hSetBuffering stdout NoBuffering
-  initTime <- getCurrentTime
+  -- initTime <- getCurrentTime
   let reader = if isNothing $ logFileName params
                     then readTBMChan
                     else peekTBMChan
@@ -314,7 +315,7 @@ toTryMain = do
 
   fakeSw <- forM [1..switchNum params] $ \i -> do
     let ip = fromIntegral i .|. (0x10 `shiftL` 24)
-    rnd <- newStdGen
+    rnd <- R.newStdGen
     macs <- liftM S.toList (randomSet (fromIntegral (portNum params) * macSpaceDim params+1) S.empty)
     return $ fst $ makeSwitch (defaultSwGen i ip rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
 
