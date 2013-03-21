@@ -1,27 +1,48 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleInstances, DeriveDataTypeable #-}
-module Network.Openflow.Ethernet.TCP (TCPFlag(..), TCP(..), putTCP) where
+{-# LANGUAGE BangPatterns, GeneralizedNewtypeDeriving, FlexibleInstances, DeriveDataTypeable #-}
+module Network.Openflow.Ethernet.TCP (TCPFlag(..), TCP(..), putTCP, tcpFlagsOf) where
 
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
 import Control.Monad
-import qualified Data.Set as S
-import qualified Data.ByteString as BS
+-- import qualified Data.Set as S
+-- import qualified Data.ByteString as BS
+import qualified Data.ByteString.Unsafe as BS
 import Data.Word
-import Data.Binary.Put
+import Network.Openflow.StrictPut
 import Data.Bits
 import Data.List (foldl')
+import System.IO.Unsafe
+import qualified Data.BitSet as BB
 
-import Debug.Trace
-import Data.Maybe
-import Text.Printf
+-- import Debug.Trace
+-- import Text.Printf
 
 type TCPPort = Word16
 
-data TCPFlag = FIN | SYN | RST | PSH | ACK | URG | ECE | CWR deriving (Eq, Ord, Show, Read, Enum)
+data TCPFlag = FIN | SYN | RST | PSH | ACK | URG | ECE | CWR deriving (Eq, Ord, Show, Read)
 
-instance Enum [TCPFlag] where
-        fromEnum fs = foldl' (+) 0 $ map (bit . fromEnum) fs
-        toEnum i = map (toEnum . snd) . filter fst . flip zip [0..7] . map (testBit i) $ [0..7]
+-- FIXME: Enum range overflow
+instance Enum TCPFlag where
+  fromEnum FIN = 0x01
+  fromEnum SYN = 0x02
+  fromEnum RST = 0x04
+  fromEnum PSH = 0x08
+  fromEnum ACK = 0x10
+  fromEnum URG = 0x20
+  fromEnum ECE = 0x40
+  fromEnum CWR = 0x80
+  toEnum 0x01 = FIN
+  toEnum 0x02 = SYN
+  toEnum 0x04 = RST
+  toEnum 0x08 = PSH
+  toEnum 0x10 = ACK
+  toEnum 0x20 = URG
+  toEnum 0x40 = ECE
+  toEnum 0x80 = CWR
+
+--instance Enum [TCPFlag] where
+--        fromEnum fs = foldl' (+) 0 $ map (bit . fromEnum) fs
+--        toEnum i = map (toEnum . snd) . filter fst . flip zip [0..7] . map (testBit i) $ [0..7]
 
 class TCP a where
   tcpSrcAddr    :: a -> IPv4Addr
@@ -31,54 +52,53 @@ class TCP a where
   tcpDstPort    :: a -> TCPPort
   tcpSeqNo      :: a -> Word32
   tcpAckNo      :: a -> Word32
-  tcpFlags      :: a -> [TCPFlag]
+  tcpFlags      :: a -> Word8
   tcpWinSize    :: a -> Word16
   tcpUrgentPtr  :: a -> Word16
   tcpPutPayload :: a -> PutM ()
+
+-- TODO: header generation may be improved
+-- TODO: checksum generation may be improved
 
 putTCP :: TCP a => a -> PutM ()
 putTCP x = do
 --  trace ( (printf "%04X" (fromJust $ csum16 pkt))) $ return ()
 --  trace ( (hexdumpBs 160 " " "" pkt) ++ "\n") $ return ()
-  putHeader (csum16 pkt) >> putByteString body
-
-  where putHeader cs = do
+           start <- marker
   {- 2  -} putWord16be srcPort
   {- 4  -} putWord16be dstPort
   {- 8  -} putWord32be seqno
   {- 12 -} putWord32be ackno
-  {- 13 -} putWord8    (fromIntegral dataoff)
-  {- 14 -} putWord8    flags
+  {- 13 -} dataoff <- delayedWord8  -- data offset
+  {- 14 -} putWord8 flags
   {- 16 -} putWord16be wss
-  {- 18 -} putWord16le (maybe 0 id cs)
+  {- 18 -} acrc <- delayedWord16be -- CRC
   {- 20 -} when isUrgent $ putWord16be (tcpUrgentPtr x)
-  {- ?? -} padding
-
-        padding = replicateM_ ( hlen' `mod` 4 ) (putWord8 0)
-
-        pseudoHdr = bsStrict $ runPut $ do
+           hlen <- distance start
+           replicateM_ (hlen `mod` 4) (putWord8 0)
+           undelay dataoff . fromIntegral =<< distance start
+           tcpPutPayload x
+           hlen' <- distance start
+           let crc = 0 `icsum16'` (pseudoHdr hlen')
+                       `icsum16'` (unsafeDupablePerformIO $ BS.unsafePackAddressLen hlen' (toAddr start))
+           undelay acrc (fin_icsum16' crc)
+  where
+    pseudoHdr y = runPutToByteString 16 $ do
           putIP (tcpSrcAddr x)
           putIP (tcpDstAddr x)
           putWord8 0
           putWord8 (tcpProto x)
-          putWord16be (fromIntegral $ (fromIntegral hlen) + BS.length body)
+          putWord16be (fromIntegral y)
+    srcPort = tcpSrcPort x
+    dstPort = tcpDstPort x
+    seqno   = tcpSeqNo x
+    ackno   = tcpAckNo x
+    -- dataoff = (((hlen `div` 4) .&. 0xF) `shiftL` 4)
+    flags   = tcpFlags x
+    wss     = tcpWinSize x
+    isUrgent = ( flags .&. (fromIntegral $ fromEnum URG) ) /= 0
+{-# INLINABLE putTCP #-}
 
-        hdr = (bsStrict . runPut) (putHeader Nothing)
-        body = (bsStrict . runPut) (tcpPutPayload x)
-        pkt = BS.concat [pseudoHdr, hdr, body]
-      
-        hlen =  hlen' + hlen' `mod` 4
-
-        hlen' | isUrgent  = 20 
-              | otherwise = 18
-
-        srcPort = tcpSrcPort x
-        dstPort = tcpDstPort x
-        seqno   = tcpSeqNo x
-        ackno   = tcpAckNo x
-        dataoff = (((hlen `div` 4) .&. 0xF) `shiftL` 4)
-        flags   = (fromIntegral $ fromEnum (tcpFlags x))
-        wss     = tcpWinSize x
-        isUrgent = ( flags .&. (fromIntegral $ fromEnum URG) ) /= 0
-
+tcpFlagsOf :: [TCPFlag] -> Word8
+tcpFlagsOf = BB.toIntegral.BB.fromList
 

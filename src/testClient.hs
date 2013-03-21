@@ -19,7 +19,7 @@ import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Monad
-import Control.Monad.Maybe
+import Control.Error
 import Control.Monad.State
 import Control.Monad.STM
 import Control.Monad.Trans.Resource

@@ -14,7 +14,7 @@ import Data.Maybe
 
 import Control.Monad
 import Control.Monad.State
-import Control.Monad.Maybe
+import Control.Error
 import Control.Monad.Error
 import Control.Exception
 import System.Directory

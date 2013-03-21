@@ -5,12 +5,14 @@ import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
 import Data.Word
 import qualified Data.ByteString as BS
-import Data.Binary.Put
+import qualified Data.ByteString.Unsafe as BS
+import Network.Openflow.StrictPut 
 import Data.Bits
 
 import Data.Maybe
 import Text.Printf
 import Debug.Trace
+import System.IO.Unsafe
 
 data IPv4Flag = DF | MF | Res deriving (Eq, Ord, Show, Read)
 
@@ -34,25 +36,23 @@ class IPv4 a where
 
 putIPv4Pkt :: IPv4 a => a -> PutM ()
 putIPv4Pkt x = do
-  let hdrF = hdr
-  let crc16 = csum16 hdrF
-  putHdr crc16 >> putByteString body
+  start <- marker
+  putWord8 lenIhl
+  putWord8 tos
+  totLen <- delayedWord16be
+  putWord16be ipId
+  putWord16be flagsOff
+  putWord8    ttl
+  putWord8    proto
+  acrc <- delayedWord16be
+  putIP ipS
+  putIP ipD
+  hlen <- distance start
+  ipPutPayload x
+  undelay totLen . fromIntegral =<< distance start
+  undelay acrc (csum16' 
+                       (unsafeDupablePerformIO $ BS.unsafePackAddressLen hlen (toAddr start)))
   where
-    hdr = (bsStrict.runPut) (putHdr Nothing)
-    body = (bsStrict . runPut) (ipPutPayload x)
-
-    putHdr cs = do
-      putWord8    lenIhl     -- version, ihl
-      putWord8    tos
-      putWord16be totLen
-      putWord16be ipId
-      putWord16be flagsOff
-      putWord8    ttl
-      putWord8    proto
-      putWord16le (maybe 0 id cs)
-      putIP       ipS
-      putIP       ipD
-
     lenIhl = (ihl .&. 0xF) .|. (ver `shiftL` 4 .&. 0xF0)
     ihl    = ipHeaderLen x
     ver    = ipVersion x
@@ -60,7 +60,7 @@ putIPv4Pkt x = do
     ipId   = ipID x
     flagsOff = (off .&. 0x1FFF) .|. ((fromIntegral flags) `shiftL` 13)
     flags  = ipFlags x
-    totLen = fromIntegral $ 4*(ipHeaderLen x) + fromIntegral (BS.length body)
+    -- totLen = fromIntegral $ 4*(ipHeaderLen x) + fromIntegral (BS.length body)
     off    = ipFragOffset x
     ttl    = ipTTL x
     proto  = ipProto x
