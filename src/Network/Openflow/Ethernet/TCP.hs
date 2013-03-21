@@ -80,7 +80,7 @@ putTCP x = do
            tcpPutPayload x
            hlen' <- distance start
            let crc = 0 `icsum16'` (pseudoHdr hlen')
-                       `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen hlen' (toAddr start))
+                       `icsum16'` (unsafeDupablePerformIO $ BS.unsafePackAddressLen hlen' (toAddr start))
            undelay acrc (fin_icsum16' crc)
   where
     pseudoHdr y = runPutToByteString 16 $ do

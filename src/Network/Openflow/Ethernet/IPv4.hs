@@ -51,7 +51,7 @@ putIPv4Pkt x = do
   ipPutPayload x
   undelay totLen . fromIntegral =<< distance start
   undelay acrc (csum16' 
-                       (unsafePerformIO $ BS.unsafePackAddressLen hlen (toAddr start)))
+                       (unsafeDupablePerformIO $ BS.unsafePackAddressLen hlen (toAddr start)))
   where
     lenIhl = (ihl .&. 0xF) .|. (ver `shiftL` 4 .&. 0xF0)
     ihl    = ipHeaderLen x
