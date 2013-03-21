@@ -69,7 +69,7 @@ putTCP x = do
   {- 4  -} putWord16be dstPort
   {- 8  -} putWord32be seqno
   {- 12 -} putWord32be ackno
-  {- 13 -} dataoff <- delayedWord8  -- data offset
+  {- 13 -} dataoff <- return . contramap (\x -> (((x `div` 4) .&. 0xF) `shiftL` 4)) =<< delayedWord8  -- data offset
   {- 14 -} putWord8 flags
   {- 16 -} putWord16be wss
   {- 18 -} acrc <- delayedWord16be -- CRC
