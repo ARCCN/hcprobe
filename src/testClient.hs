@@ -93,20 +93,23 @@ pktSendMsg pl = OfpMessage hdr (OfpPacketInReply  pktIn)
 
 payload = BS.replicate (16384*2) 0
 
-client fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = mapM_ send $ take pktSendNumber (cycle (liftM2 (,) [0..256] [0..256]) )
+client fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = do
+        let buffer = BS.replicate 65536 0
+        send buffer buffer $ take pktSendNumber (cycle (liftM2 (,) [0..256] [0..256]) )
     where
-        send (d,s) = do
-            let pl =  runPutToByteString 16384 (putEthernetFrame $ testTCP d s)
-            sendReplyT (pktSendMsg pl)
-    --        yield payload $$ (appSink ad)
-            M.threadDelay pktSendTimeout
-    --        print "AAAAAAA!"
-
-        sendReplyT msg = do
-        liftIO $ FS.dump "OUT:" (ofp_header msg) replyBs
-        yield replyBs $$ (appSink ad)
-        maybe (return ()) (\x -> (liftIO.x) msg) sH
-        where replyBs = FS.encodeMsg msg
+        send _ _ [] = return ()
+        send o b ((d,s):xs) = do
+            let pl = runPutToByteString 16384 (putEthernetFrame $ testTCP d s)
+            (i,b') <-  liftIO $ runPutToBuffer b (putMessage (pktSendMsg pl))
+            if i > 32768 
+                then do yield (BS.take 32768 o) $$ appSink ad
+                        (_, b'') <- liftIO $ runPutToBuffer o $ putByteString (BS.drop 32768 (BS.take i o))
+                        liftIO $ M.threadDelay pktSendTimeout
+                        send o b'' xs
+                else send o b' xs
+        -- liftIO $ FS.dump "OUT:" (ofp_header msg) replyBs
+        -- maybe (return ()) (\x -> (liftIO.x) msg) sH
+        -- where replyBs = FS.encodeMsg msg
 
 ofpClient sw host port = runTCPClient (clientSettings port host) (client sw)
 

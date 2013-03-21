@@ -159,7 +159,7 @@ fmtSwitch f = printf "DPID: %s, %s\n" dp cap ++ intercalate "\n" ports
         cap = show (S.toList (ofp_capabilities f))
         ports = map fmtPort (ofp_ports f) 
 
-encodeMsg = encodePutM . putMessage
+encodeMsg = runPutToByteString 32768 . putMessage
 
 data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
                                    , transactionID :: TVar Int

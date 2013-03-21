@@ -16,13 +16,12 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
 
 import Network.Openflow.Types
 import Network.Openflow.Misc
-import Data.Binary.Put
-import qualified Network.Openflow.StrictPut as SP
+import Network.Openflow.StrictPut
 import Data.Binary.Strict.Get
 import Data.Word ( Word8, Word16, Word32, Word64 )
 import Data.Bits
 import qualified Data.Set as S
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import Control.Monad
@@ -35,7 +34,7 @@ import Debug.Trace
 ofpHeaderLen = (8 + 8 + 16 + 32) `div` 8
 
 ofpHelloRequest :: Word8 -> Word32 -> PutM ()
-ofpHelloRequest v xid = putMessageHeader 0 h
+ofpHelloRequest v xid = putMessageHeader h >> return ()
   where h = OfpHeader { ofp_hdr_version = v
                       , ofp_hdr_type    = OFPT_HELLO
                       , ofp_hdr_length  = fromIntegral ofpHeaderLen
@@ -137,16 +136,28 @@ getStatsRequest  = do
     _ -> return (OfpUnsupported (BS.empty))
 
 putMessage :: OfpMessage -> PutM ()
-putMessage (OfpMessage h d) = putMessageHeader dataLen h >> putByteString dataS
-  where dataS = bsStrict $ runPut (putMessageData d)
-        dataLen = BS.length dataS
+putMessage (OfpMessage h d) = do
+    alen <- putMessageHeader h
+    ds  <- marker
+    putMessageData d
+    undelay alen . fromIntegral =<< distance ds
 
-putMessageHeader :: Int -> OfpHeader -> PutM ()
-putMessageHeader plen h = putWord8 version >> putWord8 tp >> putWord16be len >> putWord32be xid
+putMessageHeader :: OfpHeader -> PutM (DelayedPut Word16)
+putMessageHeader h = do
+    putWord8 version
+    putWord8 tp
+    x <- return . (contramap tolen) =<< delayedWord16be
+    putWord32be xid
+    return x
   where version = ofp_hdr_version h
         tp      = (fromIntegral.fromEnum.ofp_hdr_type) h
-        len     = ofp_hdr_length h + fromIntegral plen
+        tolen :: Word16 -> Word16
+        tolen x = ofp_hdr_length h + x
         xid     = ofp_hdr_xid h
+
+
+
+
 
 putMessageData :: OfpMessageData -> PutM ()
 putMessageData OfpHello = return ()
@@ -199,11 +210,11 @@ putMessageData (OfpPacketInReply p) = putOfpPacketIn p
 putMessageData (OfpStatsReply) = do
   putWord16be ((fromIntegral.fromEnum) OFPST_DESC)
   putWord16be 0
-  putByteString $ SP.runPutToByteString 256 (putASCIIZ 256 (BS8.pack "ARCCN"))   -- Manufacturer description
-  putByteString $ SP.runPutToByteString 256 (putASCIIZ 256 (BS8.pack "hcprobe")) -- Hardware description
-  putByteString $ SP.runPutToByteString 256 (putASCIIZ 256 (BS8.pack "hcprobe")) -- Software description
-  putByteString $ SP.runPutToByteString 32  (putASCIIZ 32  (BS8.pack "none"))    -- Serial number
-  putByteString $ SP.runPutToByteString 256 (putASCIIZ 256 (BS8.pack "none"))    -- Human readable description of datapath
+  putByteString $ runPutToByteString 256 (putASCIIZ 256 (BS8.pack "ARCCN"))   -- Manufacturer description
+  putByteString $ runPutToByteString 256 (putASCIIZ 256 (BS8.pack "hcprobe")) -- Hardware description
+  putByteString $ runPutToByteString 256 (putASCIIZ 256 (BS8.pack "hcprobe")) -- Software description
+  putByteString $ runPutToByteString 32  (putASCIIZ 32  (BS8.pack "none"))    -- Serial number
+  putByteString $ runPutToByteString 256 (putASCIIZ 256 (BS8.pack "none"))    -- Human readable description of datapath
 
 -- FIXME: typed error handling
 putMessageData _        = error "Unsupported message: "
@@ -216,7 +227,7 @@ putOfpPort :: OfpPhyPort -> PutM ()
 putOfpPort port = do
   putWord16be (ofp_port_no port)                                                            -- 2
   mapM_ putWord8 (drop 2 (unpack64 (ofp_port_hw_addr port)))                                -- 8
-  putByteString $ SP.runPutToByteString 32 (putASCIIZ 16 (ofp_port_name port))    -- ASCIIZ(16)
+  putByteString $ runPutToByteString 32 (putASCIIZ 16 (ofp_port_name port))    -- ASCIIZ(16)
   putWord32be (bitFlags ofConfigFlags (ofp_port_config port))
   putWord32be (bitFlags ofStateFlags (ofp_port_state port))
   putWord32be (bitFlags ofFeatureFlags (ofp_port_current port))

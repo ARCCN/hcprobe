@@ -17,6 +17,7 @@ module Network.Openflow.StrictPut (
   Put,
   runPut,
   runPutToByteString,
+  runPutToBuffer,
   putWord8,
   putWord16be,
   putWord32be,
@@ -61,6 +62,14 @@ runPutToByteString :: Int -> Put -> S.ByteString
 runPutToByteString maxSize put =
   unsafeDupablePerformIO (S.createAndTrim maxSize (\ptr -> runPut ptr put))
   
+
+runPutToBuffer :: S.ByteString -> Put -> IO (Int, S.ByteString)
+runPutToBuffer bs put = runPut ptr put >>= \i -> return (o+i, S.fromForeignPtr fp (o+i) l)
+  where
+    (fp,o,l) = S.toForeignPtr bs
+    ptr = unsafeForeignPtrToPtr fp
+
+
 instance Monad PutM where
   return x = PutM (\ptr -> return (x, ptr))
   {-# INLINABLE return #-}
