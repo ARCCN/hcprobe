@@ -24,7 +24,7 @@ library
                       random, digest, statistics,
                       transformers, mtl, containers,
                       errors, MissingH,
-                      cmdargs, ConfigFile,
+                      cmdargs, ConfigFile, bitset >= 1.1,
                       nettle-openflow >= 0.2.0
 
   Ghc-options:        -Wall -O2 -fllvm -optlo-O3 -funbox-strict-fields
@@ -40,7 +40,7 @@ executable hcprobe
                        transformers, mtl, containers, time, vector,
                        statistics,
                        errors, MissingH,
-                       cmdargs, ConfigFile,
+                       cmdargs, ConfigFile, bitset >= 1.1,
                        nettle-openflow
   -- fllvm
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
@@ -54,7 +54,7 @@ executable ethertest
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH,
-                       cmdargs, ConfigFile,
+                       cmdargs, ConfigFile, bitset >= 1.1,
                        nettle-openflow >= 0.2.0
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
@@ -69,7 +69,7 @@ executable TestPkgGen
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH,
-                       cmdargs, ConfigFile,
+                       cmdargs, ConfigFile, bitset >= 1.1,
                        nettle-openflow >= 0.2.0
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
@@ -84,7 +84,7 @@ executable TestARPGen
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH,
-                       cmdargs, ConfigFile,
+                       cmdargs, ConfigFile, bitset >= 1.1,
                        nettle-openflow >= 0.2.0
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
@@ -98,7 +98,7 @@ executable TestTCPGen
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH,
-                       cmdargs, ConfigFile,
+                       cmdargs, ConfigFile, bitset >= 1.1,
                        nettle-openflow
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
@@ -114,7 +114,7 @@ executable TestMisc
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH,
-                       cmdargs, ConfigFile,
+                       cmdargs, ConfigFile, bitset >= 1.1,
                        nettle-openflow
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all

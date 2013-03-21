@@ -19,7 +19,7 @@ data TestPacketTCP = TestPacketTCP { dstMAC    :: !MACAddr
                                    , testSeqNo :: !(Maybe Int)
                                    , testAckNo :: !(Maybe Int)
                                    , testWSS   :: !(Maybe Int)
-                                   , testFlags :: !(Maybe [TCPFlag])
+                                   , testFlags :: !Word8
                                    , testPayloadLen :: !Int 
                                    }
 
@@ -37,7 +37,7 @@ instance IPv4 TestPacketTCP where
   ipVersion    = const 4
   ipTOS        = const 0
   ipID x       = maybe 0 fromIntegral (testIpID x)
-  ipFlags      = const 0 
+  ipFlags      = const 0
   ipFragOffset = const 0
   ipTTL        = const 255
   ipProto      = const 6 -- TCP
@@ -53,7 +53,7 @@ instance TCP TestPacketTCP where
   tcpDstPort    = dstPort
   tcpSeqNo      = (maybe 0 fromIntegral).testSeqNo
   tcpAckNo      = (maybe 0 fromIntegral).testAckNo
-  tcpFlags      = (maybe [] id).testFlags
+  tcpFlags      = testFlags
   tcpWinSize    = (maybe 0 fromIntegral).testWSS
   tcpUrgentPtr  = const 0 
   tcpPutPayload = putEmptyPayload.testPayloadLen

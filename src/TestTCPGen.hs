@@ -21,6 +21,9 @@ import Safe
 pktNum :: Word32
 pktNum = 1
 
+ack :: Word8
+ack = (fromIntegral . fromEnum) ACK
+
 testTCP :: IPv4Addr
         -> IPv4Addr 
         -> TestPacketTCP
@@ -32,7 +35,7 @@ testTCP ip0 ip1 = do
                 , dstPort = 32564 
                 , srcPort = 23523
                 , testWSS = Just 16384 
-                , testFlags = Just [ACK] 
+                , testFlags = ack 
                 , testPayloadLen = 32 
                 , testSeqNo = Nothing
                 , testAckNo = Nothing

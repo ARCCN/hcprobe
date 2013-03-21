@@ -39,7 +39,6 @@ testTCP = do
   srcP   <- randomIO :: IO Word16
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
-  flags  <- return [ACK]
   return $ TestPacketTCP { dstMAC = dstMac
                          , srcMAC = srcMac
                          , srcIP  = srcIp
@@ -47,7 +46,7 @@ testTCP = do
                          , dstPort = dstP
                          , srcPort = srcP
                          , testWSS = Just wss
-                         , testFlags = Just flags
+                         , testFlags = tcpFlagsOf [ACK] 
                          , testPayloadLen = 128 
                          , testSeqNo = Nothing
                          , testAckNo = Nothing

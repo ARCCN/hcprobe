@@ -1,5 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleInstances, DeriveDataTypeable #-}
-module Network.Openflow.Ethernet.TCP (TCPFlag(..), TCP(..), putTCP) where
+{-# LANGUAGE BangPatterns, GeneralizedNewtypeDeriving, FlexibleInstances, DeriveDataTypeable #-}
+module Network.Openflow.Ethernet.TCP (TCPFlag(..), TCP(..), putTCP, tcpFlagsOf) where
 
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
@@ -12,17 +12,37 @@ import Network.Openflow.StrictPut
 import Data.Bits
 import Data.List (foldl')
 import System.IO.Unsafe
+import qualified Data.BitSet as BB
 
 -- import Debug.Trace
 -- import Text.Printf
 
 type TCPPort = Word16
 
-data TCPFlag = FIN | SYN | RST | PSH | ACK | URG | ECE | CWR deriving (Eq, Ord, Show, Read, Enum)
+data TCPFlag = FIN | SYN | RST | PSH | ACK | URG | ECE | CWR deriving (Eq, Ord, Show, Read)
 
-instance Enum [TCPFlag] where
-        fromEnum fs = foldl' (+) 0 $ map (bit . fromEnum) fs
-        toEnum i = map (toEnum . snd) . filter fst . flip zip [0..7] . map (testBit i) $ [0..7]
+-- FIXME: Enum range overflow
+instance Enum TCPFlag where
+  fromEnum FIN = 0x01
+  fromEnum SYN = 0x02
+  fromEnum RST = 0x04
+  fromEnum PSH = 0x08
+  fromEnum ACK = 0x10
+  fromEnum URG = 0x20
+  fromEnum ECE = 0x40
+  fromEnum CWR = 0x80
+  toEnum 0x01 = FIN
+  toEnum 0x02 = SYN
+  toEnum 0x04 = RST
+  toEnum 0x08 = PSH
+  toEnum 0x10 = ACK
+  toEnum 0x20 = URG
+  toEnum 0x40 = ECE
+  toEnum 0x80 = CWR
+
+--instance Enum [TCPFlag] where
+--        fromEnum fs = foldl' (+) 0 $ map (bit . fromEnum) fs
+--        toEnum i = map (toEnum . snd) . filter fst . flip zip [0..7] . map (testBit i) $ [0..7]
 
 class TCP a where
   tcpSrcAddr    :: a -> IPv4Addr
@@ -32,13 +52,14 @@ class TCP a where
   tcpDstPort    :: a -> TCPPort
   tcpSeqNo      :: a -> Word32
   tcpAckNo      :: a -> Word32
-  tcpFlags      :: a -> [TCPFlag]
+  tcpFlags      :: a -> Word8
   tcpWinSize    :: a -> Word16
   tcpUrgentPtr  :: a -> Word16
   tcpPutPayload :: a -> PutM ()
 
 -- TODO: header generation may be improved
 -- TODO: checksum generation may be improved
+
 putTCP :: TCP a => a -> PutM ()
 putTCP x = do
 --  trace ( (printf "%04X" (fromJust $ csum16 pkt))) $ return ()
@@ -73,7 +94,11 @@ putTCP x = do
     seqno   = tcpSeqNo x
     ackno   = tcpAckNo x
     -- dataoff = (((hlen `div` 4) .&. 0xF) `shiftL` 4)
-    flags   = (fromIntegral $! fromEnum (tcpFlags x))
+    flags   = tcpFlags x
     wss     = tcpWinSize x
     isUrgent = ( flags .&. (fromIntegral $ fromEnum URG) ) /= 0
 {-# INLINABLE putTCP #-}
+
+tcpFlagsOf :: [TCPFlag] -> Word8
+tcpFlagsOf = BB.toIntegral.BB.fromList
+
