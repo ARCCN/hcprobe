@@ -108,7 +108,7 @@ pktGenTest params q fk chan  = forever $ do
       let dct = macSpace fk
       let !srcMac' = IntMap.lookup pid    dct >>= choice n1
       let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
-      case (srcMac', dstMac') of 
+      case (srcMac', dstMac') of
 --        (Just srcMac, Just dstMac) -> do pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac params)
 --                                         atomically $ writeTBMChan chan $! tcpTestPkt fk tid bid (fromIntegral pid) pl
 

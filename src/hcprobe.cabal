@@ -117,18 +117,4 @@ executable testclient
                        mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, directory
   Ghc-options:         -Wall -threaded -O2
-                       
-executable cbench-like 
-  main-is:           cbench-like.hs
- -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
-                       conduit, network-conduit,
-                       resourcet, async, network-data, cereal,
-                       random, digest, stm, stm-conduit, stm-chans,
-                       transformers, mtl, containers, time, vector,
-                       statistics,
-                       errors, MissingH, 
-                       mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset
-  -- fllvm
-  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
+ 

@@ -44,7 +44,7 @@ fsMacsPerPort       = 1000
 fsPorts             = 48
 
 pktSendTimeout      = 1
-pktSendNumber       = 10000
+pktSendNumber       = 1000000
 
 pktMsgOfVersion     = 1 :: Word8
 pktMsgOfSwitch      = 1 :: Word32
@@ -78,8 +78,12 @@ pktSendMsg :: OfpMessage
 pktSendMsg = OfpMessage ( header pktMsgOfVersion pktMsgOfSwitch OFPT_FEATURES_REPLY)
                     ( OfpFeatureReply $ OfpSwitchFeatures 1000 100 1 (S.fromList pktMsgCapabuilities) (S.fromList pktMsgActionType) pktMsgOfpPhyPorts )
 
+
+payload = BS.replicate (16384*2) 0
+
 client fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = replicateM_ pktSendNumber $ do
         sendReplyT pktSendMsg
+--        yield payload $$ (appSink ad)
         M.threadDelay pktSendTimeout
 --        print "AAAAAAA!"
 

@@ -166,6 +166,8 @@ data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
 pktSendTimeout = 500000
 pktSendQLen    = 65536
 
+sendLen = 65536 `div` 2
+
 ofpClient pktGen sw host port = runTCPClient (clientSettings port host) (client pktGen sw)
 
 client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
@@ -173,10 +175,22 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
     (_, !pktSendQ) <- allocate (newTBMChanIO pktSendQLen) (atomically.closeTBMChan)
 
     tranId <- liftIO $ newTVarIO 0
+
+    delayed <- liftIO $ newTVarIO ([], 0)
+
     featureReplyMonitor <- liftIO $ newTVarIO False
     swCfg <- liftIO $ newTVarIO defaultSwitchConfig
 
     let !ctx = SwitchContext featureReplyMonitor tranId swCfg
+
+--    let delayedSendT msg = do
+--        (chunks, len) <- liftIO $ atomically $ readTVar delayed
+--        let encoded = encodeMsg msg
+--        let newLen = len + BS.length encoded
+--        if newLen < (65536*4)
+--          then atomically $ writeTVar delayed (chunks ++ [encoded], newLen)
+--          else do yield (BS.concat (chunks ++ [encoded])) $$ (appSink ad)
+--                  liftIO $ atomically $ writeTVar delayed ([], 0)
 
     let sender = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
@@ -191,7 +205,7 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
     let sendARPGrat = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT'
+        liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
 
     let threads = [receiver, sender, (pktInGen fk pktSendQ)]
     waitThreads <- liftIO $ mapM async threads
@@ -203,12 +217,6 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
   where
     sendReplyT msg = do
-      --liftIO $ dump "OUT:" (msg) 
-      yield msg $$ (appSink ad)
-      --maybe (return ()) (\x -> (liftIO.x) msg) sH
-      --where replyBs = msg --encodePutM msg
-      
-    sendReplyT' msg = do
       --liftIO $ dump "OUT:" (ofp_header msg) 
       yield replyBs $$ (appSink ad)
       maybe (return ()) (\x -> (liftIO.x) msg) sH

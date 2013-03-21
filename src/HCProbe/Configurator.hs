@@ -23,10 +23,10 @@ import Data.Word
 
 --Default values
 macSpaceDimDEF    = 100
-switchNumDEF      = 64
+switchNumDEF      = 16
 portNumDEF        = 48
 maxTimeoutDEF     = 10
-payloadLenDEF     = 32
+payloadLenDEF     = 128
 samplingPeriodDEF = 300000
 statsDelayDEF     = 300000
 testDurationDEF   = 300*1000000
