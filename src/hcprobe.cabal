@@ -30,22 +30,6 @@ library
 
   Ghc-options:        -Wall -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
-executable hcprobe
-  main-is:           hcprobe.hs
-  -- other-modules:    
-  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
-                       conduit, network-conduit,
-                       resourcet, async, network-data, cereal,
-                       random, digest, stm, stm-conduit, stm-chans,
-                       transformers, mtl, containers, time, vector,
-                       statistics,
-                       errors, MissingH,
-                       mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset >= 1.1,
-                       nettle-openflow
-  -- fllvm
-  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
-
 executable ethertest 
   main-is:           ethertest.hs
   -- other-modules:    
@@ -132,5 +116,19 @@ executable testclient
                        errors, MissingH, 
                        mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, directory
-
   Ghc-options:         -Wall -threaded -O2
+                       
+executable cbench-like 
+  main-is:           cbench-like.hs
+ -- other-modules:    
+  build-depends:       base, binary, binary-strict, bytestring,
+                       conduit, network-conduit,
+                       resourcet, async, network-data, cereal,
+                       random, digest, stm, stm-conduit, stm-chans,
+                       transformers, mtl, containers, time, vector,
+                       statistics,
+                       errors, MissingH, 
+                       mersenne-random-pure64,  mersenne-random,
+                       cmdargs, ConfigFile, directory, bitset
+  -- fllvm
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all

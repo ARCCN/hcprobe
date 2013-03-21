@@ -54,6 +54,7 @@ testTCP = do
                          , testSeqNo = Nothing
                          , testAckNo = Nothing
                          , testIpID = Nothing
+                         , testPayload = BS.replicate 128 0
                          }
 
 

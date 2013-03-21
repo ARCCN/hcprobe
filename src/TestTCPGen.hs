@@ -37,6 +37,7 @@ testTCP ip0 ip1 = do
                 , testWSS = Just 16384 
                 , testFlags = ack 
                 , testPayloadLen = 32 
+                , testPayload = BS.replicate 32 0
                 , testSeqNo = Nothing
                 , testAckNo = Nothing
                 , testIpID = Nothing

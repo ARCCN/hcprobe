@@ -30,6 +30,7 @@ module Network.Openflow.StrictPut (
   -- * Delay
   DelayedPut,
   undelay,
+  contramap,
   delayedWord8,
   delayedWord16be
   ) where
@@ -154,6 +155,9 @@ toAddr (Marker (Ptr a)) = a
 
 -- | Delayed action.
 newtype DelayedPut a = DelayedPut (a -> IO Int)
+
+contramap :: (a -> b) -> (DelayedPut b) -> (DelayedPut a)
+contramap f (DelayedPut g) = DelayedPut (g.f)
 
 undelay :: DelayedPut a 
         -> a 
