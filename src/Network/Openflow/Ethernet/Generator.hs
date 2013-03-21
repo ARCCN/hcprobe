@@ -30,21 +30,21 @@ putEthernetFrame x = putFrame
     putCRC32 = putWord32be 0 -- (crc32 bs)
     {-# INLINE putCRC32 #-}
 
-{-# INLINE putEthernetFrame #-}
+{-# INLINABLE putEthernetFrame #-}
 
 makeEthernetFrame :: EthernetFrame a => a -> BS.ByteString
 makeEthernetFrame = runPutToByteString 2048 . putEthernetFrame
-{-# INLINE  makeEthernetFrame #-}
+{-# INLINABLE  makeEthernetFrame #-}
 
 putVLAN :: Maybe Word16 -> PutM ()
 putVLAN Nothing     = return () 
 putVLAN (Just vlan) = putWord16be 0x8100 >> putWord16be vlan
-{-# INLINE putVLAN #-}
+{-# INLINABLE putVLAN #-}
 
 putEmptyPayload :: Int -> PutM ()
 putEmptyPayload n | n `mod` 8 == 0 = replicateM_ (n `div` 8) (putWord64be 0)
                   | n `mod` 4 == 0 = replicateM_ (n `div` 4) (putWord32be 0)
                   | n `mod` 2 == 0 = replicateM_ (n `div` 2) (putWord16be 0)
                   | otherwise      = replicateM_ n           (putWord8    0)
-{-# INLINE putEmptyPayload #-}
+{-# INLINABLE putEmptyPayload #-}
 
