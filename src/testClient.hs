@@ -99,7 +99,7 @@ client fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = do
     where
         send _ _ [] = return ()
         send o b ((d,s):xs) = do
-            let pl = runPutToByteString 16384 (putEthernetFrame $ testTCP d s)
+            let pl = putEthernetFrame $ testTCP d s
             (i,b') <-  liftIO $ runPutToBuffer b (putMessage (pktSendMsg pl))
             if i > 32768 
                 then do yield (BS.take 32768 o) $$ appSink ad

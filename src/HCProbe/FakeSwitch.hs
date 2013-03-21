@@ -295,7 +295,7 @@ arpGrat fk bid tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
                             , ofp_pkt_in_reason    = OFPR_NO_MATCH
                             , ofp_pkt_in_data      = arpGratData 
                             }
-        arpGratData = runPutToByteString ethernetFrameMaxSize $ putEthernetFrame (ARPGratuitousReply mac ip)
+        arpGratData = putEthernetFrame (ARPGratuitousReply mac ip)
         mac = ofp_datapath_id sw
         ip  = switchIP fk 
         sw  = switchFeatures fk

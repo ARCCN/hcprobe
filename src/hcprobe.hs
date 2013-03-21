@@ -114,7 +114,7 @@ pktGenTest params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
 --                                         atomically $ writeTBMChan chan $! tcpTestPkt fk tid bid (fromIntegral pid) pl
 
         (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
-                                         pl  <- liftM (SP.runPutToByteString ethernetFrameMaxSize.putEthernetFrame) (testTCP params dstMac srcMac)
+                                         pl  <- liftM (putEthernetFrame) (testTCP params dstMac srcMac)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
         _                          -> return ()
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  , ofpParsePacket  -- FIXME <- not needed
                                  , parseMessageData
@@ -210,11 +211,11 @@ putMessageData (OfpPacketInReply p) = putOfpPacketIn p
 putMessageData (OfpStatsReply) = do
   putWord16be ((fromIntegral.fromEnum) OFPST_DESC)
   putWord16be 0
-  putByteString $ runPutToByteString 256 (putASCIIZ 256 (BS8.pack "ARCCN"))   -- Manufacturer description
-  putByteString $ runPutToByteString 256 (putASCIIZ 256 (BS8.pack "hcprobe")) -- Hardware description
-  putByteString $ runPutToByteString 256 (putASCIIZ 256 (BS8.pack "hcprobe")) -- Software description
-  putByteString $ runPutToByteString 32  (putASCIIZ 32  (BS8.pack "none"))    -- Serial number
-  putByteString $ runPutToByteString 256 (putASCIIZ 256 (BS8.pack "none"))    -- Human readable description of datapath
+  putASCIIZ 256 "ARCCN"   -- Manufacturer description
+  putASCIIZ 256 "hcprobe" -- Hardware description
+  putASCIIZ 256 "hcprobe" -- Software description
+  putASCIIZ 32  "none"    -- Serial number
+  putASCIIZ 256 "none"    -- Human readable description of datapath
 
 -- FIXME: typed error handling
 putMessageData _        = error "Unsupported message: "
@@ -227,7 +228,7 @@ putOfpPort :: OfpPhyPort -> PutM ()
 putOfpPort port = do
   putWord16be (ofp_port_no port)                                                            -- 2
   mapM_ putWord8 (drop 2 (unpack64 (ofp_port_hw_addr port)))                                -- 8
-  putByteString $ runPutToByteString 32 (putASCIIZ 16 (ofp_port_name port))    -- ASCIIZ(16)
+  putASCIIZ 16 (ofp_port_name port)    -- ASCIIZ(16)
   putWord32be (bitFlags ofConfigFlags (ofp_port_config port))
   putWord32be (bitFlags ofStateFlags (ofp_port_state port))
   putWord32be (bitFlags ofFeatureFlags (ofp_port_current port))
@@ -238,9 +239,11 @@ putOfpPort port = do
 putOfpPacketIn :: OfpPacketIn -> PutM ()
 putOfpPacketIn pktIn = do
   putWord32be (ofp_pkt_in_buffer_id pktIn)
-  putWord16be (fromIntegral $ BS.length (ofp_pkt_in_data pktIn))
+  al <- delayedWord16be -- (fromIntegral $ BS.length (ofp_pkt_in_data pktIn))
   putWord16be (ofp_pkt_in_in_port pktIn)
   putWord8    (fromIntegral $ fromEnum (ofp_pkt_in_reason pktIn))
   putWord8    0 -- padding
-  putByteString (ofp_pkt_in_data pktIn)
+  x <- marker
+  ofp_pkt_in_data pktIn
+  undelay al . fromIntegral =<< distance x
 
