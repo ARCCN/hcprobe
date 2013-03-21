@@ -1,3 +1,4 @@
+{-# Language BangPatterns #-}
 module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpMessageData(..)
                               , OfpCapabilities(..), OfpSwitchFeatures(..), OfpPhyPort(..)
                               , OfpPortConfigFlags(..), OfpPortStateFlags(..), OfpPortFeatureFlags(..)
@@ -6,6 +7,7 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , OfpErrorType(..), OfpHelloFailedCode(..), OfpBadActionCode(..)
                               , OfpBadRequestCode(..), OfpFlowModFailedCode(..), OfpPortModFailedCode(..)
                               , OfpQueueOpFailedCode(..), OfpPacketIn(..), OfpPacketInReason(..)
+                              , OfpPacketOutData(..)
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags, ofErrorType
                               , ofActionType
@@ -27,30 +29,31 @@ openflow_1_0 = 0x01
 -- TODO: replace Data.Set to something more effective for bitmaps
 
 
-data OfpHeader = OfpHeader { ofp_hdr_version :: Word8
-                           , ofp_hdr_type    :: OfpType 
-                           , ofp_hdr_length  :: Word16
-                           , ofp_hdr_xid     :: Word32
+data OfpHeader = OfpHeader { ofp_hdr_version :: !Word8
+                           , ofp_hdr_type    :: !OfpType 
+                           , ofp_hdr_length  :: !Word16
+                           , ofp_hdr_xid     :: !Word32
                            }
 
-data OfpMessage = OfpMessage { ofp_header  :: OfpHeader
-                             , ofp_data    :: OfpMessageData
+data OfpMessage = OfpMessage { ofp_header  :: !OfpHeader
+                             , ofp_data    :: !OfpMessageData
                              }
 
-data OfpMessageData =   OfpMessageRaw BS.ByteString
-                      | OfpEchoRequest BS.ByteString
-                      | OfpEchoReply BS.ByteString
+data OfpMessageData =   OfpMessageRaw       !BS.ByteString
+                      | OfpEchoRequest      !BS.ByteString
+                      | OfpEchoReply        !BS.ByteString
                       | OfpFeaturesRequest
-                      | OfpFeatureReply OfpSwitchFeatures
-                      | OfpSetConfig OfpSwitchConfig
+                      | OfpFeatureReply     !OfpSwitchFeatures
+                      | OfpSetConfig        !OfpSwitchConfig
                       | OfpGetConfigRequest
-                      | OfpGetConfigReply OfpSwitchConfig
-                      | OfpHello | OfpEmptyReply
-                      | OfpPacketOut BS.ByteString -- FIXME: implement real data type
-                      | OfpVendor BS.ByteString    -- WTF?
-                      | OfpErrorReply OfpError
-                      | OfpPacketInReply OfpPacketIn
-                      | OfpUnsupported BS.ByteString
+                      | OfpGetConfigReply   !OfpSwitchConfig
+                      | OfpHello 
+                      | OfpEmptyReply
+                      | OfpPacketOut        !OfpPacketOutData  -- FIXME: implement real data type
+                      | OfpVendor           !BS.ByteString    -- WTF?
+                      | OfpErrorReply       !OfpError
+                      | OfpPacketInReply    !OfpPacketIn
+                      | OfpUnsupported      !BS.ByteString
 
 data OfpType  = 
     -- Immutable messages
@@ -92,12 +95,12 @@ data OfpType  =
     deriving (Ord, Eq, Enum, Show)
 
 
-data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: Word64
-                                           , ofp_n_buffers    :: Word32
-                                           , ofp_n_tables     :: Word8
-                                           , ofp_capabilities :: S.Set OfpCapabilities
-                                           , ofp_actions      :: S.Set OfpActionType
-                                           , ofp_ports        :: [OfpPhyPort]
+data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: !Word64
+                                           , ofp_n_buffers    :: !Word32
+                                           , ofp_n_tables     :: !Word8
+                                           , ofp_capabilities :: !(S.Set OfpCapabilities)
+                                           , ofp_actions      :: !(S.Set OfpActionType)
+                                           , ofp_ports        :: ![OfpPhyPort]
                                            } deriving (Show)
 
 data OfpCapabilities =   OFPC_FLOW_STATS             --  Flow statistics
@@ -125,8 +128,8 @@ data OfpActionType =   OFPAT_OUTPUT        -- Output to switch port
                      | OFPAT_VENDOR
                     deriving(Eq, Ord, Enum, Show)
 
-data OfpSwitchConfig = OfpSwitchConfig { ofp_switch_cfg_flags :: OfpSwitchCfgFlags
-                                       , ofp_switch_cfg_miss_send_len :: Word16
+data OfpSwitchConfig = OfpSwitchConfig { ofp_switch_cfg_flags         :: !OfpSwitchCfgFlags
+                                       , ofp_switch_cfg_miss_send_len :: !Word16
                                        }
 
 data OfpSwitchCfgFlags = OFPC_FRAG_NORMAL -- No special handling for fragments 
@@ -292,15 +295,18 @@ ofErrorCode (OFPET_FLOW_MOD_FAILED x)  = fromEnum x
 ofErrorCode (OFPET_PORT_MOD_FAILED x)  = fromEnum x
 ofErrorCode (OFPET_QUEUE_OP_FAILED x)  = fromEnum x
 
-data OfpPacketIn = OfpPacketIn { ofp_pkt_in_buffer_id :: Word32
-                               , ofp_pkt_in_in_port   :: Word16
-                               , ofp_pkt_in_reason    :: OfpPacketInReason
-                               , ofp_pkt_in_data      :: BS.ByteString
+data OfpPacketIn = OfpPacketIn { ofp_pkt_in_buffer_id :: !Word32
+                               , ofp_pkt_in_in_port   :: !Word16
+                               , ofp_pkt_in_reason    :: !OfpPacketInReason
+                               , ofp_pkt_in_data      :: !BS.ByteString
                                }
 
 data OfpPacketInReason = OFPR_NO_MATCH | OFPR_ACTION
                          deriving (Eq, Ord, Enum, Show)
 
 
-
+data OfpPacketOutData = OfpPacketOutData { ofp_pkt_out_buffer_id :: !Word32
+                                         , ofp_pkt_out_in_port   :: !Word16
+                                         -- TODO: implement rest of message
+                                         }
 

@@ -16,6 +16,7 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
 import Network.Openflow.Types
 import Network.Openflow.Misc
 import Data.Binary.Put
+import qualified Network.Openflow.StrictPut as SP
 import Data.Binary.Strict.Get
 import Data.Word ( Word8, Word16, Word32, Word64 )
 import Data.Bits
@@ -23,6 +24,8 @@ import qualified Data.Set as S
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
 import Control.Monad
+
+import Debug.Trace
 
 -- FIXME: rename ofpParse* to getOfp*
 
@@ -88,7 +91,7 @@ parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
     parse OFPT_ECHO_REQUEST     = runParse (return (OfpEchoRequest bs))
     parse OFPT_SET_CONFIG       = runParse getOfpSetConfig
     parse OFPT_GET_CONFIG_REQUEST = runParse (return OfpGetConfigRequest)
-    parse OFPT_PACKET_OUT       = runParse (return (OfpPacketOut bs))
+    parse OFPT_PACKET_OUT       = runParse getPacketOut
     parse OFPT_VENDOR           = runParse (return (OfpVendor bs))
     parse _                     = runParse (return (OfpUnsupported bs))
 
@@ -107,6 +110,13 @@ getOfpSetConfig = do
   return $ OfpSetConfig $ OfpSwitchConfig { ofp_switch_cfg_flags = toEnum (fromIntegral wFlags)
                                           , ofp_switch_cfg_miss_send_len = wSendL
                                           }
+getPacketOut :: Get OfpMessageData
+getPacketOut = do
+  bid  <- getWord32be
+  pid  <- getWord16be
+  alen <- getWord16be
+  skip (fromIntegral alen)
+  return $ OfpPacketOut (OfpPacketOutData bid pid)
 
 putMessage :: OfpMessage -> PutM ()
 putMessage (OfpMessage h d) = putMessageHeader dataLen h >> putByteString dataS
@@ -158,7 +168,7 @@ putOfpPort :: OfpPhyPort -> PutM ()
 putOfpPort port = do
   putWord16be (ofp_port_no port)                                                            -- 2
   mapM_ putWord8 (drop 2 (unpack64 (ofp_port_hw_addr port)))                                -- 8
-  putASCIIZ 16 (ofp_port_name port)    -- ASCIIZ(16)
+  putByteString $ SP.runPutToByteString 32 (putASCIIZ 16 (ofp_port_name port))    -- ASCIIZ(16)
   putWord32be (bitFlags ofConfigFlags (ofp_port_config port))
   putWord32be (bitFlags ofStateFlags (ofp_port_state port))
   putWord32be (bitFlags ofFeatureFlags (ofp_port_current port))

@@ -1,0 +1,10 @@
+[ ] FIXME: checksum in Ethernet packet generation !!!
+[ ] TODO:  migrate TCP client to Nettle.OpenFlow.StrictPut 
+[ ] TODO:  migrate all generators to Nettle.OpenFlow.StrictPut
+[~] FIXME: hcprobe: toEnum{OfpType}: tag (24) is outside of enumeration's range (0,21)
+[~] TODO: detailed statistics
+[-] TODO: statistics: average roundtrip time
+[+] TODO: statistics: mean roundtrip time
+[+] TODO: statistics: pktIn/s by matched pktOut
+[+] TODO: FakeSwitch threads recover after crash
+[~] TODO: Test period parameter

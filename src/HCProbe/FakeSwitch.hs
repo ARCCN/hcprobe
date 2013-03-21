@@ -1,9 +1,11 @@
+{-# Language BangPatterns, ScopedTypeVariables #-}
 module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
                           , makePort
                           , makeSwitch
                           , defaultPortGen
                           , defaultSwGen
                           , fmtMac, fmtPort, fmtSwitch
+                          , mcPrefix
                           , ofpClient
                           , arpGrat
                           , defActions
@@ -22,10 +24,11 @@ import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Set as S
 import Control.Applicative ((<$>))
 import qualified Control.Concurrent as M
+import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Monad
-import Control.Monad.Maybe
+import Control.Error
 import Control.Monad.State
 import Control.Monad.STM
 import Control.Monad.Trans.Resource
@@ -33,9 +36,17 @@ import Data.Bits
 import Data.Conduit
 import Data.Conduit.Network
 import Data.List
+import Data.Maybe
 import Data.Word
+import qualified Data.Vector.Unboxed as V
+import qualified Data.IntMap as M 
+import Network.Openflow.StrictPut
 import System.Random
 import Text.Printf
+
+import Debug.Trace
+
+ethernetFrameMaxSize = 2048
 
 data PortGen = PortGen { pnum   :: Int
                        , pname  :: Int -> BS.ByteString
@@ -54,7 +65,7 @@ makePort :: PortGen
 makePort gen cfg st ft = (port, gen') 
   where pn  = pnum gen
         pnm = (pname gen) pn
-        gen' = gen { pnum = pn + 1, rndGen = (snd.head.reverse) mac' }
+        gen' = gen { pnum = succ pn, rndGen = (snd.head.reverse) mac' }
         mac' = take 3 $ unfoldr ( \g -> Just (rand g, snd (rand g)) ) (rndGen gen)
         macbytes =  [0x00, 0x16, 0x3e] ++ map fst mac' :: [Word8]
         fmac acc b = (acc `shiftL` 8) .|. (fromIntegral b :: Word64)
@@ -75,13 +86,19 @@ data SwitchGen = SwitchGen {  dpid    :: Int
                            ,  ipAddr  :: IPv4Addr
                            ,  swRnd   :: StdGen
                            }
-defaultSwGen :: IPv4Addr -> StdGen -> SwitchGen
-defaultSwGen ip g = SwitchGen 1 ip g
+defaultSwGen :: Int -> IPv4Addr -> StdGen -> SwitchGen
+defaultSwGen i ip g = SwitchGen i ip g
 
-data FakeSwitch = FakeSwitch { switchFeatures :: OfpSwitchFeatures, switchIP :: IPv4Addr }
+data FakeSwitch = FakeSwitch {  switchFeatures :: OfpSwitchFeatures
+                              , switchIP       :: IPv4Addr
+                              , macSpace       :: M.IntMap (V.Vector MACAddr)
+                              , onSendMessage  :: Maybe (OfpMessage -> IO ())
+                              , onRecvMessage  :: Maybe (OfpMessage -> IO ())
+                             }
 
 makeSwitch :: SwitchGen
            -> Int
+           -> [MACAddr]
            -> [OfpCapabilities]
            -> [OfpActionType]
            -> [OfpPortConfigFlags]
@@ -89,7 +106,10 @@ makeSwitch :: SwitchGen
            -> [OfpPortFeatureFlags]
            -> (FakeSwitch, SwitchGen)
 
-makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen), gen')
+mcPrefix :: MACAddr -> MACAddr
+mcPrefix = ((.|.)(0x00163e `shiftL` 24)).((.&.)0xFFFFFF)
+
+makeSwitch gen ports mpp cap act cfg st ff = (FakeSwitch features (ipAddr gen) ms Nothing Nothing, gen')
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
                                      , ofp_n_buffers    = fromIntegral $ 8*ports
                                      , ofp_n_tables     = 1
@@ -97,7 +117,7 @@ makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen), gen'
                                      , ofp_actions      = S.fromList act
                                      , ofp_ports        = pps
                                      }
-        gen' = gen { dpid = (dpid gen) + 1, swRnd = (rndGen pg') }
+        gen' = gen { dpid = succ (dpid gen), swRnd = rndGen pg' }
         (pps, pg') = flip runState pg $ replicateM ports genPort
         pg = defaultPortGen (swRnd gen)
 
@@ -106,6 +126,16 @@ makeSwitch gen ports cap act cfg st ff = (FakeSwitch features (ipAddr gen), gen'
           let (p,g') = makePort g cfg st ff
           put g'
           return p
+
+        ms = M.fromList $ zip [1..nport] (map V.fromList macll)
+
+        macll = take nport $ unfoldr (Just.(splitAt nmacpp)) mpp
+        
+        nmacpp  = nmac `div` nport
+
+        nmac  = length mpp
+
+        nport = length pps
 
 fmtMac :: MACAddr -> String
 fmtMac mac = intercalate ":" $ map (printf "%02X") bytes
@@ -133,34 +163,28 @@ data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
                                    }
 
 pktSendTimeout = 500000
-pktSendQLen    = 10000
+pktSendQLen    = 65536
 
--- FIXME: handle "resource vanished" exception
-ofpClient pktGen sw host port = do
-  runTCPClient (clientSettings port host) (client pktGen sw)
+ofpClient pktGen sw host port = runTCPClient (clientSettings port host) (client pktGen sw)
 
-client pktInGen fk@(FakeSwitch sw switchIP) ad = do
+client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
-  runResourceT $ do
-  -- TODO: allocate shared structures
-  -- TODO: forkIO receiver
-  -- TODO: forkIO sender
-
-    (_, pktSendQ) <- allocate (newTBMChanIO pktSendQLen) (atomically.closeTBMChan)
+    (_, !pktSendQ) <- allocate (newTBMChanIO pktSendQLen) (atomically.closeTBMChan)
 
     tranId <- liftIO $ newTVarIO 0
     featureReplyMonitor <- liftIO $ newTVarIO False
     swCfg <- liftIO $ newTVarIO defaultSwitchConfig
 
-    let ctx = SwitchContext featureReplyMonitor tranId swCfg
+    let !ctx = SwitchContext featureReplyMonitor tranId swCfg
 
-    let sender = forever $ do
+    let sender = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        liftIO $ atomically (readTBMChan pktSendQ) >>= maybe skip sendReplyT
+        forever $ do
+          liftIO $! atomically (readTBMChan pktSendQ) >>= maybe skip sendReplyT
         where skip = return ()
 
     let receiver = appSource ad $$ forever $ runMaybeT $ do
-        bs <- MaybeT await
+        bs <- MaybeT $ await
         (msg, rest) <- MaybeT $ return (ofpParsePacket bs)
         lift $ liftIO (dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg >> leftover rest
 
@@ -168,22 +192,28 @@ client pktInGen fk@(FakeSwitch sw switchIP) ad = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
         liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
 
-
-    let mainThread = receiver
-    let threads = [sender, sendARPGrat, (pktInGen fk pktSendQ)]
-    mapM_ ((flip allocate M.killThread) . M.forkIO) threads
-
-    liftIO mainThread
+    let threads = [receiver, sender, (pktInGen fk pktSendQ)]
+    waitThreads <- liftIO $ mapM async threads
+    mapM_ (flip allocate cancel) (map return waitThreads)
+    liftIO $ do
+      async sendARPGrat
+      waitAnyCatchCancel waitThreads
+    return ()
 
   where
     sendReplyT msg = do
       liftIO $ dump "OUT:" (ofp_header msg) replyBs
       yield replyBs $$ (appSink ad)
+      maybe (return ()) (\x -> (liftIO.x) msg) sH
       where replyBs = encodeMsg msg
 
-    dispatch c msg@(OfpMessage hdr msgData) = case (parseMessageData msg) of
-      Nothing   -> return ()
-      Just msg' -> processMessage c (ofp_hdr_type hdr) msg'
+    dispatch !c !(msg@(OfpMessage hdr msgData)) = case (parseMessageData msg) of
+      Nothing   ->  return ()
+      Just !(msg'@(OfpMessage h _)) -> processMessage c (ofp_hdr_type hdr) msg'
+
+    -- TODO: implement the following messages
+    processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
+      maybe (return ()) (\x -> (liftIO.x) m) rH
 
     processMessage _ OFPT_HELLO (OfpMessage hdr _) = sendReply (headReply hdr OFPT_HELLO)
 
@@ -211,10 +241,6 @@ client pktInGen fk@(FakeSwitch sw switchIP) ad = do
       sendReply reply
 
     -- TODO: implement the following messages
-    processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) =
-      nothing
-
-    -- TODO: implement the following messages
     processMessage _ OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing
     processMessage _ OFPT_STATS_REQUEST (OfpMessage hdr msg) = nothing
 
@@ -234,7 +260,7 @@ client pktInGen fk@(FakeSwitch sw switchIP) ad = do
     withTimeout :: Int -> STM a -> IO (Maybe a)
     withTimeout tv f = do
       x <- registerDelay tv
-      atomically $ (readTVar x >>= \y -> if y
+      atomically $! (readTVar x >>= \y -> if y
                                          then return Nothing
                                          else retry) `orElse` (Just <$> f)
 
@@ -248,7 +274,7 @@ arpGrat fk bid tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
                             , ofp_pkt_in_reason    = OFPR_NO_MATCH
                             , ofp_pkt_in_data      = arpGratData 
                             }
-        arpGratData = encodePutM $ putEthernetFrame (ARPGratuitousReply mac ip)
+        arpGratData = runPutToByteString ethernetFrameMaxSize $ putEthernetFrame (ARPGratuitousReply mac ip)
         mac = ofp_datapath_id sw
         ip  = switchIP fk 
         sw  = switchFeatures fk
