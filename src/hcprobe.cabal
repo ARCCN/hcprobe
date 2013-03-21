@@ -115,6 +115,6 @@ executable testclient
                        transformers, mtl, containers, vector,
                        errors, MissingH, 
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory
+                       cmdargs, ConfigFile, directory, bitset
   Ghc-options:         -Wall -threaded -O2
  

@@ -7,9 +7,11 @@ import qualified HCProbe.FakeSwitch as FS
 import HCProbe.ARP
 import Network.Openflow.Types
 import Network.Openflow.Ethernet.Types
+import Network.Openflow.Ethernet.TCP
 import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Messages
 import Network.Openflow.Misc
+import Network.Openflow.StrictPut
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Set as S
@@ -34,6 +36,7 @@ import qualified Data.IntMap as M
 import System.Random
 import Text.Printf
 import Data.Time
+import HCProbe.TCP
 
 import Debug.Trace
 
@@ -74,20 +77,31 @@ pktMsgActionType    = FS.defActions
                       --]
 pktMsgOfpPhyPorts   = []
 
+{-
 pktSendMsg :: OfpMessage
 pktSendMsg = OfpMessage ( header pktMsgOfVersion pktMsgOfSwitch OFPT_FEATURES_REPLY)
                     ( OfpFeatureReply $ OfpSwitchFeatures 1000 100 1 (S.fromList pktMsgCapabuilities) (S.fromList pktMsgActionType) pktMsgOfpPhyPorts )
+-}
 
+pktSendMsg pl = OfpMessage hdr (OfpPacketInReply  pktIn)
+  where hdr   = header openflow_1_0 854 {-tid-} OFPT_PACKET_IN
+        pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = 2378 -- bid
+                            , ofp_pkt_in_in_port   = 123123 -- pid 
+                            , ofp_pkt_in_reason    = OFPR_NO_MATCH
+                            , ofp_pkt_in_data      = pl
+                            }
 
 payload = BS.replicate (16384*2) 0
 
-client fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = replicateM_ pktSendNumber $ do
-        sendReplyT pktSendMsg
---        yield payload $$ (appSink ad)
-        M.threadDelay pktSendTimeout
---        print "AAAAAAA!"
-
+client fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = mapM_ send $ take pktSendNumber (cycle (liftM2 (,) [0..256] [0..256]) )
     where
+        send (d,s) = do
+            let pl =  runPutToByteString 16384 (putEthernetFrame $ testTCP d s)
+            sendReplyT (pktSendMsg pl)
+    --        yield payload $$ (appSink ad)
+            M.threadDelay pktSendTimeout
+    --        print "AAAAAAA!"
+
         sendReplyT msg = do
         liftIO $ FS.dump "OUT:" (ofp_header msg) replyBs
         yield replyBs $$ (appSink ad)
@@ -124,3 +138,18 @@ main = do
                         then return ( head args, fsDefaultPort)
                         else return ( fsDefaultHost, fsDefaultPort)
 
+testTCP dstMac srcMac = 
+  TestPacketTCP { dstMAC = dstMac
+                , srcMAC = srcMac
+                , srcIP  = 234232
+                , dstIP  = 123123
+                , dstPort = 231234
+                , srcPort = 12731
+                , testWSS = Just 1321 
+                , testFlags = tcpFlagsOf [ACK]
+                , testPayload = BS.replicate 32 0
+                , testPayloadLen = 32 
+                , testSeqNo = Nothing
+                , testAckNo = Nothing
+                , testIpID = Nothing
+                }
