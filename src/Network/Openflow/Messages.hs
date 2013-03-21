@@ -8,6 +8,7 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  , echoReply
                                  , headReply
                                  , errorReply
+                                 , statsReply
                                  , getConfigReply
                                  , putOfpPort
                                  , putOfpPacketIn
@@ -23,6 +24,7 @@ import Data.Bits
 import qualified Data.Set as S
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import Control.Monad
 
 import Debug.Trace
@@ -62,6 +64,14 @@ getConfigReply :: OfpHeader -> OfpSwitchConfig -> OfpMessage
 getConfigReply hdr cfg = OfpMessage newHead (OfpGetConfigReply cfg)
   where newHead = hdr { ofp_hdr_type = OFPT_GET_CONFIG_REPLY }
 
+
+statsReply :: OfpHeader -> OfpMessage
+statsReply h = OfpMessage sHead sData
+  where sHead = h { ofp_hdr_type = OFPT_STATS_REPLY
+                  , ofp_hdr_length = fromIntegral ofpHeaderLen
+                  }
+        sData = OfpStatsReply
+
 packetIn = undefined
 
 ofpParseHeader :: Get OfpHeader
@@ -93,6 +103,7 @@ parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
     parse OFPT_GET_CONFIG_REQUEST = runParse (return OfpGetConfigRequest)
     parse OFPT_PACKET_OUT       = runParse getPacketOut
     parse OFPT_VENDOR           = runParse (return (OfpVendor bs))
+    parse OFPT_STATS_REQUEST    = runParse getStatsRequest 
     parse _                     = runParse (return (OfpUnsupported bs))
 
     runParse fGet =
@@ -117,6 +128,13 @@ getPacketOut = do
   alen <- getWord16be
   skip (fromIntegral alen)
   return $ OfpPacketOut (OfpPacketOutData bid pid)
+
+getStatsRequest :: Get OfpMessageData
+getStatsRequest  = do
+  stype <- getWord16be
+  case stype of
+    0 -> return (OfpStatsRequest OFPST_DESC)
+    _ -> return (OfpUnsupported (BS.empty))
 
 putMessage :: OfpMessage -> PutM ()
 putMessage (OfpMessage h d) = putMessageHeader dataLen h >> putByteString dataS
@@ -156,6 +174,36 @@ putMessageData (OfpErrorReply et) = do
 putMessageData OfpEmptyReply = return ()
 
 putMessageData (OfpPacketInReply p) = putOfpPacketIn p
+
+--struct ofp_stats_reply {
+--    struct ofp_header header;
+--    uint16_t type;              /* One of the OFPST_* constants. */
+--    uint16_t flags;             /* OFPSF_REPLY_* flags. */
+--    uint8_t body[0];            /* Body of the reply. */
+--};
+--OFP_ASSERT(sizeof(struct ofp_stats_reply) == 12);
+
+-- #define DESC_STR_LEN   256
+-- #define SERIAL_NUM_LEN 32
+-- /* Body of reply to OFPST_DESC request.  Each entry is a NULL-terminated
+-- * ASCII string. */
+--struct ofp_desc_stats {
+--    char mfr_desc[DESC_STR_LEN];       /* Manufacturer description. */
+--    char hw_desc[DESC_STR_LEN];        /* Hardware description. */
+--    char sw_desc[DESC_STR_LEN];        /* Software description. */
+--    char serial_num[SERIAL_NUM_LEN];   /* Serial number. */
+--    char dp_desc[DESC_STR_LEN];        /* Human readable description of datapath. */
+--};
+--OFP_ASSERT(sizeof(struct ofp_desc_stats) == 1056);
+
+putMessageData (OfpStatsReply) = do
+  putWord16be ((fromIntegral.fromEnum) OFPST_DESC)
+  putWord16be 0
+  putByteString $ SP.runPutToByteString 256 (putASCIIZ 256 (BS8.pack "ARCCN"))   -- Manufacturer description
+  putByteString $ SP.runPutToByteString 256 (putASCIIZ 256 (BS8.pack "hcprobe")) -- Hardware description
+  putByteString $ SP.runPutToByteString 256 (putASCIIZ 256 (BS8.pack "hcprobe")) -- Software description
+  putByteString $ SP.runPutToByteString 32  (putASCIIZ 32  (BS8.pack "none"))    -- Serial number
+  putByteString $ SP.runPutToByteString 256 (putASCIIZ 256 (BS8.pack "none"))    -- Human readable description of datapath
 
 -- FIXME: typed error handling
 putMessageData _        = error "Unsupported message: "

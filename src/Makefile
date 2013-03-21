@@ -1,7 +1,7 @@
 .DEFAULT: all
 .PHONY: all
 
-CABAL       = cabal
+CABAL       = cabal-dev
 BUILDDIR    = ../build
 
 ifdef BUILDDIR
@@ -9,7 +9,7 @@ ifdef BUILDDIR
 endif
 
 all:
-	$(CABAL) build $(BUILDDIR_ARG)
+	$(CABAL) build
 
 configure:
 	$(CABAL) configure $(BUILDDIR_ARG)

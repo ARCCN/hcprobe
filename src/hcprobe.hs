@@ -81,7 +81,8 @@ testTCP params dstMac srcMac = do
                           , srcPort = srcP
                           , testWSS = Just wss
                           , testFlags = tcpFlagsOf [ACK]
-                          , testPayloadLen = (payloadLen params) 
+                          , testPayloadLen = (payloadLen params)
+                          , testPayload = BS.empty
                           , testSeqNo = Nothing
                           , testAckNo = Nothing
                           , testIpID = Nothing
@@ -93,16 +94,16 @@ empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
 pktGenTest :: Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
-pktGenTest params q fk chan  = forever $ do
+pktGenTest params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
     pq  <- atomically $ readTVar q
     tid <- MR.randomIO :: IO Word32
 
-    rands <-   MR.getStdGen >>= MR.randoms --return [1..100] -- MR.randoms mtgen
-    let bid = fromIntegral $ head $ filter (not.flip IntMap.member pq) rands -- TODO try to put all in one expression.
+--    rands <-   MR.getStdGen >>= MR.randoms --return [1..100] -- MR.randoms mtgen
+--    let bid = fromIntegral $ head $ filter (not.flip IntMap.member pq) rands -- TODO try to put all in one expression.
     pid <- liftM ((+2).(`mod` (nports-1)))     MR.randomIO :: IO Int
     pidDst <- liftM ((+2).(`mod` (nports-1)))  MR.randomIO :: IO Int
 
-    when (pid /= pidDst ) $ do
+    when (pid /= pidDst && (not (IntMap.member (fromIntegral bid) pq))) $ do
       n1  <- MR.randomIO :: IO Int
       n2  <- MR.randomIO :: IO Int
       let dct = macSpace fk

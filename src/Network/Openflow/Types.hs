@@ -7,7 +7,7 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , OfpErrorType(..), OfpHelloFailedCode(..), OfpBadActionCode(..)
                               , OfpBadRequestCode(..), OfpFlowModFailedCode(..), OfpPortModFailedCode(..)
                               , OfpQueueOpFailedCode(..), OfpPacketIn(..), OfpPacketInReason(..)
-                              , OfpPacketOutData(..)
+                              , OfpPacketOutData(..), OfpStatsType(..)
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags, ofErrorType
                               , ofActionType
@@ -53,6 +53,8 @@ data OfpMessageData =   OfpMessageRaw       !BS.ByteString
                       | OfpVendor           !BS.ByteString    -- WTF?
                       | OfpErrorReply       !OfpError
                       | OfpPacketInReply    !OfpPacketIn
+                      | OfpStatsRequest     !OfpStatsType
+                      | OfpStatsReply
                       | OfpUnsupported      !BS.ByteString
 
 data OfpType  = 
@@ -309,4 +311,30 @@ data OfpPacketOutData = OfpPacketOutData { ofp_pkt_out_buffer_id :: !Word32
                                          , ofp_pkt_out_in_port   :: !Word16
                                          -- TODO: implement rest of message
                                          }
+
+data OfpStatsType =   OFPST_DESC
+                    | OFPST_FLOW
+                    | OFPST_AGGREGATE
+                    | OFPST_TABLE
+                    | OFPST_PORT
+                    | OFPST_QUEUE
+                    | OFPST_VENDOR
+                    deriving (Eq, Ord, Show)
+
+instance Enum OfpStatsType where
+  fromEnum OFPST_DESC       = 0 
+  fromEnum OFPST_FLOW       = 1
+  fromEnum OFPST_AGGREGATE  = 2
+  fromEnum OFPST_TABLE      = 3
+  fromEnum OFPST_PORT       = 4
+  fromEnum OFPST_QUEUE      = 5
+  fromEnum OFPST_VENDOR     = 0xFFFF
+
+  toEnum 0      = OFPST_DESC
+  toEnum 1      = OFPST_FLOW
+  toEnum 2      = OFPST_AGGREGATE
+  toEnum 3      = OFPST_TABLE
+  toEnum 4      = OFPST_PORT
+  toEnum 5      = OFPST_QUEUE
+  toEnum 0xFFFF = OFPST_VENDOR
 

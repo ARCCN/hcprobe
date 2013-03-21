@@ -11,6 +11,7 @@ module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
                           , defActions
                           , defaultPacketInPort
                           , encodeMsg
+                          , maxBuffers
                           , dump
                           ) where
 
@@ -48,6 +49,8 @@ import Text.Printf
 import Debug.Trace
 
 ethernetFrameMaxSize = 2048
+
+maxBuffers = 0xFFFFFFF0
 
 data PortGen = PortGen { pnum   :: Int
                        , pname  :: Int -> BS.ByteString
@@ -112,7 +115,7 @@ mcPrefix = ((.|.)(0x00163e `shiftL` 24)).((.&.)0xFFFFFF)
 
 makeSwitch gen ports mpp cap act cfg st ff = (FakeSwitch features (ipAddr gen) ms Nothing Nothing, gen')
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
-                                     , ofp_n_buffers    = fromIntegral $ 8*ports
+                                     , ofp_n_buffers    = maxBuffers 
                                      , ofp_n_tables     = 1
                                      , ofp_capabilities = S.fromList cap
                                      , ofp_actions      = S.fromList act
@@ -243,6 +246,9 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
     processMessage c OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) =
       (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
+
+    processMessage c OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = sendReply (statsReply hdr)
+--      (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
 
     -- FIXME: possible problems with other controllers rather than NOX
     processMessage c OFPT_BARRIER_REQUEST msg = do
