@@ -16,6 +16,7 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
 import Network.Openflow.Types
 import Network.Openflow.Misc
 import Data.Binary.Put
+import qualified Network.Openflow.StrictPut as SP
 import Data.Binary.Strict.Get
 import Data.Word ( Word8, Word16, Word32, Word64 )
 import Data.Bits
@@ -167,7 +168,7 @@ putOfpPort :: OfpPhyPort -> PutM ()
 putOfpPort port = do
   putWord16be (ofp_port_no port)                                                            -- 2
   mapM_ putWord8 (drop 2 (unpack64 (ofp_port_hw_addr port)))                                -- 8
-  putASCIIZ 16 (ofp_port_name port)    -- ASCIIZ(16)
+  putByteString $ SP.runPutToByteString 32 (putASCIIZ 16 (ofp_port_name port))    -- ASCIIZ(16)
   putWord32be (bitFlags ofConfigFlags (ofp_port_config port))
   putWord32be (bitFlags ofStateFlags (ofp_port_state port))
   putWord32be (bitFlags ofFeatureFlags (ofp_port_current port))

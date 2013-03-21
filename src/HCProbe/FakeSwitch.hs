@@ -28,7 +28,7 @@ import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Monad
-import Control.Monad.Maybe
+import Control.Error
 import Control.Monad.State
 import Control.Monad.STM
 import Control.Monad.Trans.Resource
@@ -40,10 +40,13 @@ import Data.Maybe
 import Data.Word
 import qualified Data.Vector.Unboxed as V
 import qualified Data.IntMap as M 
+import Network.Openflow.StrictPut
 import System.Random
 import Text.Printf
 
 import Debug.Trace
+
+ethernetFrameMaxSize = 2048
 
 data PortGen = PortGen { pnum   :: Int
                        , pname  :: Int -> BS.ByteString
@@ -271,7 +274,7 @@ arpGrat fk bid tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
                             , ofp_pkt_in_reason    = OFPR_NO_MATCH
                             , ofp_pkt_in_data      = arpGratData 
                             }
-        arpGratData = encodePutM $ putEthernetFrame (ARPGratuitousReply mac ip)
+        arpGratData = runPutToByteString ethernetFrameMaxSize $ putEthernetFrame (ARPGratuitousReply mac ip)
         mac = ofp_datapath_id sw
         ip  = switchIP fk 
         sw  = switchFeatures fk

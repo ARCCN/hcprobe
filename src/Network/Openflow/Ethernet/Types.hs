@@ -1,9 +1,7 @@
 module Network.Openflow.Ethernet.Types where
 
 import Data.Word
-import Data.Maybe
-import Data.ByteString
-import Data.Binary.Put
+import Network.Openflow.StrictPut
 
 type MACAddr  = Word64
 type VLANID   = Word16

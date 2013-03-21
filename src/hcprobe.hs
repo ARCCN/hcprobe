@@ -10,6 +10,7 @@ import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Messages
 import Network.Openflow.Misc
 
+
 import HCProbe.FakeSwitch
 import HCProbe.TCP
 -- Module with configurations reader
@@ -17,6 +18,8 @@ import HCProbe.TCP
 -- First reads configfile then some parametes can be replased in cmd args
 -- Parameters, don't meeted in config file or in cmd args setted as default.
 import HCProbe.Configurator
+
+import qualified Network.Openflow.StrictPut as SP
 
 import Data.Binary.Put ( runPut )
 import qualified Data.ByteString as BS
@@ -42,7 +45,7 @@ import System.Environment (getArgs)
 import Control.Exception
 import Control.Monad
 import Control.Monad.State
-import Control.Monad.Maybe
+import Control.Error
 import Control.Concurrent
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
@@ -55,6 +58,7 @@ import qualified Statistics.Sample as S
 
 import Debug.Trace
 
+ethernetFrameMaxSize = 2048
 
 whenJustM :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenJustM (Just v) m  = m v
@@ -66,9 +70,6 @@ testTCP dstMac srcMac params = do
   srcP   <- randomIO :: IO Word16
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
-  flags  <- return [ACK]
---  cargo  <- replicateM payloadLen randomIO :: IO [Word8]
-  let cargo = replicate (payloadLen params) 0
   return $! TestPacketTCP { dstMAC = dstMac
                           , srcMAC = srcMac
                           , srcIP  = srcIp
@@ -76,8 +77,8 @@ testTCP dstMac srcMac params = do
                           , dstPort = dstP
                           , srcPort = srcP
                           , testWSS = Just wss
-                          , testFlags = Just flags
-                          , payLoad = BS.pack cargo
+                          , testFlags = tcpFlagsOf [ACK]
+                          , testPayloadLen = (payloadLen params) 
                           , testSeqNo = Nothing
                           , testAckNo = Nothing
                           , testIpID = Nothing
@@ -107,7 +108,7 @@ pktGenTest q params fk chan  = forever $ do
       let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
       case (srcMac', dstMac') of 
         (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
-                                         pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac params)
+                                         pl  <- liftM (SP.runPutToByteString ethernetFrameMaxSize.putEthernetFrame) (testTCP dstMac srcMac params)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
         _                          -> return ()
 

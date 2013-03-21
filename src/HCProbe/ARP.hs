@@ -4,8 +4,8 @@ import Network.Openflow.Types
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Ethernet.ARP
 
-data ARPGratuitousReply = ARPGratuitousReply { senderMAC :: MACAddr
-                                             , senderIP  :: IPv4Addr
+data ARPGratuitousReply = ARPGratuitousReply { senderMAC :: !MACAddr
+                                             , senderIP  :: !IPv4Addr
                                              }
 
 instance ARPReply ARPGratuitousReply where

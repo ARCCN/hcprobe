@@ -13,7 +13,6 @@ import HCProbe.ARP
 import HCProbe.TCP
 
 import Data.Bits
-import Data.Binary.Put
 import Data.Binary.Strict.Get
 import Data.Maybe
 import Data.Either
@@ -25,6 +24,8 @@ import Data.Word
 import Data.Maybe
 import Control.Monad
 import Text.Printf
+
+import Network.Openflow.StrictPut
 
 import System.Random
 import System.Environment (getArgs)
@@ -38,8 +39,6 @@ testTCP = do
   srcP   <- randomIO :: IO Word16
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
-  flags  <- return [ACK]
-  cargo  <- replicateM 128 randomIO :: IO [Word8]
   return $ TestPacketTCP { dstMAC = dstMac
                          , srcMAC = srcMac
                          , srcIP  = srcIp
@@ -47,8 +46,8 @@ testTCP = do
                          , dstPort = dstP
                          , srcPort = srcP
                          , testWSS = Just wss
-                         , testFlags = Just flags
-                         , payLoad = BS.pack cargo
+                         , testFlags = tcpFlagsOf [ACK] 
+                         , testPayloadLen = 128 
                          , testSeqNo = Nothing
                          , testAckNo = Nothing
                          , testIpID = Nothing
@@ -57,7 +56,7 @@ testTCP = do
 
 crcTest :: IO ()                         
 crcTest = replicateM_ 1000 $ do
-  pkt <- replicateM 64 randomIO >>= return . BS.pack
+  pkt <- liftM  BS.pack $ replicateM 64 randomIO
   let crc = csum16 pkt
   printf "%s %s\n" (show crc) (hexdumpBs 64 "" "" pkt)
 
@@ -76,7 +75,7 @@ crcTest3 = do
            , 0x0a, 0x0c] :: [Word8]
 
   let c = csum16 (BS.pack w8)
-  printf "%04X\n" (fromJust c)
+  printf "%04X\n" (c)
 
 crcTest4 :: IO ()
 crcTest4 = do
@@ -116,7 +115,7 @@ checksum s = words >>= return . trunc . (foldl' (\acc w -> trace (printf "%08X\n
 main = do
 --  crcTest5
   tcp <- testTCP
-  let bs = bsStrict $ runPut $ putEthernetFrame tcp
+  let bs = runPutToByteString 2048 $ putEthernetFrame tcp
 --  let bs = bsStrict $ runPut $ putEthernetFrame (ARPGratuitousReply 0 0)
 --  let bs = bsStrict $ runPut $ putEthernetFrame (ARPGratuitousReply 0 0)  
   putStr (hexdumpBs 16 " " "\n" bs)
