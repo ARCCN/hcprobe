@@ -56,7 +56,6 @@ executable hcprobe
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all -rtsopts
   if flag(Optimize)
       Ghc-options:    -funfolding-use-threshold=16
-  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all -funfolding-use-threshold=16 -rtsopts
 
 executable ethertest 
   main-is:           ethertest.hs
