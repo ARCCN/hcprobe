@@ -93,7 +93,6 @@ ofpParsePacket s = withResult $ flip runGet s $ do
         withResult (Right msg, rest) = Just (msg, rest)
 
 parseMessageData :: OfpMessage -> Maybe OfpMessage
-
 parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
   where 
     parse OFPT_HELLO            = runParse (return OfpHello)

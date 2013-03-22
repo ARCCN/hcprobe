@@ -301,7 +301,7 @@ ofErrorCode (OFPET_QUEUE_OP_FAILED x)  = fromEnum x
 data OfpPacketIn = OfpPacketIn { ofp_pkt_in_buffer_id :: !Word32
                                , ofp_pkt_in_in_port   :: !Word16
                                , ofp_pkt_in_reason    :: !OfpPacketInReason
-                               , ofp_pkt_in_data      :: PutM () 
+                               , ofp_pkt_in_data      :: !(PutM ())
                                }
 
 data OfpPacketInReason = OFPR_NO_MATCH | OFPR_ACTION
