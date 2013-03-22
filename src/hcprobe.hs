@@ -44,8 +44,7 @@ import qualified Data.IntMap as IntMap
 import qualified System.Random as R
 import {-qualified-} System.Random.Mersenne as MR
 import System.IO
--- import System.Environment (getArgs)
--- import Control.Exception
+import Control.Applicative
 import Control.Monad
 import Control.Monad.State
 -- import Control.Error
@@ -98,12 +97,10 @@ empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
 pktGenTest :: ByteString -> Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
+{-
 pktGenTest s params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
     pq  <- readTVarIO q
-    -- tid <- MR.randomIO :: IO Word32
 
---    rands <-   MR.getStdGen >>= MR.randoms --return [1..100] -- MR.randoms mtgen
---    let bid = fromIntegral $ head $ filter (not.flip IntMap.member pq) rands -- TODO try to put all in one expression.
     pid <- liftM ((+2).(`mod` (nports-1)))     MR.randomIO :: IO Int
     pidDst <- liftM ((+2).(`mod` (nports-1)))  MR.randomIO :: IO Int
 
@@ -114,21 +111,37 @@ pktGenTest s params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
       let !srcMac' = IntMap.lookup pid    dct >>= choice n1
       let !dstMac' = IntMap.lookup pidDst dct >>= choice n2
       case (srcMac', dstMac') of
---        (Just srcMac, Just dstMac) -> do pl  <- liftM (encodePutM.putEthernetFrame) (testTCP dstMac srcMac params)
---                                         atomically $ writeTBMChan chan $! tcpTestPkt fk tid bid (fromIntegral pid) pl
 
         (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
-                                         -- pl  <- liftM (putEthernetFrame) (testTCP params dstMac srcMac)
                                          let pl = putEthernetFrame (EthFrame dstMac srcMac s)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
         _                          -> return ()
 
     delay <- liftM ((+ ((maxTimeout params) `div` 2)).(`mod` ((maxTimeout params) `div` 2))) MR.randomIO :: IO Int
     threadDelay delay
+-}
+pktGenTest s params q fk chan  = do
+    ls <- MR.randoms =<< MR.getStdGen
+    let go (l1:l2:l3:l4:l5:ls) (bid:bs) = do
+            pq  <- readTVarIO q
+            let pid = l1 `mod` (nports-1) + 2
+                pidDst = l2 `mod` (nports-1) + 2
 
+            when (pid /= pidDst && (not (IntMap.member (fromIntegral bid) pq))) $ do
+              let dct = macSpace fk
+              let !srcMac' = choice l3 =<< IntMap.lookup pid dct
+              let !dstMac' = choice l4 =<< IntMap.lookup pidDst dct
+              case (srcMac', dstMac') of
+                (Just srcMac, Just dstMac) -> let pl = putEthernetFrame (EthFrame dstMac srcMac s)
+                                              in atomically $ writeTBMChan chan $! (tcpTestPkt fk (fromIntegral l5) bid (fromIntegral pid) pl)
+                _                          -> return ()
+
+            delay <- liftM ((+ ((maxTimeout params) `div` 2)).(`mod` (maxTimeout params `div` 2))) MR.randomIO :: IO Int
+            threadDelay delay
+            go ls bs
+    go ls (cycle [1..maxBuffers-1])
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
-        -- inports = fromIntegral nports :: Int
         choice n l | V.null l  = Nothing
                    | otherwise = Just $ l `V.unsafeIndex` (n `mod` V.length l)
 

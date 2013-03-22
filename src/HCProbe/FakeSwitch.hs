@@ -210,8 +210,8 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
         liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
 
-    let threads = [receiver, sender, (pktInGen fk pktSendQ)]
-    waitThreads <- liftIO $ mapM async threads
+    let threads = [receiver, sender, pktInGen fk pktSendQ]
+    waitThreads <- liftIO $ mapM asyncBound threads
     mapM_ (flip allocate cancel) (map return waitThreads)
     liftIO $ do
       async sendARPGrat
@@ -305,7 +305,7 @@ arpGrat fk bid tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
 -- TODO: truncate message by length in header
 -- TODO: use logger / settings
 dump :: String -> OfpHeader -> BS.ByteString -> IO ()
-dump s hdr bs = return ()
+dump _s _hdr _bs = return ()
 --dump s hdr bs = do
 --  let tp = show (ofp_hdr_type hdr)
 --  putStr $ printf "%-4s %-24s %s\n" s tp (hexdumpBs 32 " " "" (BS.take 32 bs))
