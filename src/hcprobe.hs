@@ -99,7 +99,7 @@ empyPacketQ = IntMap.empty
 
 pktGenTest :: ByteString -> Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest s params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
-    pq  <- atomically $ readTVar q
+    pq  <- readTVarIO q
     -- tid <- MR.randomIO :: IO Word32
 
 --    rands <-   MR.getStdGen >>= MR.randoms --return [1..100] -- MR.randoms mtgen
@@ -175,7 +175,7 @@ onSend _ _ _ _ = return ()
 onReceive :: TVar PacketQ -> TVar PktStats -> OfpMessage -> IO ()
 onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = do
   now <- getCurrentTime
-  pq <- (atomically.readTVar) q
+  pq <- readTVarIO q
 
   whenJustM (IntMap.lookup ibid pq) $ \dt -> atomically $ do
     modifyTVar s (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st)
@@ -211,7 +211,7 @@ updateLog params chan tst = do
       now <- liftIO getCurrentTime
       let !dt   = toRational (now `diffUTCTime` ptime)
       when ( fromRational dt > 0 ) $ do
-        stats <- liftIO $ mapM (atomically.readTVar) tst
+        stats <- liftIO $ mapM readTVarIO tst
         let !st = sumStat stats
         let !rtts = BV.fromList $ (map (fromRational.toRational).mapMaybe pktStatsRoundtripTime) stats :: BV.Vector Double
         let !mean = S.mean rtts * 1000 :: Double
