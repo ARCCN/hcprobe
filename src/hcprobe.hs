@@ -12,6 +12,7 @@ import Network.Openflow.Messages
 
 import HCProbe.FakeSwitch
 import HCProbe.TCP
+import HCProbe.Ethernet
 -- Module with configurations reader
 -- Read parameters from cmd args and/or configfile
 -- First reads configfile then some parametes can be replased in cmd args
@@ -21,6 +22,7 @@ import HCProbe.Configurator
 import qualified Network.Openflow.StrictPut as SP
 
 -- import Data.Binary.Put ( runPut )
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 -- import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Char8 as BS8
@@ -94,8 +96,8 @@ type PacketQ = IntMap.IntMap UTCTime
 empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
-pktGenTest :: Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
-pktGenTest params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
+pktGenTest :: ByteString -> Parameters -> TVar PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
+pktGenTest s params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
     pq  <- atomically $ readTVar q
     -- tid <- MR.randomIO :: IO Word32
 
@@ -115,7 +117,7 @@ pktGenTest params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
 --                                         atomically $ writeTBMChan chan $! tcpTestPkt fk tid bid (fromIntegral pid) pl
 
         (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
-                                         pl  <- liftM (putEthernetFrame) (testTCP params dstMac srcMac)
+                                         let pl = putEthernetFrame (EthFrame dstMac srcMac s)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
         _                          -> return ()
 
@@ -325,7 +327,8 @@ toTryMain = do
         stat <- newTVarIO emptyStats
         let fake = fake' { onSendMessage = Just (onSend params pktQ stat), onRecvMessage = Just (onReceive pktQ stat) }
         w <- async $ forever $ do
-          async (ofpClient (pktGenTest params pktQ) fake (BS8.pack (host params)) (read (port params))) >>= wait
+          bs <- fmap (SP.runPutToByteString 32768 . putTCP) (testTCP params 1 2)
+          async (ofpClient (pktGenTest bs params pktQ) fake (BS8.pack (host params)) (read (port params))) >>= wait
           atomically $ modifyTVar stats (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
           threadDelay 1000000
         return (w,stat)
