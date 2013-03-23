@@ -102,7 +102,7 @@ empyPacketQ = IntMap.empty
 pktGenTest :: ByteString -> Parameters -> TVarL PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest s params q fk chan  = do
     ls <- MR.randoms =<< MR.getStdGen
-    let go (l1:l2:l3:l4:l5:ls) (bid:bs) = do
+    let go (l1:l2:l3:l4:l5:l6:ls) (bid:bs) = do
             pq  <- readTVarIO . snd =<< readTVarIO q
             let pid = l1 `mod` (nports-1) + 2
                 pidDst = l2 `mod` (nports-1) + 2
@@ -116,7 +116,8 @@ pktGenTest s params q fk chan  = do
                                               in atomically $ writeTBMChan chan $! (tcpTestPkt fk (fromIntegral l5) bid (fromIntegral pid) pl)
                 _                          -> return ()
 
-            delay <- liftM ((+ ((maxTimeout params) `div` 2)).(`mod` (maxTimeout params `div` 2))) MR.randomIO :: IO Int
+            
+            let delay = ((+ ((maxTimeout params) `div` 2)).(`mod` (maxTimeout params `div` 2))) l6
             threadDelay delay
             go ls bs
     go ls (cycle [1..maxBuffers-1])
