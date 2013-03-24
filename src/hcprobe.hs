@@ -204,7 +204,7 @@ data LogEntry = LogEntry { logTimestamp     :: !NominalDiffTime
                          , logLost          :: !Int
                          }
 
-updateLog :: Parameters -> TBMChan LogEntry -> [TVar PktStats] -> IO ()
+updateLog :: Parameters -> TChan LogEntry -> [TVar PktStats] -> IO ()
 updateLog params chan tst = do
   initTime <- getCurrentTime
   flip runStateT (0,0,initTime) $ runIOStat $ forever $ do
@@ -223,15 +223,15 @@ updateLog params chan tst = do
         let !lost = pktStatsLostTotal st
         let !err  = pktStatsConnLost st
         put (sent, recv, now)
-        liftIO $ atomically $ writeTBMChan chan   LogEntry { logTimestamp     = now `diffUTCTime` initTime
-                                                           , logSendPerSecond = sps
-                                                           , logRecvPerSecond = rps
-                                                           , logSent          = sent
-                                                           , logRecv          = recv
-                                                           , logMeanRtt       = mean
-                                                           , logErrors        = err
-                                                           , logLost          = lost
-                                                           }
+        liftIO $ atomically $ writeTChan chan   LogEntry { logTimestamp     = now `diffUTCTime` initTime
+                                                         , logSendPerSecond = sps
+                                                         , logRecvPerSecond = rps
+                                                         , logSent          = sent
+                                                         , logRecv          = recv
+                                                         , logMeanRtt       = mean
+                                                         , logErrors        = err
+                                                         , logLost          = lost
+                                                         }
         liftIO $ threadDelay (samplingPeriod params)
 
   return ()
@@ -249,47 +249,46 @@ updateLog params chan tst = do
     clost = pktStatsConnLost
 
 
-writeLog :: Parameters -> TBMChan LogEntry -> IO ()
+writeLog :: Parameters -> TChan LogEntry -> IO ()
 writeLog params chan = whenJustM (logFileName params) $ \fn -> withFile fn WriteMode $ \h ->
   forever $ do
     hSetBuffering h NoBuffering -- If buffering on, tail won't be pused to file
-    log' <- atomically $ readTBMChan chan
-    whenJustM log' $ \log -> do
-      let !ts   = (fromRational.toRational.logTimestamp) log :: Double
-      let !sent = logSent log
-      let !recv = logRecv log
-      let !sps  = logSendPerSecond log
-      let !rps  = logRecvPerSecond log
-      let !lost = logLost log
-      let !err  = logErrors log
-      let !mean = logMeanRtt log
-      let !s = printf "%6.4f\t%6d\t%6d\t%6d\t%6d\t%6.4f\t%6d\t%6d" ts sent sps recv rps mean lost err
-      hPutStrLn h s
+    log <- atomically $ readTChan chan
+    let !ts   = (fromRational.toRational.logTimestamp) log :: Double
+        !sent = logSent log
+        !recv = logRecv log
+        !sps  = logSendPerSecond log
+        !rps  = logRecvPerSecond log
+        !lost = logLost log
+        !err  = logErrors log
+        !mean = logMeanRtt log
+        !s = printf "%6.4f\t%6d\t%6d\t%6d\t%6d\t%6.4f\t%6d\t%6d" ts sent sps recv rps mean lost err
+    hPutStrLn h s
     threadDelay $ samplingPeriod params `div` 2
 
-displayStats :: Parameters -> TBMChan LogEntry -> IO ()
+displayStats :: Parameters -> TChan LogEntry -> IO ()
 displayStats params chan = do
   hSetBuffering stdout NoBuffering
   -- initTime <- getCurrentTime
-  let reader = if isNothing $ logFileName params
-                    then readTBMChan
-                    else peekTBMChan
-    
   forever $ do
-    logm <- atomically $ reader chan
-    whenJustM logm $ \log -> do
+    log <- atomically $ let k = do x <- readTChan chan
+                                   l <- isEmptyTChan chan 
+                                   if l then return x
+                                        else k
+                        in k
+                                
 --      putStrLn "Log OK"
-      let !ts   = (fromRational.toRational.logTimestamp) log :: Double
-      let !sent = logSent log
-      let !recv = logRecv log
-      let !sps  = logSendPerSecond log
-      let !rps  = logRecvPerSecond log
-      let !lost = logLost log
-      let !err  = logErrors log
-      let !mean = logMeanRtt log
-      let !s = printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
-      putStr s
-      threadDelay $ statsDelay params
+    let !ts   = (fromRational.toRational.logTimestamp) log :: Double
+    let !sent = logSent log
+    let !recv = logRecv log
+    let !sps  = logSendPerSecond log
+    let !rps  = logRecvPerSecond log
+    let !lost = logLost log
+    let !err  = logErrors log
+    let !mean = logMeanRtt log
+    let !s = printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
+    putStr s
+    threadDelay $ statsDelay params
 
 randomSet :: Word64 -> S.Set MACAddr -> IO (S.Set MACAddr)
 
@@ -313,10 +312,14 @@ toTryMain = do
                             -- All wariables like macSpaceDim, switchNum, etc. was replased
                             -- by expression like (macSpaceDim params) (switchNum params) etc.
   
-  stats   <- newTVarIO emptyStats
-  statsQ  <- newTBMChanIO 10000
-  testLog <- newTBMChanIO 10000
-
+  stats    <- newTVarIO emptyStats
+  logsIn   <- newBroadcastTChanIO
+  statsQ   <- newTBMChanIO 10000
+  testLog  <- atomically $ dupTChan logsIn 
+  wr <-    if (isJust (logFileName params)) 
+              then do ch <- atomically $ dupTChan logsIn
+                      return [writeLog params ch]
+              else return []
 
   fakeSw <- forM [1..switchNum params] $ \i -> do
     let ip = fromIntegral i .|. (0x10 `shiftL` 24)
@@ -338,12 +341,12 @@ toTryMain = do
   
   let workers = map fst w        
 
-  misc  <- mapM async [ updateLog params testLog (stats : map snd w) 
-                      , writeLog params testLog
-                      , displayStats params testLog
-                      ]
 
-  async $ threadDelay (testDuration params + 350000) >> mapM_ cancel (misc ++ workers)
+  misc  <- mapM async ([ updateLog params testLog (stats : map snd w) 
+                       , displayStats params testLog
+                       ] ++ wr)
+
+  async $ threadDelay (testDuration params + 350000) >> mapM_ cancel (misc ++ workers) -- ??? why async
 
   mapM_ waitCatch (workers ++ misc)
 
