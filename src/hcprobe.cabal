@@ -25,7 +25,8 @@ library
                       transformers, mtl, containers,
                       MaybeT, MissingH,data-flags,
                       mersenne-random-pure64, mersenne-random,
-                      cmdargs, ConfigFile, directory
+                      cmdargs, ConfigFile, directory,
+                      ghc-prim
 
 executable ethertest 
   main-is:           ethertest.hs
@@ -37,7 +38,8 @@ executable ethertest
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH, time,data-flags,
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory
+                       cmdargs, ConfigFile, directory,
+                       ghc-prim
                        
 --executable cbench-like 
 --  main-is:           cbench-like.hs
@@ -65,8 +67,9 @@ executable testclient
                        transformers, mtl, containers, vector,
                        MaybeT, MissingH, data-flags,
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory
+                       cmdargs, ConfigFile, directory,
+                       ghc-prim
 
   Ghc-options:         -Wall -threaded -O2
   -- fllvm
-  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all -XMagicHash 

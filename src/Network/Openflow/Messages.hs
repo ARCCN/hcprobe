@@ -139,7 +139,8 @@ putMessageData (OfpFeatureReply f) = do
   replicateM_ 3 (putWord8 0)
 --  putWord32be (bitFlags ofCapabilities (ofp_capabilities f))
   putWord32be $ ofp_capabilities f
-  putWord32be (bitFlags ofActionType   (ofp_actions f))
+--  putWord32be (bitFlags ofActionType   (ofp_actions f))
+  putWord32be $ ofp_actions f
   mapM_ putOfpPort (ofp_ports f)
 
 putMessageData (OfpEchoReply bs) = putByteString bs
@@ -169,12 +170,12 @@ putOfpPort port = do
   putWord16be (ofp_port_no port)                                                            -- 2
   mapM_ putWord8 (drop 2 (unpack64 (ofp_port_hw_addr port)))                                -- 8
   putASCIIZ 16 (ofp_port_name port)    -- ASCIIZ(16)
-  putWord32be (bitFlags ofConfigFlags (ofp_port_config port))
-  putWord32be (bitFlags ofStateFlags (ofp_port_state port))
-  putWord32be (bitFlags ofFeatureFlags (ofp_port_current port))
-  putWord32be (bitFlags ofFeatureFlags (ofp_port_advertised port))
-  putWord32be (bitFlags ofFeatureFlags (ofp_port_supported port))
-  putWord32be (bitFlags ofFeatureFlags (ofp_port_peer port))
+  putWord32be $ ofp_port_config port      --(bitFlags ofConfigFlags (ofp_port_config port))
+  putWord32be $ ofp_port_state port       --(bitFlags ofStateFlags (ofp_port_state port))
+  putWord32be $ ofp_port_current port     --(bitFlags ofFeatureFlags (ofp_port_current port))
+  putWord32be $ ofp_port_advertised port  --(bitFlags ofFeatureFlags (ofp_port_advertised port))
+  putWord32be $ ofp_port_supported port   --(bitFlags ofFeatureFlags (ofp_port_supported port))
+  putWord32be $ ofp_port_peer port        --(bitFlags ofFeatureFlags (ofp_port_peer port))
 
 putOfpPacketIn :: OfpPacketIn -> PutM ()
 putOfpPacketIn pktIn = do

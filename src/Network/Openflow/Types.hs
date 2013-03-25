@@ -12,11 +12,12 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , OfpPacketOutData(..)
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags, ofErrorType
-                              , ofActionType
+                              , ofCapabilitiesUnflag, ofStateUnflag, ofConfigUnflag, ofFeatureUnflag
+                              , ofActionType, ofActionTypeUnflag
                               , ofErrorCode
                               , openflow_1_0
                               , defaultSwitchConfig
-                              , listToFlags
+                              , listToFlags, flagsToList
                               ) where
 
 import Network.Openflow.Ethernet.Types (MACAddr)
@@ -33,6 +34,7 @@ openflow_1_0 = 0x01
 -- TODO: replace Data.Set to something more effective for bitmaps
 
 type FlagSet = Word32
+type Flag = Word32
 
 data OfpHeader = OfpHeader { ofp_hdr_version :: !Word8
                            , ofp_hdr_type    :: !OfpType 
@@ -104,19 +106,9 @@ data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: !Word64
                                            , ofp_n_buffers    :: !Word32
                                            , ofp_n_tables     :: !Word8
                                            , ofp_capabilities :: !FlagSet
-                                           , ofp_actions      :: !(S.Set OfpActionType)
+                                           , ofp_actions      :: !FlagSet
                                            , ofp_ports        :: ![OfpPhyPort]
                                            } deriving (Show)
-
-ofpc_flow_stats   = 2^0             --  Flow statistics
-ofpc_table_stats  = 2^1             --  Table statistics
-ofpc_port_stats   = 2^2             --  Port statistics
-ofpc_stp          = 2^3             --  802.1d spanning tree
-ofpc_reserved     = 2^4             --  Reserved, must be zero
-ofpc_ip_reasm     = 2^5             --  Can reassemble ip fragments
-ofpc_queue_stats  = 2^6             --  Queue statistics
-ofpc_arp_match_ip = 2^7             --  Match ip addresses in arp pkts
-
 
 data OfpCapabilities =   OFPC_FLOW_STATS             --  Flow statistics
                        | OFPC_TABLE_STATS            --  Table statistics
@@ -159,12 +151,12 @@ defaultSwitchConfig = OfpSwitchConfig OFPC_FRAG_NORMAL 128
 data OfpPhyPort = OfpPhyPort { ofp_port_no         :: Word16
                              , ofp_port_hw_addr    :: MACAddr
                              , ofp_port_name       :: BS.ByteString
-                             , ofp_port_config     :: S.Set OfpPortConfigFlags
-                             , ofp_port_state      :: S.Set OfpPortStateFlags
-                             , ofp_port_current    :: S.Set OfpPortFeatureFlags
-                             , ofp_port_advertised :: S.Set OfpPortFeatureFlags
-                             , ofp_port_supported  :: S.Set OfpPortFeatureFlags
-                             , ofp_port_peer       :: S.Set OfpPortFeatureFlags
+                             , ofp_port_config     :: FlagSet --S.Set OfpPortConfigFlags
+                             , ofp_port_state      :: FlagSet --S.Set OfpPortStateFlags
+                             , ofp_port_current    :: FlagSet --S.Set OfpPortFeatureFlags
+                             , ofp_port_advertised :: FlagSet --S.Set OfpPortFeatureFlags
+                             , ofp_port_supported  :: FlagSet --S.Set OfpPortFeatureFlags
+                             , ofp_port_peer       :: FlagSet --S.Set OfpPortFeatureFlags
                              } deriving (Show)
 
 data OfpPortConfigFlags =   OFPPC_PORT_DOWN     -- Port is administratively down                        
@@ -198,9 +190,29 @@ data OfpPortFeatureFlags =   OFPPF_10MB_HD    --  10 Mb half-duplex rate support
                            | OFPPF_PAUSE_ASYM --  Asymmetric pause
                            deriving (Eq, Ord, Enum, Show)
 
-ofActionType :: OfpActionType -> Word32
+ofActionType :: OfpActionType -> Flag
 ofActionType OFPAT_VENDOR = 0xFFFF
 ofActionType x = 1 `shiftL` (fromEnum x)
+
+-- TODO: try to use template haskell
+
+ofActionTypeUnflag :: Flag -> OfpActionType
+ofActionTypeUnflag 0xFFFF = OFPAT_VENDOR
+ofActionTypeUnflag flag
+        | (1 `shiftL`  0) == flag = (toEnum  0)
+        | (1 `shiftL`  1) == flag = (toEnum  1)
+        | (1 `shiftL`  2) == flag = (toEnum  2)
+        | (1 `shiftL`  3) == flag = (toEnum  3)
+        | (1 `shiftL`  4) == flag = (toEnum  4)
+        | (1 `shiftL`  5) == flag = (toEnum  5)
+        | (1 `shiftL`  6) == flag = (toEnum  6)
+        | (1 `shiftL`  7) == flag = (toEnum  7)
+        | (1 `shiftL`  8) == flag = (toEnum  8)
+        | (1 `shiftL`  9) == flag = (toEnum  9)
+        | (1 `shiftL` 10) == flag = (toEnum 10)
+        | (1 `shiftL` 11) == flag = (toEnum 11)
+        | (1 `shiftL` 12) == flag = (toEnum 12)
+        | (1 `shiftL` 13) == flag = (toEnum 13)
 
 ofCapabilities OFPC_FLOW_STATS     = 1 `shiftL` 0
 ofCapabilities OFPC_TABLE_STATS    = 1 `shiftL` 1
@@ -211,6 +223,17 @@ ofCapabilities OFPC_IP_REASM       = 1 `shiftL` 5
 ofCapabilities OFPC_QUEUE_STATS    = 1 `shiftL` 6
 ofCapabilities OFPC_ARP_MATCH_IP   = 1 `shiftL` 7
 
+ofCapabilitiesUnflag :: Flag -> OfpCapabilities
+ofCapabilitiesUnflag flag
+        | (1 `shiftL`  0) == flag = (toEnum  0)
+        | (1 `shiftL`  1) == flag = (toEnum  1)
+        | (1 `shiftL`  2) == flag = (toEnum  2)
+        | (1 `shiftL`  3) == flag = (toEnum  3)
+        | (1 `shiftL`  4) == flag = (toEnum  4)
+        | (1 `shiftL`  5) == flag = (toEnum  5)
+        | (1 `shiftL`  6) == flag = (toEnum  6)
+        | (1 `shiftL`  7) == flag = (toEnum  7)
+
 ofConfigFlags   OFPPC_PORT_DOWN    = 1 `shiftL` 0
 ofConfigFlags   OFPPC_NO_STP       = 1 `shiftL` 1
 ofConfigFlags   OFPPC_NO_RECV      = 1 `shiftL` 2
@@ -219,12 +242,31 @@ ofConfigFlags   OFPPC_NO_FLOOD     = 1 `shiftL` 4
 ofConfigFlags   OFPPC_NO_FWD       = 1 `shiftL` 5
 ofConfigFlags   OFPPC_NO_PACKET_IN = 1 `shiftL` 6
 
+ofConfigUnflag :: Flag -> OfpSwitchCfgFlags
+ofConfigUnflag flag
+        | (1 `shiftL`  0) == flag = (toEnum  0)
+        | (1 `shiftL`  1) == flag = (toEnum  1)
+        | (1 `shiftL`  2) == flag = (toEnum  2)
+        | (1 `shiftL`  3) == flag = (toEnum  3)
+        | (1 `shiftL`  4) == flag = (toEnum  4)
+        | (1 `shiftL`  5) == flag = (toEnum  5)
+        | (1 `shiftL`  6) == flag = (toEnum  6)
+
 ofStateFlags   OFPPS_LINK_DOWN   = 1 `shiftL` 0
 ofStateFlags   OFPPS_STP_LISTEN  = 0 `shiftL` 8
 ofStateFlags   OFPPS_STP_LEARN   = 1 `shiftL` 8
 ofStateFlags   OFPPS_STP_FORWARD = 2 `shiftL` 8
 ofStateFlags   OFPPS_STP_BLOCK   = 3 `shiftL` 8
 ofStateFlags   OFPPS_STP_MASK    = 3 `shiftL` 8
+
+ofStateUnflag :: Flag -> OfpPortStateFlags
+ofStateUnflag flag
+        | (1 `shiftL`  0) == flag = (toEnum  0)
+        | (0 `shiftL`  0) == flag = (toEnum  1)
+        | (1 `shiftL`  8) == flag = (toEnum  2)
+        | (2 `shiftL`  8) == flag = (toEnum  3)
+        | (3 `shiftL`  8) == flag = (toEnum  4)
+        | (3 `shiftL`  8) == flag = (toEnum  5)
 
 ofFeatureFlags   OFPPF_10MB_HD    = 1 `shiftL` 0
 ofFeatureFlags   OFPPF_10MB_FD    = 1 `shiftL` 1
@@ -238,6 +280,21 @@ ofFeatureFlags   OFPPF_FIBER      = 1 `shiftL` 8
 ofFeatureFlags   OFPPF_AUTONEG    = 1 `shiftL` 9
 ofFeatureFlags   OFPPF_PAUSE      = 1 `shiftL` 10
 ofFeatureFlags   OFPPF_PAUSE_ASYM = 1 `shiftL` 11
+
+ofFeatureUnflag :: Flag -> OfpPortFeatureFlags
+ofFeatureUnflag flag
+        | (1 `shiftL`  0) == flag = (toEnum  0)
+        | (1 `shiftL`  1) == flag = (toEnum  1)
+        | (1 `shiftL`  2) == flag = (toEnum  2)
+        | (1 `shiftL`  3) == flag = (toEnum  3)
+        | (1 `shiftL`  4) == flag = (toEnum  4)
+        | (1 `shiftL`  5) == flag = (toEnum  5)
+        | (1 `shiftL`  6) == flag = (toEnum  6)
+        | (1 `shiftL`  7) == flag = (toEnum  7)
+        | (1 `shiftL`  8) == flag = (toEnum  8)
+        | (1 `shiftL`  9) == flag = (toEnum  9)
+        | (1 `shiftL` 10) == flag = (toEnum 10)
+        | (1 `shiftL` 11) == flag = (toEnum 11)
 
 data OfpError = OfpError { ofp_error_type :: OfpErrorType
                          , ofp_error_data :: BS.ByteString
@@ -324,10 +381,11 @@ data OfpPacketOutData = OfpPacketOutData { ofp_pkt_out_buffer_id :: !Word32
                                          , ofp_pkt_out_in_port   :: !Word16
                                          -- TODO: implement rest of message
                                          }
-listToFlags :: (a -> FlagSet) -> [a] -> FlagSet
+
+listToFlags :: (a -> Flag) -> [a] -> FlagSet
 listToFlags f = foldl (\acc val -> acc .|. (f val) ) 0
 
-flagsToList :: (FlagSet -> a) -> FlagSet -> [a]
+flagsToList :: (Flag -> a) -> FlagSet -> [a]
 flagsToList f set = testFlag f set 1 []
     where --TODO try without recursion (find fold/map functions for bitsets)
         testFlag f set bitn list = 

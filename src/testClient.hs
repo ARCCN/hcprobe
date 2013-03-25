@@ -36,7 +36,7 @@ import Data.Time
 
 import Debug.Trace
 
-fsDefaultHost       = "localhost"
+fsDefaultHost       = "127.0.0.1"
 fsDefaultPort       = "6633"
 
 fsMacsPerPort       = 1000
@@ -79,7 +79,7 @@ pktSendMsg = OfpMessage hd dt
         hd = header pktMsgOfVersion pktMsgOfSwitch OFPT_FEATURES_REPLY
         dt = OfpFeatureReply $ OfpSwitchFeatures 1000 100 1 cb at pktMsgOfpPhyPorts
         cb = listToFlags ofCapabilities pktMsgCapabuilities
-        at = S.fromList pktMsgActionType 
+        at = listToFlags ofActionType pktMsgActionType 
 
 ofClient fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = replicateM_ pktSendNumber $ do
         sendReplyT pktSendMsg
