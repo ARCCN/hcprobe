@@ -6,6 +6,7 @@ import Network.Openflow.Ethernet.Types
 -- import Network.Openflow.Ethernet.ARP
 import Network.Openflow.Ethernet.TCP
 import Network.Openflow.Ethernet.Generator
+import Network.Openflow.Ethernet.IPv4
 import Network.Openflow.Messages
 -- import Network.Openflow.Misc
 
@@ -117,6 +118,7 @@ pktGenTest s params q fk chan  = forM_ (cycle [1..maxBuffers-1]) $ \bid -> do
 --                                         atomically $ writeTBMChan chan $! tcpTestPkt fk tid bid (fromIntegral pid) pl
 
         (Just srcMac, Just dstMac) -> do tid <- randomIO :: IO Word32
+                                         -- pl  <- liftM (putEthernetFrame) (testTCP params dstMac srcMac)
                                          let pl = putEthernetFrame (EthFrame dstMac srcMac s)
                                          atomically $ writeTBMChan chan $! (tcpTestPkt fk tid bid (fromIntegral pid) pl)
         _                          -> return ()
@@ -327,7 +329,7 @@ toTryMain = do
         stat <- newTVarIO emptyStats
         let fake = fake' { onSendMessage = Just (onSend params pktQ stat), onRecvMessage = Just (onReceive pktQ stat) }
         w <- async $ forever $ do
-          bs <- fmap (SP.runPutToByteString 32768 . putTCP) (testTCP params 1 2)
+          bs <- fmap (SP.runPutToByteString 32768 . putIPv4Pkt) (testTCP params 1 2)
           async (ofpClient (pktGenTest bs params pktQ) fake (BS8.pack (host params)) (read (port params))) >>= wait
           atomically $ modifyTVar stats (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
           threadDelay 1000000
