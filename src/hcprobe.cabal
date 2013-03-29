@@ -80,6 +80,7 @@ executable TestPkgGen
   buildable:         False
   if flag(TestProgs)
       buildable:     True
+  Buildable:           False
   -- other-modules:    
   build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit, network-conduit,

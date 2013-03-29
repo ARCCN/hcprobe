@@ -17,7 +17,6 @@ module Network.Openflow.StrictPut (
   Put,
   runPut,
   runPutToByteString,
-  runPutToBuffer,
   putWord8,
   putWord16be,
   putWord32be,
@@ -33,9 +32,17 @@ module Network.Openflow.StrictPut (
   undelay,
   contramap,
   delayedWord8,
-  delayedWord16be
+  delayedWord16be,
+  -- * Buffer
+  runPutToBuffer,
+  Buffer,
+  mkBuffer,
+  extract,
+  bufferSize,
+  reuse
   ) where
 
+import Control.Applicative
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Internal as S
 import GHC.Word
@@ -51,25 +58,16 @@ type Put = PutM ()
 -- | Runs the Put writer with write position given
 -- by the first pointer argument. Returns the number
 -- of words written.
-runPut :: Ptr Word8 -> Put -> IO Int
+runPut :: Ptr Word8 -> Put -> IO (Ptr Word8)
 runPut ptr (PutM f) =
-  do (_, ptr') <- f ptr
-     return (ptr' `minusPtr` ptr)
+  do snd <$> f ptr
 
 -- | Allocates a new byte string, and runs the Put writer with that byte string.
 -- The first argument is an upper bound on the size of the array needed to do the serialization.
 runPutToByteString :: Int -> Put -> S.ByteString
 runPutToByteString maxSize put =
-  unsafeDupablePerformIO (S.createAndTrim maxSize (\ptr -> runPut ptr put))
+  unsafeDupablePerformIO (S.createAndTrim maxSize (\ptr -> (`minusPtr` ptr) <$> runPut ptr put ))
   
-
-runPutToBuffer :: S.ByteString -> Put -> IO (Int, S.ByteString)
-runPutToBuffer bs put = runPut ptr put >>= \i -> return (o+i, S.fromForeignPtr fp (o+i) l)
-  where
-    (fp,o,l) = S.toForeignPtr bs
-    ptr = unsafeForeignPtrToPtr fp
-
-
 instance Monad PutM where
   return x = PutM (\ptr -> return (x, ptr))
   {-# INLINABLE return #-}
@@ -163,7 +161,7 @@ toAddr (Marker (Ptr a)) = a
 {-# INLINABLE toAddr #-}
 
 -- | Delayed action.
-newtype DelayedPut a = DelayedPut (a -> IO Int)
+newtype DelayedPut a = DelayedPut (a -> IO (Ptr Word8))
 
 contramap :: (a -> b) -> (DelayedPut b) -> (DelayedPut a)
 contramap f (DelayedPut g) = DelayedPut (g.f)
@@ -175,12 +173,12 @@ undelay (DelayedPut f) !x = PutM $ \p -> f x >> return ((),p)
 {-# INLINABLE undelay #-}
 
 delayedWord8 :: PutM (DelayedPut Word8)
-delayedWord8 = PutM $ \p -> poke p (0::Word8) >> 
+delayedWord8 = PutM $ \p -> poke p (42::Word8) >> 
                             return (DelayedPut $ runPut p . putWord8, p `plusPtr` 1)
 {-# INLINABLE delayedWord8 #-}
 
 delayedWord16be :: PutM (DelayedPut Word16)
-delayedWord16be = PutM $ \p -> poke (castPtr p) (0::Word16) >>
+delayedWord16be = PutM $ \p -> poke (castPtr p) (42::Word16) >>
                                return (DelayedPut $ runPut p . putWord16be, p `plusPtr` 2)
 {-# INLINABLE delayedWord16be #-}
 
@@ -200,3 +198,27 @@ shiftr_w32 (W32# w) (I# i) = W32# (w `uncheckedShiftRL#` i)
 shiftr_w64 (W64# w) (I# i) = W64# (w `uncheckedShiftRL64#` i)
 #endif
 #endif
+
+
+data Buffer = Buffer {-# UNPACK #-} !(ForeignPtr Word8)   -- pinned array
+                     {-# UNPACK #-} !(Ptr Word8)          -- current position
+                     {-# UNPACK #-} !Int                  -- current size
+
+bufferSize :: Buffer -> Int
+bufferSize (Buffer _ _ i) = i
+
+reuse :: Buffer -> Buffer
+reuse (Buffer f _ _) = Buffer f (unsafeForeignPtrToPtr f) 0
+
+extract :: Buffer -> S.ByteString
+extract (Buffer f _ c) = S.fromForeignPtr f 0 c
+
+mkBuffer :: Int -> IO Buffer
+mkBuffer size = do
+    fpbuf <- S.mallocByteString size
+    let !pbuf = unsafeForeignPtrToPtr fpbuf
+    return $! Buffer fpbuf pbuf 0 
+
+
+runPutToBuffer :: Buffer -> Put -> IO Buffer
+runPutToBuffer (Buffer f p x) put = runPut p put >>= \p' -> return (Buffer f p' (x+(p' `minusPtr` p)))

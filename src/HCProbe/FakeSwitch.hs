@@ -197,9 +197,24 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
     let sender = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
+        {-
         forever $ do
           liftIO $! atomically (readTBMChan pktSendQ) >>= maybe skip sendReplyT
         where skip = return ()
+        -}
+        buf <- mkBuffer (1024*1024*4)
+        let send b = do
+               mr <- atomically (readTBMChan pktSendQ)
+               case mr of
+                   Nothing -> return ()
+                   Just r  -> do
+                       maybe (return ()) (\x -> (liftIO.x) r) sH
+                       b' <- liftIO $ runPutToBuffer b (putMessage r)
+                       if (bufferSize b') > 32768
+                            then do yield (extract b') $$ appSink ad
+                                    send (reuse b) 
+                          else send b'
+        send buf
 
     let receiver = appSource ad $$ forever $ runMaybeT $ do
         bs <- MaybeT $ await
