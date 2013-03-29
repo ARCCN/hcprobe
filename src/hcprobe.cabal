@@ -17,6 +17,9 @@ cabal-version:       >=1.8
 flag Optimize
   description: add agressive optimizations
   default:     False
+flag TestProgs
+  description: build test programs
+  default:    False
 
 library
     exposed-modules:  Network.Openflow.Types
@@ -56,6 +59,9 @@ executable hcprobe
 
 executable ethertest 
   main-is:           ethertest.hs
+  buildable:         False
+  if flag(TestProgs)
+      buildable:     True
   -- other-modules:    
   build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit, network-conduit,
@@ -71,6 +77,9 @@ executable ethertest
 
 executable TestPkgGen 
   main-is:             TestPkgGen.hs 
+  buildable:         False
+  if flag(TestProgs)
+      buildable:     True
   -- other-modules:    
   build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit, network-conduit,
@@ -87,6 +96,9 @@ executable TestPkgGen
 
 executable TestARPGen 
   main-is:             TestARPGen.hs 
+  buildable:         False
+  if flag(TestProgs)
+      buildable:     True
   -- other-modules:    
   build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit, network-conduit,
@@ -101,6 +113,9 @@ executable TestARPGen
 
 executable TestTCPGen
   main-is:             TestTCPGen.hs
+  buildable:         False
+  if flag(TestProgs)
+      buildable:     True
   -- other-modules:    
   build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        conduit, network-conduit,
@@ -116,6 +131,9 @@ executable TestTCPGen
 
 executable TestMisc
   main-is:             TestMisc.hs 
+  buildable:         False
+  if flag(TestProgs)
+      buildable:     True
   -- other-modules:    
   build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
                        HUnit,
@@ -131,6 +149,10 @@ executable TestMisc
 
 executable testclient 
   main-is:           testClient.hs
+  buildable:         False
+  if flag(TestProgs)
+      buildable:     True
+
   -- other-modules:    
   build-depends:       base, binary, binary-strict, bytestring,
                        conduit, network-conduit,
