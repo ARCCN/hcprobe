@@ -195,35 +195,38 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 --          else do yield (BS.concat (chunks ++ [encoded])) $$ (appSink ad)
 --                  liftIO $ atomically $ writeTVar delayed ([], 0)
 
+    slock <- liftIO $ M.newMVar ()
     let sender = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        {-
         forever $ do
-          liftIO $! atomically (readTBMChan pktSendQ) >>= maybe skip sendReplyT
+          liftIO $! atomically (readTBMChan pktSendQ) >>= maybe skip (sendReplyT slock)
         where skip = return ()
-        -}
+        {-
         buf <- mkBuffer (1024*1024*4)
         let send b = do
                mr <- atomically (readTBMChan pktSendQ)
                case mr of
                    Nothing -> return ()
                    Just r  -> do
-                       maybe (return ()) (\x -> (liftIO.x) r) sH
                        b' <- liftIO $ runPutToBuffer b (putMessage r)
-                       if (bufferSize b') > 32768
-                            then do yield (extract b') $$ appSink ad
-                                    send (reuse b) 
+                       maybe (return ()) (\x -> (liftIO.x) r) sH
+                       if (bufferSize b') >= 30000
+                            then do _ <- liftIO $ M.takeMVar slock
+                                    yield (extract b') $$ appSink ad
+                                    liftIO $ M.putMVar slock ()
+                                    send (reuse buf) 
                           else send b'
         send buf
+        -}
 
     let receiver = appSource ad $$ forever $ runMaybeT $ do
         bs <- MaybeT $ await
         (msg, rest) <- MaybeT $ return (ofpParsePacket bs)
-        lift $ liftIO (dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg >> leftover rest
+        lift $ liftIO (dump "IN:" (ofp_header msg) bs) >> dispatch ctx msg slock >> leftover rest
 
     let sendARPGrat = do
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-        liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
+        liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT slock
 
     let threads = [receiver, sender, pktInGen fk pktSendQ]
     waitThreads <- liftIO $ mapM asyncBound threads
@@ -234,59 +237,61 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
     return ()
 
   where
-    sendReplyT msg = do
+    sendReplyT _ msg = do
       --liftIO $ dump "OUT:" (ofp_header msg) 
       yield replyBs $$ (appSink ad)
       maybe (return ()) (\x -> (liftIO.x) msg) sH
       where replyBs = encodeMsg msg
 
-    dispatch !c !(msg@(OfpMessage hdr msgData)) = case (parseMessageData msg) of
+    dispatch !c !(msg@(OfpMessage hdr msgData)) slock = case (parseMessageData msg) of
       Nothing   ->  return ()
-      Just !(msg'@(OfpMessage h _)) -> processMessage c (ofp_hdr_type hdr) msg'
+      Just !(msg'@(OfpMessage h _)) -> processMessage c (ofp_hdr_type hdr) msg' slock
 
     -- TODO: implement the following messages
-    processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
+    processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) _ = do
       maybe (return ()) (\x -> (liftIO.x) m) rH
 
-    processMessage _ OFPT_HELLO (OfpMessage hdr _) = sendReply (headReply hdr OFPT_HELLO)
+    processMessage _ OFPT_HELLO (OfpMessage hdr _) l = sendReply (headReply hdr OFPT_HELLO) l
 
-    processMessage c OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = sendReply reply
+    processMessage c OFPT_FEATURES_REQUEST (OfpMessage hdr msg) l = sendReply reply l
       where reply = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
 
-    processMessage _ OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = sendReply reply
+    processMessage _ OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) l = sendReply reply l
       where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
 
-    processMessage c OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = do
+    processMessage c OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) _ = do
       liftIO $ atomically $ modifyTVar (switchCfg c) (const cfg')
 
-    processMessage c OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) =
-      (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
+    processMessage c OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) l =
+      (liftIO $ atomically $ readTVar (switchCfg c)) >>= \x -> sendReply (getConfigReply hdr x) l
 
-    processMessage c OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = sendReply (statsReply hdr)
+    processMessage c OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) l = sendReply (statsReply hdr) l
 --      (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
 
     -- FIXME: possible problems with other controllers rather than NOX
-    processMessage c OFPT_BARRIER_REQUEST msg = do
+    processMessage c OFPT_BARRIER_REQUEST msg l = do
       -- TODO: do something, process all pkts, etc
       liftIO $ atomically (writeTVar (handshakeDone c) True)
-      sendReply (headReply (ofp_header msg) OFPT_BARRIER_REPLY)
+      sendReply (headReply (ofp_header msg) OFPT_BARRIER_REPLY) l
 
-    processMessage _ OFPT_VENDOR msg = do
+    processMessage _ OFPT_VENDOR msg l = do
       let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) BS.empty
       let reply = errorReply (ofp_header msg) errT
-      sendReply reply
+      sendReply reply l
 
     -- TODO: implement the following messages
-    processMessage _ OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing
-    processMessage _ OFPT_STATS_REQUEST (OfpMessage hdr msg) = nothing
+    processMessage _ OFPT_FLOW_MOD (OfpMessage hdr msg) _ = nothing
+    processMessage _ OFPT_STATS_REQUEST (OfpMessage hdr msg) _ = nothing
 
-    processMessage _ _ _ = nothing
+    processMessage _ _ _ _ = nothing
 
     nothing = return ()
 
-    sendReply msg = do
+    sendReply msg l = do
       liftIO $ dump "OUT:" (ofp_header msg) replyBs
+      liftIO $ M.takeMVar l
       lift $ yield replyBs $$ appSink ad
+      liftIO $ M.putMVar l ()
       where replyBs = encodeMsg msg
 
     nextTranID c = liftIO $ atomically $ do

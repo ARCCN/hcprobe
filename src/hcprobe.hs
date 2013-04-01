@@ -67,6 +67,28 @@ whenJustM :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenJustM (Just v) m  = m v
 whenJustM Nothing  _  = return ()
 
+testTCPs params = do
+  srcIp  <- randomIO :: IO IPv4Addr
+  dstIp  <- randomIO :: IO IPv4Addr
+  srcP   <- randomIO :: IO Word16
+  dstP   <- randomIO :: IO Word16
+  wss    <- randomIO :: IO Int 
+  return $! \dstMac srcMac ->
+            TestPacketTCP { dstMAC = dstMac
+                          , srcMAC = srcMac
+                          , srcIP  = srcIp
+                          , dstIP  = dstIp
+                          , dstPort = dstP
+                          , srcPort = srcP
+                          , testWSS = Just wss
+                          , testFlags = tcpFlagsOf [ACK]
+                          , testPayloadLen = (payloadLen params)
+                          , testPayload = BS.empty
+                          , testSeqNo = Nothing
+                          , testAckNo = Nothing
+                          , testIpID = Nothing
+                          }
+
 testTCP params dstMac srcMac = do
   srcIp  <- randomIO :: IO IPv4Addr
   dstIp  <- randomIO :: IO IPv4Addr
@@ -99,7 +121,7 @@ type  TVarL a  = TVar (Int, TVar a)
 empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
-pktGenTest :: ByteString -> Parameters -> TVarL PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
+pktGenTest :: (MACAddr -> MACAddr -> TestPacketTCP) -> Parameters -> TVarL PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest s params q fk chan  = do
     ls <- MR.randoms =<< MR.getStdGen
     let go (l1:l2:l3:l4:l5:l6:ls) (bid:bs) = do
@@ -112,7 +134,7 @@ pktGenTest s params q fk chan  = do
               let !srcMac' = choice l3 =<< IntMap.lookup pid dct
               let !dstMac' = choice l4 =<< IntMap.lookup pidDst dct
               case (srcMac', dstMac') of
-                (Just srcMac, Just dstMac) -> let pl = putEthernetFrame (EthFrame dstMac srcMac s)
+                (Just srcMac, Just dstMac) -> let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac)))
                                               in atomically $ writeTBMChan chan $! (tcpTestPkt fk (fromIntegral l5) bid (fromIntegral pid) pl)
                 _                          -> return ()
 
@@ -333,7 +355,8 @@ toTryMain = do
         stat <- newTVarIO emptyStats
         let fake = fake' { onSendMessage = Just (onSend params pktQ stat), onRecvMessage = Just (onReceive pktQ stat) }
         w <- async $ forever $ do
-          bs <- fmap (SP.runPutToByteString 32768 . putIPv4Pkt) (testTCP params 1 2)
+          
+          bs <-  testTCPs params
           async (ofpClient (pktGenTest bs params pktQ) fake (BS8.pack (host params)) (read (port params))) >>= wait
           atomically $ modifyTVar stats (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
           threadDelay 1000000

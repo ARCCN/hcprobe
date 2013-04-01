@@ -58,15 +58,17 @@ type Put = PutM ()
 -- | Runs the Put writer with write position given
 -- by the first pointer argument. Returns the number
 -- of words written.
-runPut :: Ptr Word8 -> Put -> IO (Ptr Word8)
+runPut :: Ptr Word8 -> Put -> IO Int
 runPut ptr (PutM f) =
-  do snd <$> f ptr
+     do (_, ptr') <- f ptr
+        return (ptr' `minusPtr` ptr)
 
 -- | Allocates a new byte string, and runs the Put writer with that byte string.
 -- The first argument is an upper bound on the size of the array needed to do the serialization.
 runPutToByteString :: Int -> Put -> S.ByteString
 runPutToByteString maxSize put =
-  unsafeDupablePerformIO (S.createAndTrim maxSize (\ptr -> (`minusPtr` ptr) <$> runPut ptr put ))
+  unsafeDupablePerformIO (S.createAndTrim maxSize (\ptr -> runPut ptr put))
+  -- unsafeDupablePerformIO (S.createAndTrim maxSize (\ptr -> (`minusPtr` ptr) <$> runPut ptr put ))
   
 instance Monad PutM where
   return x = PutM (\ptr -> return (x, ptr))
@@ -161,7 +163,7 @@ toAddr (Marker (Ptr a)) = a
 {-# INLINABLE toAddr #-}
 
 -- | Delayed action.
-newtype DelayedPut a = DelayedPut (a -> IO (Ptr Word8))
+newtype DelayedPut a = DelayedPut (a -> IO Int)
 
 contramap :: (a -> b) -> (DelayedPut b) -> (DelayedPut a)
 contramap f (DelayedPut g) = DelayedPut (g.f)
@@ -173,12 +175,12 @@ undelay (DelayedPut f) !x = PutM $ \p -> f x >> return ((),p)
 {-# INLINABLE undelay #-}
 
 delayedWord8 :: PutM (DelayedPut Word8)
-delayedWord8 = PutM $ \p -> poke p (42::Word8) >> 
+delayedWord8 = PutM $ \p -> poke p (0::Word8) >> 
                             return (DelayedPut $ runPut p . putWord8, p `plusPtr` 1)
 {-# INLINABLE delayedWord8 #-}
 
 delayedWord16be :: PutM (DelayedPut Word16)
-delayedWord16be = PutM $ \p -> poke (castPtr p) (42::Word16) >>
+delayedWord16be = PutM $ \p -> poke (castPtr p) (0::Word16) >>
                                return (DelayedPut $ runPut p . putWord16be, p `plusPtr` 2)
 {-# INLINABLE delayedWord16be #-}
 
@@ -221,4 +223,4 @@ mkBuffer size = do
 
 
 runPutToBuffer :: Buffer -> Put -> IO Buffer
-runPutToBuffer (Buffer f p x) put = runPut p put >>= \p' -> return (Buffer f p' (x+(p' `minusPtr` p)))
+runPutToBuffer (Buffer f p x) put = runPut p put >>= \i -> return (Buffer f (p `plusPtr`i)  (x+i))

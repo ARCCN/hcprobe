@@ -50,12 +50,11 @@ putIPv4Pkt x = do
   putIP ipS
   putIP ipD
   hlen <- distance start
-  ds <- marker 
   ipPutPayload x
-  de <- distance ds
-  tl <- distance start
-  undelay totLen (fromIntegral (4*(ipHeaderLen x) + fromIntegral de))
-  undelay acrc (csum16' (unsafePerformIO $ BS.unsafePackAddressLen hlen (toAddr start)))
+  undelay totLen . fromIntegral =<< distance start
+  undelay acrc (csum16' 
+                  (unsafeDupablePerformIO
+                      $ BS.unsafePackAddressLen  hlen (toAddr start)))
   where
     lenIhl = (ihl .&. 0xF) .|. (ver `shiftL` 4 .&. 0xF0)
     ihl    = ipHeaderLen x
