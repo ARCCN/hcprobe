@@ -40,11 +40,9 @@ uint32_t ethernet_crc (const void *frame, size_t frame_len) {
 
 void *ethernet_frame ( const ethernet_header_t *header, Payload payload, void *opaque)
 {
-    static void *frame = NULL;
-    if (frame == NULL) {
-        frame = malloc ( ETH_FRAME_LEN); //TODO: try smth better
-        memset (frame,0, ETH_FRAME_LEN );
-    };
+    void *frame = NULL;
+    frame = malloc ( ETH_FRAME_LEN);
+    memset (frame,0, ETH_FRAME_LEN );
     if ( (header != NULL) && (header != frame) ) {
         memcpy (frame, header, ETH_HEADER_LEN );
     };
@@ -78,8 +76,6 @@ typedef struct {
     ETH_PAYLOAD_LEN - IP_HEADER_LEN
 
 uint16_t ip_checksum (const void *buffer, size_t len) {
-    return 0;
-
     register long sum = 0;
     const unsigned short *addr = (const unsigned short*) (buffer);
 
@@ -142,8 +138,8 @@ void zero_payload (void *payload, void *opaque)
     memset (payload,0, len);
 }
 
-#define PACKETS_NUM \
-        1024*1024/ETH_FRAME_LEN //1 Mb
+#define PACKETS_NUM 1000000
+//        1024*1024/ETH_FRAME_LEN //1 Mb
 int main (void) {
     int i;
     void *frame;
@@ -173,6 +169,6 @@ int main (void) {
     for (i=0; i<PACKETS_NUM; ++i) {
         frame = ethernet_frame (&eth_header, ip_eth_payload ,&ip_header_opaque);
         fwrite (frame,ETH_FRAME_LEN,1,stdout);
+        free (frame);
     }
-    free (frame);
 }
