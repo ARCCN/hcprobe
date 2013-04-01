@@ -36,7 +36,7 @@ import Data.Time
 
 import Debug.Trace
 
-fsDefaultHost       = "127.0.0.1"
+fsDefaultHost       = "localhost"
 fsDefaultPort       = "6633"
 
 fsMacsPerPort       = 1000
@@ -73,22 +73,33 @@ pktMsgActionType    = FS.defActions
                       --]
 pktMsgOfpPhyPorts   = []
 
-pktSendMsg :: OfpMessage
-pktSendMsg = OfpMessage hd dt
+pktSendMsg ::IO OfpMessage
+pktSendMsg = do
+    sdt <-dt
+    return $ OfpMessage hd sdt
     where
-        hd = header pktMsgOfVersion pktMsgOfSwitch OFPT_FEATURES_REPLY
-        dt = OfpFeatureReply $ OfpSwitchFeatures 1000 100 1 cb at pktMsgOfpPhyPorts
-        cb = listToFlags ofCapabilities pktMsgCapabuilities
-        at = listToFlags ofActionType pktMsgActionType 
+        hd              = header pktMsgOfVersion pktMsgOfSwitch OFPT_FEATURES_REPLY
+        dt              = do
+            cb_st <- liftM (`mod` cb_l)           randomIO
+            cb_c  <- liftM (`mod` (cb_l-cb_st))   randomIO
+            at_st <- liftM (`mod` at_l)           randomIO
+            at_c  <- liftM (`mod` (at_l-at_st))   randomIO
+            return $ OfpFeatureReply 
+                $ OfpSwitchFeatures 
+                    1000 100 1 (cb cb_st cb_c) (at at_st at_c) pktMsgOfpPhyPorts
+
+        cb start count  = listToFlags ofCapabilities $ drop start . take count $ pktMsgCapabuilities
+        at start count  = listToFlags ofActionType $ drop start . take count $ pktMsgActionType 
+        cb_l            = length pktMsgCapabuilities
+        at_l            = length pktMsgActionType
 
 ofClient fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = replicateM_ pktSendNumber $ do
-        sendReplyT pktSendMsg
+        liftM sendReplyT pktSendMsg
         M.threadDelay pktSendTimeout
 
     where
         sendReplyT msg = do
         liftIO $ FS.dump "OUT:" (ofp_header msg) replyBs
-        --print $ BS8.length replyBs
         yield replyBs $$ (appSink ad)
         maybe (return ()) (\x -> (liftIO.x) msg) sH
         where replyBs = FS.encodeMsg msg
@@ -116,6 +127,8 @@ main = do
     ofpClient fakeSw (BS8.pack host) (read port) client
     now <- getCurrentTime
 
+    putStr "Package nuber: "
+    putStrLn $ show pktSendNumber
     putStr "Time for all is: "
     let timeDif = now `diffUTCTime` initTime
     print timeDif

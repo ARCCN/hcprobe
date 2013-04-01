@@ -396,3 +396,9 @@ flagsToList f set = testFlag f set 1 []
               if set == 0
                 then list
                 else testFlag f set (bitn+1) list
+
+addFlag :: FlagSet -> Flag -> FlagSet
+addFlag = (.|.)
+
+rmFlag :: FlagSet -> Flag -> FlagSet
+rmFlag set flag = set .&. (0xffffff `xor` flag)
