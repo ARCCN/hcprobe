@@ -197,11 +197,12 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
     slock <- liftIO $ M.newMVar ()
     let sender = do
+        {-
         withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
         forever $ do
           liftIO $! atomically (readTBMChan pktSendQ) >>= maybe skip (sendReplyT slock)
         where skip = return ()
-        {-
+        -}
         buf <- mkBuffer (1024*1024*4)
         let send b = do
                mr <- atomically (readTBMChan pktSendQ)
@@ -214,10 +215,9 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
                             then do _ <- liftIO $ M.takeMVar slock
                                     yield (extract b') $$ appSink ad
                                     liftIO $ M.putMVar slock ()
-                                    send (reuse buf) 
+                                    send (reuse b') 
                           else send b'
         send buf
-        -}
 
     let receiver = appSource ad $$ forever $ runMaybeT $ do
         bs <- MaybeT $ await
@@ -237,9 +237,11 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
     return ()
 
   where
-    sendReplyT _ msg = do
+    sendReplyT l msg = do
       --liftIO $ dump "OUT:" (ofp_header msg) 
+      liftIO $ M.takeMVar l
       yield replyBs $$ (appSink ad)
+      liftIO $ M.putMVar l ()
       maybe (return ()) (\x -> (liftIO.x) msg) sH
       where replyBs = encodeMsg msg
 
