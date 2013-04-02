@@ -23,6 +23,12 @@ flag TestProgs
 
 library
     exposed-modules:  Network.Openflow.Types
+                      Network.Openflow.Ethernet.Generator
+                      Network.Openflow.Ethernet.TCP
+                      Network.Openflow.Ethernet.Types
+                      Network.Openflow.Ethernet.IPv4
+                      Network.Openflow.StrictPut
+                      HCProbe.TCP
     build-depends:    base, binary >= 0.7.0.0, binary-strict, bytestring,
                       network-conduit>=1.0, cereal,
                       resourcet, async, network-data,
@@ -37,7 +43,14 @@ library
                       data-flags, binary-strict
 
 
-  Ghc-options:        -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
+  Ghc-options:        -Wall 
+                      -threaded 
+                      -O2 
+                      -fllvm -optlo-O2
+                      -fmax-simplifier-iterations=10
+                      -fdicts-cheap
+                      -fspec-constr-count=6
+                      -funbox-strict-fields
   if flag(Optimize)
       Ghc-options:    -funfolding-use-threshold=16
 
@@ -55,7 +68,10 @@ executable hcprobe
                        cmdargs, ConfigFile, bitset >= 1.1,
                        nettle-openflow, data-flags, binary-strict
 
-  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all -rtsopts
+  Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O2 -funbox-strict-fields -rtsopts
+                       -fmax-simplifier-iterations=10
+                       -fdicts-cheap
+                       -fspec-constr-count=6
   if flag(Optimize)
       Ghc-options:    -funfolding-use-threshold=16
 
@@ -167,3 +183,13 @@ executable testclient
                        cmdargs, ConfigFile, directory, bitset
   Ghc-options:         -Wall -threaded -O2
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all -XMagicHash 
+
+benchmark bench-strictput-all
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     bench
+  main-is:            tcpBench.hs
+  build-depends:      base, criterion, bytestring, hcprobe
+  ghc-options:        -O2
+                      -fmax-simplifier-iterations=10
+                      -fdicts-cheap
+                      -fspec-constr-count=6
