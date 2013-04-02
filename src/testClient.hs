@@ -1,5 +1,4 @@
 module Main ( main
-            , client
             ) where
 
 import System.Environment
@@ -77,12 +76,8 @@ pktMsgActionType    = FS.defActions
                       --]
 pktMsgOfpPhyPorts   = []
 
-{-
-pktSendMsg :: OfpMessage
-pktSendMsg = OfpMessage ( header pktMsgOfVersion pktMsgOfSwitch OFPT_FEATURES_REPLY)
-                    ( OfpFeatureReply $ OfpSwitchFeatures 1000 100 1 (S.fromList pktMsgCapabuilities) (S.fromList pktMsgActionType) pktMsgOfpPhyPorts )
--}
 
+{-
 pktSendMsg pl = OfpMessage hdr (OfpPacketInReply  pktIn)
   where hdr   = header openflow_1_0 854 {-tid-} OFPT_PACKET_IN
         pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = 2378 -- bid
@@ -90,6 +85,31 @@ pktSendMsg pl = OfpMessage hdr (OfpPacketInReply  pktIn)
                             , ofp_pkt_in_reason    = OFPR_NO_MATCH
                             , ofp_pkt_in_data      = pl
                             }
+-}
+
+pktSendMsg ::IO OfpMessage
+pktSendMsg = do
+    sdt <-dt
+    return $ OfpMessage hd sdt
+    where
+        hd              = header pktMsgOfVersion pktMsgOfSwitch OFPT_FEATURES_REPLY
+        dt              = do
+            cb_st <- liftM (`mod` cb_l)           randomIO
+            cb_c  <- liftM (`mod` (cb_l-cb_st))   randomIO
+            at_st <- liftM (`mod` at_l)           randomIO
+            at_c  <- liftM (`mod` (at_l-at_st))   randomIO
+            return $ OfpFeatureReply 
+                $ OfpSwitchFeatures 
+                    1000 100 1 (cb cb_st cb_c) (at at_st at_c) pktMsgOfpPhyPorts
+
+        cb start count  = listToFlags ofCapabilities $ drop start . take count $ pktMsgCapabuilities
+        at start count  = listToFlags ofActionType $ drop start . take count $ pktMsgActionType 
+        cb_l            = length pktMsgCapabuilities
+        at_l            = length pktMsgActionType
+
+ofClient fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = replicateM_ pktSendNumber $ do
+        liftM sendReplyT pktSendMsg
+        M.threadDelay pktSendTimeout
 
 payload = BS.replicate (16384*2) 0
 
@@ -111,10 +131,16 @@ client fk@(FS.FakeSwitch sw switchIP _ sH rH) ad = do
         -- maybe (return ()) (\x -> (liftIO.x) msg) sH
         -- where replyBs = FS.encodeMsg msg
 
-ofpClient sw host port = runTCPClient (clientSettings port host) (client sw)
+zeroClient ad = replicateM_ pktSendNumber $ do
+    yield replyBs $$ (appSink ad)
+    where 
+        replyBs = BS.replicate 32 $ 0
+
+ofpClient sw host port client = runTCPClient (clientSettings port host) client
 
 main = do
-    (host,port) <- host_port
+    args <- getArgs
+    let (host,port) = host_port args
     fakeSw <- do
         let i = 100
         let ip = fromIntegral i .|. (0x10 `shiftL` 24)
@@ -123,36 +149,21 @@ main = do
         return $ fst $ FS.makeSwitch (FS.defaultSwGen i ip rnd) 
                         (fromIntegral fsPorts) 
                         macs [] FS.defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+    let client = take_client fakeSw args
     initTime <- getCurrentTime
-    ofpClient fakeSw (BS8.pack host) (read port)
+    ofpClient fakeSw (BS8.pack host) (read port) client
     now <- getCurrentTime
 
+    putStr "Package nuber: "
+    putStrLn $ show pktSendNumber
     putStr "Time for all is: "
     let timeDif = now `diffUTCTime` initTime
     print timeDif
     putStr "Time per package: "
     print $ timeDif / (fromIntegral pktSendNumber)
     where
-        host_port = do 
-            args <- getArgs
-            if (length args >= 2)
-                then return ( head args, head $ tail args)
-                else if (length args == 1)
-                        then return ( head args, fsDefaultPort)
-                        else return ( fsDefaultHost, fsDefaultPort)
-
-testTCP dstMac srcMac = 
-  TestPacketTCP { dstMAC = dstMac
-                , srcMAC = srcMac
-                , srcIP  = 234232
-                , dstIP  = 123123
-                , dstPort = 231234
-                , srcPort = 12731
-                , testWSS = Just 1321 
-                , testFlags = tcpFlagsOf [ACK]
-                , testPayload = BS.replicate 32 0
-                , testPayloadLen = 32 
-                , testSeqNo = Nothing
-                , testAckNo = Nothing
-                , testIpID = Nothing
-                }
+        host_port (host:port:_) = (host,port)
+        host_port (host:[]) = (host, fsDefaultPort)
+        host_port [] = (fsDefaultHost, fsDefaultPort)
+        take_client _ (_:_:"-0":_) = zeroClient
+        take_client fs _ = ofClient fs

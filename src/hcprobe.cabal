@@ -33,7 +33,9 @@ library
                       errors, MissingH,
                       cmdargs, ConfigFile, directory, bitset >= 1.1,
                       mersenne-random-pure64, mersenne-random,
-                      nettle-openflow >= 0.2.0
+                      nettle-openflow >= 0.2.0, ghc-prim, directory,
+                      data-flags, binary-strict
+
 
   Ghc-options:        -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
   if flag(Optimize)
@@ -51,7 +53,7 @@ executable hcprobe
                        transformers, mtl, containers, vector,
                        errors, MissingH,
                        cmdargs, ConfigFile, bitset >= 1.1,
-                       nettle-openflow
+                       nettle-openflow, data-flags, binary-strict
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all -rtsopts
   if flag(Optimize)
@@ -106,7 +108,7 @@ executable TestARPGen
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       errors, MissingH,
+                       errors, MissingH, 
                        cmdargs, ConfigFile, bitset >= 1.1,
                        nettle-openflow >= 0.2.0
 
@@ -164,4 +166,4 @@ executable testclient
                        mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, directory, bitset
   Ghc-options:         -Wall -threaded -O2
- 
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all -XMagicHash 

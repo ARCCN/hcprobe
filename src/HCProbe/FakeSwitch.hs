@@ -78,12 +78,12 @@ makePort gen cfg st ft = (port, gen')
         port = OfpPhyPort { ofp_port_no         = fromIntegral pn
                           , ofp_port_hw_addr    = foldl fmac 0 macbytes
                           , ofp_port_name       = pnm
-                          , ofp_port_config     = S.fromList cfg
-                          , ofp_port_state      = S.fromList st
-                          , ofp_port_current    = S.fromList ft
-                          , ofp_port_advertised = S.fromList ft
-                          , ofp_port_supported  = S.fromList ft
-                          , ofp_port_peer       = S.fromList ft
+                          , ofp_port_config     = listToFlags ofConfigFlags cfg --S.fromList cfg
+                          , ofp_port_state      = listToFlags ofStateFlags st   --S.fromList st
+                          , ofp_port_current    = listToFlags ofFeatureFlags ft --S.fromList ft
+                          , ofp_port_advertised = listToFlags ofFeatureFlags ft --S.fromList ft
+                          , ofp_port_supported  = listToFlags ofFeatureFlags ft --S.fromList ft
+                          , ofp_port_peer       = listToFlags ofFeatureFlags ft --S.fromList ft
                           }
 
 data SwitchGen = SwitchGen {  dpid    :: Int
@@ -117,8 +117,8 @@ makeSwitch gen ports mpp cap act cfg st ff = (FakeSwitch features (ipAddr gen) m
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
                                      , ofp_n_buffers    = maxBuffers 
                                      , ofp_n_tables     = 1
-                                     , ofp_capabilities = S.fromList cap
-                                     , ofp_actions      = S.fromList act
+                                     , ofp_capabilities = listToFlags ofCapabilities cap
+                                     , ofp_actions      = listToFlags ofActionType act
                                      , ofp_ports        = pps
                                      }
         gen' = gen { dpid = succ (dpid gen), swRnd = rndGen pg' }
@@ -150,13 +150,13 @@ fmtPort p = printf "%02d %-6s HWAddr:%18s, ST: %s, FT: %s" pno pname mac st ft
   where pno = ofp_port_no p
         pname = BS8.unpack (ofp_port_name p)
         mac = fmtMac (ofp_port_hw_addr p)
-        st  = show $ S.toList (ofp_port_state p)
-        ft  = show $ S.toList (ofp_port_current p)
+        st  = show $ flagsToList ofStateUnflag (ofp_port_state p) --show $ S.toList (ofp_port_state p)
+        ft  = show $ flagsToList ofFeatureUnflag (ofp_port_current p) --show $ S.toList (ofp_port_current p)
 
 fmtSwitch :: OfpSwitchFeatures -> String
 fmtSwitch f = printf "DPID: %s, %s\n" dp cap ++ intercalate "\n" ports
   where dp  = fmtMac (ofp_datapath_id f)
-        cap = show (S.toList (ofp_capabilities f))
+        cap = show $ flagsToList ofCapabilitiesUnflag (ofp_capabilities  f) --show (S.toList (ofp_capabilities f)) 
         ports = map fmtPort (ofp_ports f) 
 
 encodeMsg = runPutToByteString 32768 . putMessage
