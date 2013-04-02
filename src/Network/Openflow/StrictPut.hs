@@ -72,13 +72,16 @@ runPutToByteString maxSize put =
   
 instance Monad PutM where
   return x = PutM (\ptr -> return (x, ptr))
-  {-# INLINABLE return #-}
-  (PutM m) >>= f = PutM (\(!ptr) -> do { (a, ptr') <- m ptr ; let (PutM g) = f a in g ptr' } )
-  {-# INLINABLE (>>=) #-}
+  {-# INLINE return #-}
+  (PutM m) >>= f = PutM (\(!ptr) -> do
+      (a, ptr') <- m ptr
+      case f a of 
+        PutM !g -> g ptr')
+  {-# INLINE (>>=) #-}
   
 putWord8 :: Word8 -> Put
 putWord8 !w = PutM (\(!ptr) -> do { poke ptr w; return ((), ptr `plusPtr` 1) })
-{-# INLINABLE putWord8 #-}
+{-# INLINE putWord8 #-}
 
 putWord16be :: Word16 -> Put
 putWord16be !w = PutM f
@@ -86,7 +89,7 @@ putWord16be !w = PutM f
           do poke ptr (fromIntegral (shiftr_w16 w 8) :: Word8)
              poke (ptr `plusPtr` 1) (fromIntegral (w) :: Word8)
              return ((), ptr `plusPtr` 2)
-{-# INLINABLE putWord16be #-}
+{-# INLINE putWord16be #-}
 
 -- | Write a Word32 in big endian format
 putWord32be :: Word32 -> Put
@@ -97,7 +100,7 @@ putWord32be !w = PutM f
              poke (p `plusPtr` 2) (fromIntegral (shiftr_w32 w 8) :: Word8)
              poke (p `plusPtr` 3) (fromIntegral (w) :: Word8)
              return ((), p `plusPtr` 4)
-{-# INLINABLE putWord32be #-}
+{-# INLINE putWord32be #-}
 
 -- | Write a Word64 in big endian format
 putWord64be :: Word64 -> Put
@@ -131,7 +134,7 @@ putWord64be !w = PutM $ \(!p) -> do
   poke (p `plusPtr` 7) (fromIntegral (w) :: Word8)
   return ((), p `plusPtr` 8)
 #endif
-{-# INLINABLE putWord64be #-}
+{-# INLINE putWord64be #-}
 
 putByteString :: S.ByteString -> Put
 putByteString !bs = PutM f
@@ -139,7 +142,7 @@ putByteString !bs = PutM f
           let (fp, offset, len) = S.toForeignPtr bs
           in do withForeignPtr fp $ \bsptr -> S.memcpy ptr (bsptr `plusPtr` offset) (fromIntegral len)
                 return ((), ptr `plusPtr` len)
-{-# INLINABLE putByteString #-}
+{-# INLINE putByteString #-}
 
 -- | get current address
 
@@ -149,18 +152,18 @@ newtype Marker = Marker (Ptr Word8)
 -- | Create new marker at current position/
 marker :: PutM Marker
 marker = PutM $ \x -> return (Marker x, x)
-{-# INLINABLE marker #-}
+{-# INLINE marker #-}
 
 -- | Find difference in current position and marker.
 distance :: Marker 
          -> PutM Int
 distance (Marker x) = PutM $ \x' -> return (x' `minusPtr` x, x')
-{-# INLINABLE distance #-}
+{-# INLINE distance #-}
 
 -- | Get real address
 toAddr :: Marker -> Addr#
 toAddr (Marker (Ptr a)) = a
-{-# INLINABLE toAddr #-}
+{-# INLINE toAddr #-}
 
 -- | Delayed action.
 newtype DelayedPut a = DelayedPut (a -> IO Int)
@@ -172,23 +175,23 @@ undelay :: DelayedPut a
         -> a 
         -> PutM ()
 undelay (DelayedPut f) !x = PutM $ \p -> f x >> return ((),p)
-{-# INLINABLE undelay #-}
+{-# INLINE undelay #-}
 
 delayedWord8 :: PutM (DelayedPut Word8)
 delayedWord8 = PutM $ \p -> poke p (0::Word8) >> 
                             return (DelayedPut $ runPut p . putWord8, p `plusPtr` 1)
-{-# INLINABLE delayedWord8 #-}
+{-# INLINE delayedWord8 #-}
 
 delayedWord16be :: PutM (DelayedPut Word16)
 delayedWord16be = PutM $ \p -> poke (castPtr p) (0::Word16) >>
                                return (DelayedPut $ runPut p . putWord16be, p `plusPtr` 2)
-{-# INLINABLE delayedWord16be #-}
+{-# INLINE delayedWord16be #-}
 
-{-# INLINABLE shiftr_w16 #-}
+{-# INLINE shiftr_w16 #-}
 shiftr_w16 :: Word16 -> Int -> Word16
-{-# INLINABLE shiftr_w32 #-}
+{-# INLINE shiftr_w32 #-}
 shiftr_w32 :: Word32 -> Int -> Word32
-{-# INLINABLE shiftr_w64 #-}
+{-# INLINE shiftr_w64 #-}
 shiftr_w64 :: Word64 -> Int -> Word64
 
 
