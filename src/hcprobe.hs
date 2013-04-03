@@ -3,12 +3,10 @@ module Main where
 
 import Network.Openflow.Types 
 import Network.Openflow.Ethernet.Types
--- import Network.Openflow.Ethernet.ARP
 import Network.Openflow.Ethernet.TCP
 import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Ethernet.IPv4
 import Network.Openflow.Messages
--- import Network.Openflow.Misc
 
 
 import HCProbe.FakeSwitch
@@ -22,10 +20,8 @@ import HCProbe.Configurator
 
 import qualified Network.Openflow.StrictPut as SP
 
--- import Data.Binary.Put ( runPut )
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
--- import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Char8 as BS8
 import Data.Word
 import Data.Bits
@@ -33,13 +29,9 @@ import Data.Time
 import qualified Data.Set as S
 import Text.Printf
 import Data.Maybe
--- import Data.Typeable
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector as BV
--- import Data.List (intersperse, concat, unfoldr)
--- import qualified Data.List as L
 import qualified Data.IntMap as IntMap
--- import qualified Data.Map as M 
 
 import qualified System.Random as R
 import {-qualified-} System.Random.Mersenne as MR
@@ -47,9 +39,7 @@ import System.IO
 import Control.Applicative
 import Control.Monad
 import Control.Monad.State
--- import Control.Error
 import Control.Concurrent
--- import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Concurrent.Async
@@ -291,7 +281,6 @@ writeLog params chan = whenJustM (logFileName params) $ \fn -> withFile fn Write
 displayStats :: Parameters -> TChan LogEntry -> IO ()
 displayStats params chan = do
   hSetBuffering stdout NoBuffering
-  -- initTime <- getCurrentTime
   forever $ do
     log <- atomically $ let k = do x <- readTChan chan
                                    l <- isEmptyTChan chan 
@@ -323,9 +312,6 @@ randomSet n s = do
             if S.member (i*v) c                    --If this value is already exists in map
                 then insertSet (i+1) c v           --Try to ad (i+1)*v value to map
                 else S.insert (mcPrefix (i*v)) c   --If all ok, add i*v value to map
-  --if not (S.member i s)
-    --then randomSet n (S.insert i s)
-    --else randomSet n s
 
 toTryMain :: IO ()
 toTryMain = do

@@ -6,11 +6,12 @@ import Network.Openflow.Ethernet.TCP
 import Network.Openflow.Ethernet.Generator
 import Criterion.Main
 import HCProbe.TCP
+import HCProbe.ARP
 import Data.Word
 import qualified Data.ByteString as BS
 
 pktNum :: Word32
-pktNum = 1
+pktNum = 10000
 
 testTCP :: IPv4Addr
         -> IPv4Addr 
@@ -36,5 +37,7 @@ ack = (fromIntegral . fromEnum) ACK
 
 main :: IO ()
 main = defaultMain 
-  [ bench "test/tcp" $ nf makeEthernetFrame  (testTCP 50 150)]
+  [ bench "put/tcp" $ nf (map makeEthernetFrame) [testTCP i (i*3)  | i <- [1..pktNum]]
+  , bench "put/arp" $ nf (map makeEthernetFrame) [ARPGratuitousReply i (fromIntegral i*3) | i <- [1..fromIntegral pktNum]]
+  ]
 

@@ -20,15 +20,20 @@ flag Optimize
 flag TestProgs
   description: build test programs
   default:    False
+flag ThreadScope 
+  description: build with eventlog for threadscope
+  default:     False
 
 library
     exposed-modules:  Network.Openflow.Types
                       Network.Openflow.Ethernet.Generator
                       Network.Openflow.Ethernet.TCP
+                      Network.Openflow.Ethernet.ARP
                       Network.Openflow.Ethernet.Types
                       Network.Openflow.Ethernet.IPv4
                       Network.Openflow.StrictPut
                       HCProbe.TCP
+                      HCProbe.ARP
     build-depends:    base, binary >= 0.7.0.0, binary-strict, bytestring,
                       network-conduit>=1.0, cereal,
                       resourcet, async, network-data,
@@ -51,6 +56,9 @@ library
                       -fdicts-cheap
                       -fspec-constr-count=6
                       -funbox-strict-fields
+                      -eventlog
+  if flag(ThreadScope) 
+      Ghc-options:    -eventlog
   if flag(Optimize)
       Ghc-options:    -funfolding-use-threshold=16
 
@@ -72,8 +80,11 @@ executable hcprobe
                        -fmax-simplifier-iterations=10
                        -fdicts-cheap
                        -fspec-constr-count=6
+                       -eventlog
+  if flag(ThreadScope) 
+      Ghc-options:     -eventlog
   if flag(Optimize)
-      Ghc-options:    -funfolding-use-threshold=16
+      Ghc-options:     -funfolding-use-threshold=16
 
 executable ethertest 
   main-is:           ethertest.hs
