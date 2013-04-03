@@ -1,6 +1,7 @@
 {-# Language BangPatterns #-}
 module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ,
                                putWord16le,
+                               buildASCIIZ, buildMAC,
                                bsStrict, bsLazy, encodePutM, ipv4,
                                csum16, csum16', csum16'', hexdumpBs, icsum16', fin_icsum16'
                              ) where
@@ -9,6 +10,7 @@ import Network.Openflow.Types
 import Network.Openflow.Ethernet.Types
 import Data.Word
 import Data.Bits
+import Data.Monoid
 import qualified Data.Vector.Storable as V
 import Control.Applicative
 import Network.Openflow.StrictPut
@@ -18,6 +20,7 @@ import Data.List
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BSI
 import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy.Builder
 import Control.Monad
 
 import Foreign.Storable
@@ -40,12 +43,23 @@ putASCIIZ :: Int -> BS.ByteString -> PutM ()
 putASCIIZ sz bs = putByteString bs' >> replicateM_ (sz - (BS.length bs')) (putWord8 0)
   where bs' = BS.take (sz - 1) bs
 
+buildASCIIZ :: Int -> BS.ByteString -> Builder
+buildASCIIZ sz bs | BS.length bs > sz = byteString (BS.take (sz-1) bs)
+                  | otherwise = byteString bs <> byteString (BS.replicate (sz - BS.length bs) 0)
+
 putMAC :: MACAddr -> PutM ()
 putMAC mac = do
   putWord16be (fromIntegral $ mac' `shiftR` 32)
   putWord32be (fromIntegral $ mac .&. 0xFFFFFFFF)
   where mac' = (mac .&. 0xFFFFFFFFFFFF)
 {-# INLINE putMAC #-}
+
+buildMAC :: MACAddr -> Builder 
+buildMAC mac = do
+  word16BE (fromIntegral $ mac' `shiftR` 32)
+  <> word32BE (fromIntegral $ mac .&. 0xFFFFFFFF)
+  where mac' = mac .&.  0xFFFFFFFFFFFF
+{-# INLINE buildMAC #-}
 
 putIP :: IPv4Addr -> PutM ()
 putIP ip = putWord32be ip

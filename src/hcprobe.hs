@@ -297,7 +297,7 @@ displayStats params chan = do
     let !lost = logLost log
     let !err  = logErrors log
     let !mean = logMeanRtt log
-    printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
+    putStrLn $ printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
     threadDelay $ statsDelay params
 
 randomSet :: Word64 -> S.Set MACAddr -> IO (S.Set MACAddr)

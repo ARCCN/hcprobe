@@ -24,9 +24,9 @@ import Network.Openflow.Ethernet.Types (MACAddr)
 import Network.Openflow.StrictPut
 import Data.Word
 import qualified Data.ByteString as BS
-import qualified Data.Set as S
+-- import qualified Data.Set as S
 import Data.Bits
-import Data.Flags
+-- import Data.Flags
 
 openflow_1_0 :: Word8
 openflow_1_0 = 0x01
@@ -426,8 +426,10 @@ flagsToList f set = testFlag f set 1 []
                 then list
                 else testFlag f set (bitn+1) list
 
+{-
 addFlag :: FlagSet -> Flag -> FlagSet
 addFlag = (.|.)
 
 rmFlag :: FlagSet -> Flag -> FlagSet
 rmFlag set flag = set .&. (0xffffff `xor` flag)
+-}

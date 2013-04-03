@@ -32,8 +32,11 @@ library
                       Network.Openflow.Ethernet.Types
                       Network.Openflow.Ethernet.IPv4
                       Network.Openflow.StrictPut
+                      Network.Openflow.Misc
+                      Network.Openflow.Messages
                       HCProbe.TCP
                       HCProbe.ARP
+                      HCProbe.FakeSwitch
     build-depends:    base, binary >= 0.7.0.0, binary-strict, bytestring,
                       network-conduit>=1.0, cereal,
                       resourcet, async, network-data,
@@ -204,3 +207,10 @@ benchmark bench-strictput-all
                       -fmax-simplifier-iterations=10
                       -fdicts-cheap
                       -fspec-constr-count=6
+
+test-suite test-strictput-put
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: test-put.hs
+  hs-source-dirs: test
+  build-depends: base, bytestring, hcprobe, quickcheck-assertions, QuickCheck, hspec
