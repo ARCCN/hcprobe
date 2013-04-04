@@ -217,6 +217,14 @@ putMessageData (OfpPacketInReply p) = putOfpPacketIn p
 --    char dp_desc[DESC_STR_LEN];        /* Human readable description of datapath. */
 --};
 --OFP_ASSERT(sizeof(struct ofp_desc_stats) == 1056);
+putMessageData (OfpStatsReply) = do
+    putWord16be ((fromIntegral.fromEnum) OFPST_DESC)
+    putWord16be 0
+    putASCIIZ 256 "ARCCN"   -- Manufacturer description
+    putASCIIZ 256 "hcprobe" -- Hardware description
+    putASCIIZ 256 "hcprobe" -- Software description
+    putASCIIZ 32  "none"    -- Serial number
+    putASCIIZ 256 "none"    -- Human readable description of datapath
 
 -- FIXME: typed error handling
 putMessageData _        = error "Unsupported message: "
