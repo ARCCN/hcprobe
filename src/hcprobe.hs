@@ -63,7 +63,7 @@ testTCPs params = do
   srcP   <- randomIO :: IO Word16
   dstP   <- randomIO :: IO Word16
   wss    <- randomIO :: IO Int 
-  return $! \dstMac srcMac ->
+  return $! \dstMac srcMac srcIp dstIp ->
             TestPacketTCP { dstMAC = dstMac
                           , srcMAC = srcMac
                           , srcIP  = srcIp
@@ -111,10 +111,10 @@ type  TVarL a  = TVar (Int, TVar a)
 empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
-pktGenTest :: (MACAddr -> MACAddr -> TestPacketTCP) -> Parameters -> TVarL PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
+pktGenTest :: (MACAddr -> MACAddr -> IPv4Addr -> IPv4Addr -> TestPacketTCP) -> Parameters -> TVarL PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
 pktGenTest s params q fk chan  = do
     ls <- MR.randoms =<< MR.getStdGen
-    let go (l1:l2:l3:l4:l5:l6:ls) (bid:bs) = do
+    let go (l1:l2:l3:l4:l5:l6:l7:l8:ls) (bid:bs) = do
             pq  <- readTVarIO . snd =<< readTVarIO q
             let pid = l1 `mod` (nports-1) + 2
                 pidDst = l2 `mod` (nports-1) + 2
@@ -124,7 +124,7 @@ pktGenTest s params q fk chan  = do
               let !srcMac' = choice l3 =<< IntMap.lookup pid dct
               let !dstMac' = choice l4 =<< IntMap.lookup pidDst dct
               case (srcMac', dstMac') of
-                (Just srcMac, Just dstMac) -> let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac)))
+                (Just srcMac, Just dstMac) -> let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
                                               in atomically $ writeTBMChan chan $! (tcpTestPkt fk (fromIntegral l5) bid (fromIntegral pid) pl)
                 _                          -> return ()
 

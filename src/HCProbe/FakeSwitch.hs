@@ -194,30 +194,6 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
             let !ctx = SwitchContext featureReplyMonitor tranId swCfg
 
-{-
-            let sender = do
-                withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-                forever $ do
-                  liftIO $! atomically (readTBMChan pktSendQ) >>= sendReplyT
-                where skip = return ()
-                      -}
-                {-
-                buf <- mkBuffer (1024*1024*4)
-                let send b = do
-                       mr <- atomically (readTBMChan pktSendQ)
-                       case mr of
-                           Nothing -> return ()
-                           Just r  -> do
-                               b' <- liftIO $ runPutToBuffer b (putMessage r)
-                               maybe (return ()) (\x -> (liftIO.x) r) sH
-                               if (bufferSize b') >= 30000
-                                    then do _ <- liftIO $ M.takeMVar slock
-                                            yield (extract b') $$ appSink ad
-                                            liftIO $ M.putMVar slock ()
-                                            send (reuse b') 
-                                  else send b'
-                send buf
-                -}
             let sender = sourceTBMChan pktSendQ 
                   $= CL.mapM stat
                   =$= CL.mapM (\x -> 
