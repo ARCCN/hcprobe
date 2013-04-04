@@ -23,6 +23,9 @@ flag TestProgs
 flag ThreadScope 
   description: build with eventlog for threadscope
   default:     False
+flag RuntimeTests
+  description: Enable runtime tests
+  default:     False
 
 library
     exposed-modules:  Network.Openflow.Types
@@ -64,6 +67,8 @@ library
       Ghc-options:    -eventlog
   if flag(Optimize)
       Ghc-options:    -funfolding-use-threshold=16
+  if flag(RuntimeTests)
+      cpp-options:      -DRUNTIMETESTS
 
 
 executable hcprobe 
@@ -88,6 +93,8 @@ executable hcprobe
       Ghc-options:     -eventlog
   if flag(Optimize)
       Ghc-options:     -funfolding-use-threshold=16
+  if flag(RuntimeTests)
+      cpp-options:      -DRUNTIMETESTS
 
 executable ethertest 
   main-is:           ethertest.hs

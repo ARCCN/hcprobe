@@ -297,7 +297,7 @@ displayStats params chan = do
     let !lost = logLost log
     let !err  = logErrors log
     let !mean = logMeanRtt log
-    putStrLn $ printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
+    putStr $ printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
     threadDelay $ statsDelay params
 
 randomSet :: Word64 -> S.Set MACAddr -> IO (S.Set MACAddr)
@@ -342,7 +342,7 @@ toTryMain = do
         w <- async $ forever $ do
           
           bs <-  testTCPs params
-          async (ofpClient (pktGenTest bs params pktQ) fake (BS8.pack (host params)) (read (port params))) >>= wait
+          wait =<< async (ofpClient (pktGenTest bs params pktQ) fake (BS8.pack (host params)) (read (port params)))
           atomically $ modifyTVar stats (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
           threadDelay 1000000
         return (w,stat)

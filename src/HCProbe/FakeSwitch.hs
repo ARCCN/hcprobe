@@ -1,4 +1,4 @@
-{-# Language BangPatterns, ScopedTypeVariables #-}
+{-# Language BangPatterns, ScopedTypeVariables, CPP #-}
 module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
                           , makePort
                           , makeSwitch
@@ -47,6 +47,10 @@ import qualified Data.IntMap as M
 import Network.Openflow.StrictPut
 import System.Random
 import Text.Printf
+#ifdef RUNTIMETESTS
+import Data.ByteString.Lazy.Builder
+import qualified Data.ByteString.Lazy as LBS
+#endif 
 
 import Debug.Trace
 
@@ -214,12 +218,27 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
                                   else send b'
                 send buf
                 -}
-            let sender = sourceTBMChan pktSendQ $= CL.mapM stat
-                                                =$= CL.mapM (\x -> extract <$> runPutToBuffer buf (putMessage x))
-                                                $$ appSink ad
+            let sender = sourceTBMChan pktSendQ 
+                  $= CL.mapM stat
+                  =$= CL.mapM (\x -> 
+#ifdef RUNTIMETESTS
+                       do let rx = BS.concat . LBS.toChunks . toLazyByteString $ buildMessage x
+                          mx <- extract <$> runPutToBuffer buf (putMessage x)
+                          unless (rx == mx) (do putStrLn $ printf "/!\\ ACHTUNG /!\\"
+                                                putStrLn $ show rx
+                                                putStrLn $ show mx
+                                            )
+                          return mx
+#else
+                       extract <$> runPutToBuffer buf (putMessage x)
+#endif
+                       )
+                  $$ appSink ad
                 stat   = maybe return (\x -> (\y -> liftIO (x y) >> return y)) sH
                   
 
+            -- TODO: write ofp correct reader using conduit/other iterative
+            -- interface
             let receiver = appSource ad $$ forever $ runMaybeT $ do
                 bs <- MaybeT $ await
                 (msg, rest) <- MaybeT $ return (ofpParsePacket bs)
