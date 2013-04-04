@@ -25,7 +25,7 @@ import Data.Word ( Word8, Word16, Word32, Word64 )
 import Data.Bits
 import qualified Data.Set as S
 import Data.ByteString (ByteString)
-import Data.ByteString.Lazy.Builder
+import Blaze.ByteString.Builder -- import Data.ByteString.Lazy.Builder
 import Data.Monoid
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
@@ -231,38 +231,38 @@ putMessageData _        = error "Unsupported message: "
 
 buildMessage :: OfpMessage -> Builder
 buildMessage (OfpMessage h d) = 
-        buildMessageHeader h dsize <> lazyByteString dat
+        buildMessageHeader h dsize <> fromLazyByteString dat
       where dat   = toLazyByteString (buildMessageData d)
             dsize = fromIntegral $! LBS.length dat
 
 buildMessageHeader :: OfpHeader -> Int -> Builder
-buildMessageHeader h l = word8 (ofp_hdr_version h) 
-          <> word8 (fromIntegral.fromEnum.ofp_hdr_type $! h) 
-          <> word16BE (ofp_hdr_length h + fromIntegral l)
-          <> word32BE (ofp_hdr_xid h)
+buildMessageHeader h l = fromWord8 (ofp_hdr_version h) 
+          <> fromWord8 (fromIntegral.fromEnum.ofp_hdr_type $! h) 
+          <> fromWord16be (ofp_hdr_length h + fromIntegral l)
+          <> fromWord32be (ofp_hdr_xid h)
 
 buildMessageData OfpHello = mempty
 buildMessageData (OfpFeatureReply f) =
-        word64BE (ofp_datapath_id f)  <>
-        word32BE (ofp_n_buffers   f)  <>
-        word8    (ofp_n_tables    f)  <>
-        word8 0 <> word8 0 <> word8 0 <>
-        word32BE (ofp_capabilities f) <>
-        word32BE (ofp_actions f)      <>
+        fromWord64be (ofp_datapath_id f)  <>
+        fromWord32be (ofp_n_buffers   f)  <>
+        fromWord8    (ofp_n_tables    f)  <>
+        fromWord8 0 <> fromWord8 0 <> fromWord8 0 <>
+        fromWord32be (ofp_capabilities f) <>
+        fromWord32be (ofp_actions f)      <>
         foldl (\x y -> x <> buildOfpPort y) mempty (ofp_ports f)
-buildMessageData (OfpEchoReply bs) = byteString bs
+buildMessageData (OfpEchoReply bs) = fromByteString bs
 buildMessageData (OfpGetConfigReply cfg) = 
-        word16BE (fromIntegral (fromEnum (ofp_switch_cfg_flags cfg)))
-        <> word16BE (ofp_switch_cfg_miss_send_len cfg)
+        fromWord16be (fromIntegral (fromEnum (ofp_switch_cfg_flags cfg)))
+        <> fromWord16be (ofp_switch_cfg_miss_send_len cfg)
 buildMessageData (OfpErrorReply et) =
-        word16BE (fromIntegral (ofErrorType (ofp_error_type et)))
-        <> word16BE (fromIntegral (ofErrorCode (ofp_error_type et)))
-        <> byteString (BS.take 64 (ofp_error_data et))
+        fromWord16be (fromIntegral (ofErrorType (ofp_error_type et)))
+        <> fromWord16be (fromIntegral (ofErrorCode (ofp_error_type et)))
+        <> fromByteString (BS.take 64 (ofp_error_data et))
 buildMessageData OfpEmptyReply = mempty
 buildMessageData (OfpPacketInReply p) = buildOfpPacketIn p
 buildMessageData OfpStatsReply =
-     word16BE ((fromIntegral.fromEnum) OFPST_DESC) 
-  <> word16BE 0
+     fromWord16be ((fromIntegral.fromEnum) OFPST_DESC) 
+  <> fromWord16be 0
   <> buildASCIIZ 256 "ARCCN"   -- Manufacturer description
   <> buildASCIIZ 256 "hcprobe" -- Hardware description
   <> buildASCIIZ 256 "hcprobe" -- Software description
@@ -287,15 +287,15 @@ putOfpPort port = do
 
 buildOfpPort :: OfpPhyPort -> Builder
 buildOfpPort port = do
-  word16BE (ofp_port_no port)
-  <> (foldl (\x y -> x <> word8 y) mempty (drop 2 (unpack64 (ofp_port_hw_addr port))))
+  fromWord16be (ofp_port_no port)
+  <> (foldl (\x y -> x <> fromWord8 y) mempty (drop 2 (unpack64 (ofp_port_hw_addr port))))
   <> buildASCIIZ 16 (ofp_port_name port)
-  <> word32BE (ofp_port_config port)      --(bitFlags ofConfigFlags (ofp_port_config port))
-  <> word32BE (ofp_port_state port)       --(bitFlags ofStateFlags (ofp_port_state port))
-  <> word32BE (ofp_port_current port)     --(bitFlags ofFeatureFlags (ofp_port_current port))
-  <> word32BE (ofp_port_advertised port)  --(bitFlags ofFeatureFlags (ofp_port_advertised port))
-  <> word32BE (ofp_port_supported port)   --(bitFlags ofFeatureFlags (ofp_port_supported port))
-  <> word32BE (ofp_port_peer port)        --(bitFlags ofFeatureFlags (ofp_port_peer port))
+  <> fromWord32be (ofp_port_config port)      --(bitFlags ofConfigFlags (ofp_port_config port))
+  <> fromWord32be (ofp_port_state port)       --(bitFlags ofStateFlags (ofp_port_state port))
+  <> fromWord32be (ofp_port_current port)     --(bitFlags ofFeatureFlags (ofp_port_current port))
+  <> fromWord32be (ofp_port_advertised port)  --(bitFlags ofFeatureFlags (ofp_port_advertised port))
+  <> fromWord32be (ofp_port_supported port)   --(bitFlags ofFeatureFlags (ofp_port_supported port))
+  <> fromWord32be (ofp_port_peer port)        --(bitFlags ofFeatureFlags (ofp_port_peer port))
 
 putOfpPacketIn :: OfpPacketIn -> PutM ()
 putOfpPacketIn pktIn = do
@@ -310,13 +310,13 @@ putOfpPacketIn pktIn = do
 
 buildOfpPacketIn :: OfpPacketIn -> Builder
 buildOfpPacketIn pktIn = 
-      word32BE (ofp_pkt_in_buffer_id pktIn)
-      <> word16BE (fromIntegral len)
-      <> word16BE (ofp_pkt_in_in_port pktIn)
-      <> word8    (fromIntegral $ fromEnum (ofp_pkt_in_reason pktIn))
-      <> word8 0
-      <> lazyByteString dat
+      fromWord32be (ofp_pkt_in_buffer_id pktIn)
+      <> fromWord16be (fromIntegral len)
+      <> fromWord16be (ofp_pkt_in_in_port pktIn)
+      <> fromWord8    (fromIntegral $ fromEnum (ofp_pkt_in_reason pktIn))
+      <> fromWord8 0
+      <> fromLazyByteString dat
   where
       -- FIXME: use only bytestring stuff
-      dat = toLazyByteString $! byteString (runPutToByteString 32768 (ofp_pkt_in_data pktIn))
+      dat = toLazyByteString $! fromByteString (runPutToByteString 32768 (ofp_pkt_in_data pktIn))
       len = LBS.length dat

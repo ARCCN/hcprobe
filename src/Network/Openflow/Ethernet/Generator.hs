@@ -9,7 +9,7 @@ import Data.Word
 import Data.Monoid
 import qualified Data.ByteString as BS
 import Control.Monad
-import Data.ByteString.Lazy.Builder
+import Blaze.ByteString.Builder --import Data.ByteString.Lazy.Builder
 
 import Debug.Trace
 
@@ -38,9 +38,9 @@ buildEthernetFrame x =
        buildMAC   (dstMacAddress x)
     <> buildMAC   (srcMacAddress x)
     <> buildVLAN  (vlanID x)
-    <> word16BE   (typeCode x)
-    <> byteString pl
-    <> word32BE   0
+    <> fromWord16be   (typeCode x)
+    <> fromByteString pl
+    <> fromWord32be   0
     where pl = runPutToByteString 32768 (putPayload x) -- FIXME use only Builder
 
 makeEthernetFrame :: EthernetFrame a => a -> BS.ByteString
@@ -55,7 +55,7 @@ putVLAN (Just vlan) = putWord16be 0x8100 >> putWord16be vlan
 
 buildVLAN :: Maybe Word16 -> Builder
 buildVLAN Nothing = mempty
-buildVLAN (Just vlan) = word16BE 0x8100 <> word16BE vlan
+buildVLAN (Just vlan) = fromWord16be 0x8100 <> fromWord16be vlan
 {-# INLINABLE buildVLAN #-}
 
 putEmptyPayload :: Int -> PutM ()

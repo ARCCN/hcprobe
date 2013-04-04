@@ -7,7 +7,7 @@ import Data.Word
 import Network.Openflow.StrictPut
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
-import Data.ByteString.Lazy.Builder 
+import Blaze.ByteString.Builder -- import Data.ByteString.Lazy.Builder 
 
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Ethernet.TCP

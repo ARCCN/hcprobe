@@ -20,7 +20,7 @@ import Data.List
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BSI
 import qualified Data.ByteString.Lazy as BL
-import Data.ByteString.Lazy.Builder
+import Blaze.ByteString.Builder -- import Data.ByteString.Lazy.Builder
 import Control.Monad
 
 import Foreign.Storable
@@ -44,8 +44,8 @@ putASCIIZ sz bs = putByteString bs' >> replicateM_ (sz - (BS.length bs')) (putWo
   where bs' = BS.take (sz - 1) bs
 
 buildASCIIZ :: Int -> BS.ByteString -> Builder
-buildASCIIZ sz bs | BS.length bs > sz = byteString (BS.take (sz-1) bs)
-                  | otherwise = byteString bs <> byteString (BS.replicate (sz - BS.length bs) 0)
+buildASCIIZ sz bs | BS.length bs > sz = fromByteString (BS.take (sz-1) bs)
+                  | otherwise = fromByteString bs <> fromByteString (BS.replicate (sz - BS.length bs) 0)
 
 putMAC :: MACAddr -> PutM ()
 putMAC mac = do
@@ -56,8 +56,8 @@ putMAC mac = do
 
 buildMAC :: MACAddr -> Builder 
 buildMAC mac = do
-  word16BE (fromIntegral $ mac' `shiftR` 32)
-  <> word32BE (fromIntegral $ mac .&. 0xFFFFFFFF)
+  fromWord16be (fromIntegral $ mac' `shiftR` 32)
+  <> fromWord32be (fromIntegral $ mac .&. 0xFFFFFFFF)
   where mac' = mac .&.  0xFFFFFFFFFFFF
 {-# INLINE buildMAC #-}
 

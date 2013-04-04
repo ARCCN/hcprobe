@@ -23,6 +23,7 @@ data TestPacketTCP = TestPacketTCP { dstMAC    :: !MACAddr
                                    , testPayloadLen :: !Int 
                                    , testPayload :: !(BS.ByteString)
                                    }
+                                   deriving (Show)
 
 
 instance EthernetFrame TestPacketTCP where
