@@ -12,7 +12,7 @@ import Network.Openflow.StrictPut
 import Data.Bits
 import Data.List (foldl')
 import System.IO.Unsafe
-import qualified Data.BitSet as BB
+import qualified Data.BitSet.Generic as BB
 
 -- import Debug.Trace
 -- import Text.Printf
@@ -100,5 +100,5 @@ putTCP x = do
 {-# INLINABLE putTCP #-}
 
 tcpFlagsOf :: [TCPFlag] -> Word8
-tcpFlagsOf = BB.toIntegral.BB.fromList
+tcpFlagsOf = BB.toBits . BB.fromList
 
