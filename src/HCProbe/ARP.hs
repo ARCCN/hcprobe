@@ -7,6 +7,7 @@ import Network.Openflow.Ethernet.ARP
 data ARPGratuitousReply = ARPGratuitousReply { senderMAC :: !MACAddr
                                              , senderIP  :: !IPv4Addr
                                              }
+                          deriving (Show)
 
 instance ARPReply ARPGratuitousReply where
   hardwareType    x = 0x01

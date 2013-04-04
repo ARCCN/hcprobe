@@ -9,3 +9,7 @@
 [+] TODO: statistics: pktIn/s by matched pktOut
 [+] TODO: FakeSwitch threads recover after crash
 [~] TODO: Test period parameter
+[ ] TODO: make iterative crc
+[ ] TODO: make iterative binary reader
+[ ] TODO: make builders for all messages!!! and check correctness
+
