@@ -235,9 +235,10 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
             mapM_ (flip allocate cancel) (map return waitThreads)
             liftIO $ do
               async sendARPGrat
-              waitAnyCatchCancel waitThreads
-            return ()
-
+              v <- waitAnyCatchCancel waitThreads
+              case snd v of
+                  Left e -> putStrLn (show e)
+                  Right _ -> return ()
           where
             sendReplyT msg = do
               --liftIO $ dump "OUT:" (ofp_header msg) 
