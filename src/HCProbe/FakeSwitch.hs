@@ -47,9 +47,10 @@ import qualified Data.IntMap as M
 import Network.Openflow.StrictPut
 import System.Random
 import Text.Printf
+import Blaze.ByteString.Builder
+import qualified Data.ByteString.Lazy as LBS
 #ifdef RUNTIMETESTS
 import Data.ByteString.Lazy.Builder
-import qualified Data.ByteString.Lazy as LBS
 #endif 
 
 import Debug.Trace
@@ -196,6 +197,7 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
             let sender = sourceTBMChan pktSendQ 
                   $= CL.mapM stat
+--                  =$= CL.map (BS.concat . LBS.toChunks . toLazyByteString . buildMessage)
                   =$= CL.mapM (\x -> 
 #ifdef RUNTIMETESTS
                        do let rx = BS.concat . LBS.toChunks . toLazyByteString $ buildMessage x

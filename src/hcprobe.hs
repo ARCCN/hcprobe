@@ -115,23 +115,27 @@ pktGenTest :: (MACAddr -> MACAddr -> IPv4Addr -> IPv4Addr -> TestPacketTCP) -> P
 pktGenTest s params q fk chan  = do
     ls <- MR.randoms =<< MR.getStdGen
     let go (l1:l2:l3:l4:l5:l6:l7:l8:ls) (bid:bs) = do
-            pq  <- readTVarIO . snd =<< readTVarIO q
             let pid = l1 `mod` (nports-1) + 2
                 pidDst = l2 `mod` (nports-1) + 2
-
-            when (pid /= pidDst && (not (IntMap.member (fromIntegral bid) pq))) $ do
-              let dct = macSpace fk
-              let !srcMac' = choice l3 =<< IntMap.lookup pid dct
-              let !dstMac' = choice l4 =<< IntMap.lookup pidDst dct
-              case (srcMac', dstMac') of
-                (Just srcMac, Just dstMac) -> let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
-                                              in atomically $ writeTBMChan chan $! (tcpTestPkt fk (fromIntegral l5) bid (fromIntegral pid) pl)
-                _                          -> return ()
+            if (pid == pidDst)
+                then go ls (bid:bs)
+                else do
+                    pq  <- readTVarIO . snd =<< readTVarIO q
+                    if IntMap.member (fromIntegral bid) pq
+                         then go ls bs
+                         else do
+                              let dct = macSpace fk
+                              let !srcMac' = choice l3 =<< IntMap.lookup pid dct
+                              let !dstMac' = choice l4 =<< IntMap.lookup pidDst dct
+                              case (srcMac', dstMac') of
+                                (Just srcMac, Just dstMac) -> let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
+                                                              in atomically $ writeTBMChan chan $! (tcpTestPkt fk (fromIntegral l5) bid (fromIntegral pid) pl)
+                                _                          -> return ()
 
             
-            let delay = ((+ ((maxTimeout params) `div` 2)).(`mod` (maxTimeout params `div` 2))) l6
-            threadDelay delay
-            go ls bs
+                              let delay = ((+ ((maxTimeout params) `div` 2)).(`mod` (maxTimeout params `div` 2))) l6
+                              threadDelay delay
+                              go ls bs
     go ls (cycle [1..maxBuffers-1])
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
@@ -343,7 +347,7 @@ toTryMain = do
           
           bs <-  testTCPs params
           wait =<< async (ofpClient (pktGenTest bs params pktQ) fake (BS8.pack (host params)) (read (port params)))
-          atomically $ modifyTVar stats (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
+          atomically $ modifyTVar stat (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
           threadDelay 1000000
         return (w,stat)
   
