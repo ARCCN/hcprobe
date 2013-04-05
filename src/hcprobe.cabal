@@ -40,7 +40,8 @@ library
                       HCProbe.TCP
                       HCProbe.ARP
                       HCProbe.FakeSwitch
-    build-depends:    base, binary >= 0.7.0.0, binary-strict, bytestring,
+                      Data.Conduit.BinaryParse
+    build-depends:    base, binary >= 0.7.0.0, bytestring,
                       network-conduit>=1.0, cereal,
                       resourcet, async, network-data,
                       random, digest, stm, stm-conduit, stm-chans,
@@ -74,7 +75,7 @@ library
 executable hcprobe 
   main-is:             hcprobe.hs
   -- other-modules:    
-  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, bytestring,
                        HUnit, statistics, mersenne-random, time, directory,
                        conduit, network-conduit,
                        resourcet, async, cereal,
@@ -102,7 +103,7 @@ executable ethertest
   if flag(TestProgs)
       buildable:     True
   -- other-modules:    
-  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, bytestring,
                        conduit, network-conduit,
                        resourcet, async, cereal, time,
                        random, digest, stm, stm-conduit, stm-chans,
@@ -121,7 +122,7 @@ executable TestPkgGen
       buildable:     True
   Buildable:           False
   -- other-modules:    
-  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, bytestring,
                        conduit, network-conduit,
                        parallel, deepseq,
                        resourcet, async, cereal,
@@ -140,7 +141,7 @@ executable TestARPGen
   if flag(TestProgs)
       buildable:     True
   -- other-modules:    
-  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, bytestring,
                        conduit, network-conduit,
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
@@ -157,7 +158,7 @@ executable TestTCPGen
   if flag(TestProgs)
       buildable:     True
   -- other-modules:    
-  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, bytestring,
                        conduit, network-conduit,
                        resourcet, async, cereal, safe,
                        random, digest, stm, stm-conduit, stm-chans,
@@ -175,7 +176,7 @@ executable TestMisc
   if flag(TestProgs)
       buildable:     True
   -- other-modules:    
-  build-depends:       base, binary >= 0.7.0.0, binary-strict, bytestring,
+  build-depends:       base, binary >= 0.7.0.0, bytestring,
                        HUnit,
                        conduit, network-conduit,
                        resourcet, async, cereal,
@@ -194,7 +195,7 @@ executable testclient
       buildable:     True
 
   -- other-modules:    
-  build-depends:       base, binary, binary-strict, bytestring,
+  build-depends:       base, binary, bytestring,
                        conduit, network-conduit,
                        resourcet, async, cereal,time,
                        random, digest, stm, stm-conduit, stm-chans,

@@ -42,10 +42,12 @@ data OfpHeader = OfpHeader { ofp_hdr_version :: !Word8
                            , ofp_hdr_length  :: !Word16
                            , ofp_hdr_xid     :: !Word32
                            }
+                           deriving (Show)
 
 data OfpMessage = OfpMessage { ofp_header  :: !OfpHeader
                              , ofp_data    :: !OfpMessageData
                              }
+                             deriving (Show)
 
 data OfpMessageData =   OfpMessageRaw       !BS.ByteString
                       | OfpEchoRequest      !BS.ByteString
@@ -64,6 +66,7 @@ data OfpMessageData =   OfpMessageRaw       !BS.ByteString
                       | OfpStatsRequest     !OfpStatsType
                       | OfpStatsReply
                       | OfpUnsupported      !BS.ByteString
+                      deriving (Show)
 
 data OfpType  = 
     -- Immutable messages
@@ -141,6 +144,7 @@ data OfpActionType =   OFPAT_OUTPUT        -- Output to switch port
 data OfpSwitchConfig = OfpSwitchConfig { ofp_switch_cfg_flags         :: !OfpSwitchCfgFlags
                                        , ofp_switch_cfg_miss_send_len :: !Word16
                                        }
+                                       deriving (Show)
 
 data OfpSwitchCfgFlags = OFPC_FRAG_NORMAL -- No special handling for fragments 
                        | OFPC_FRAG_DROP   -- Drop fragments
@@ -302,6 +306,7 @@ ofFeatureUnflag flag
 data OfpError = OfpError { ofp_error_type :: OfpErrorType
                          , ofp_error_data :: BS.ByteString
                          }
+                         deriving (Show)
 
 data OfpErrorType =   OFPET_HELLO_FAILED OfpHelloFailedCode      -- Hello protocol failed
                     | OFPET_BAD_REQUEST  OfpBadRequestCode       -- Request was not understood
@@ -376,6 +381,9 @@ data OfpPacketIn = OfpPacketIn { ofp_pkt_in_buffer_id :: !Word32
                                , ofp_pkt_in_data      :: !(PutM ())
                                }
 
+instance Show OfpPacketIn where
+    show (OfpPacketIn a b c d) = "OfpPacketIn "++show a++" "++show b++" "++show c++"<data>"
+
 data OfpPacketInReason = OFPR_NO_MATCH | OFPR_ACTION
                          deriving (Eq, Ord, Enum, Show)
 
@@ -384,6 +392,7 @@ data OfpPacketOutData = OfpPacketOutData { ofp_pkt_out_buffer_id :: !Word32
                                          , ofp_pkt_out_in_port   :: !Word16
                                          -- TODO: implement rest of message
                                          }
+                                         deriving (Show, Eq)
 
 data OfpStatsType =   OFPST_DESC
                     | OFPST_FLOW

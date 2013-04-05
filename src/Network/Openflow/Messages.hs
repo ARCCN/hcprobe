@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
-                                 , ofpParsePacket  -- FIXME <- not needed
-                                 , parseMessageData
+                                 -- , ofpParsePacket  -- FIXME <- not needed
+                                 -- , parseMessageData
                                  , bsStrict
                                  , putMessage
                                  , header
@@ -20,7 +20,8 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
 import Network.Openflow.Types
 import Network.Openflow.Misc
 import Network.Openflow.StrictPut
-import Data.Binary.Strict.Get
+import Data.Binary (Binary(..))
+import Data.Binary.Get
 import Data.Word ( Word8, Word16, Word32, Word64 )
 import Data.Bits
 import qualified Data.Set as S
@@ -31,6 +32,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as BS8
 import Control.Monad
+import Control.Applicative
 
 import Debug.Trace
 
@@ -95,6 +97,7 @@ ofpParseHeader = do
     -- FIXME: enum code overflow
     return $ OfpHeader v (toEnum (fromIntegral tp)) len xid
 
+{-
 ofpParsePacket :: BS.ByteString -> Maybe (OfpMessage, BS.ByteString)
 ofpParsePacket s = withResult $ flip runGet s $ do
   hdr <- ofpParseHeader
@@ -103,7 +106,47 @@ ofpParsePacket s = withResult $ flip runGet s $ do
   return $ OfpMessage hdr (OfpMessageRaw bs)
   where withResult (Left _, _)    = Nothing
         withResult (Right msg, rest) = Just (msg, rest)
+-}
 
+instance Binary OfpHeader where
+  put _ = error "put message is not implemented" -- FIXME support method?
+  get = OfpHeader <$> getWord8 
+                  <*> (toEnum . fromIntegral <$> getWord8)
+                  <*> getWord16be
+                  <*> getWord32be
+
+instance Binary OfpMessage where
+  put _ = error "put message is not supported" -- FIXME support method ?
+  get = do hdr <- get 
+           c <- bytesRead
+           let l = fromIntegral (ofp_hdr_length hdr) - ofpHeaderLen 
+           m <- OfpMessage hdr <$> 
+                  case ofp_hdr_type hdr of
+                      OFPT_HELLO              -> return OfpHello
+                      OFPT_FEATURES_REQUEST   -> return OfpFeaturesRequest
+                      OFPT_ECHO_REQUEST       -> OfpEchoRequest <$> getByteString l 
+                      OFPT_SET_CONFIG         -> OfpSetConfig  <$>
+                                                    (OfpSwitchConfig <$> (toEnum . fromIntegral <$> getWord16be)
+                                                                     <*> getWord16be)
+                      OFPT_GET_CONFIG_REQUEST -> return (OfpGetConfigRequest)
+                      OFPT_PACKET_OUT         -> do bid  <- getWord32be
+                                                    pid  <- getWord16be
+                                                    alen <- getWord16be
+                                                    skip (fromIntegral alen)
+                                                    return (OfpPacketOut (OfpPacketOutData bid pid))
+                      OFPT_VENDOR             -> OfpVendor <$> getByteString l
+                      OFPT_STATS_REQUEST      -> do s <- getWord16be
+                                                    case s of
+                                                       0 -> return (OfpStatsRequest OFPST_DESC)
+                                                       _ -> return (OfpUnsupported BS.empty)
+                      _                       -> OfpUnsupported <$> getByteString l
+           c' <- bytesRead
+           skip (fromIntegral $! fromIntegral l - (c'-c))
+           return m
+
+
+
+{-
 parseMessageData :: OfpMessage -> Maybe OfpMessage
 parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
   where 
@@ -123,7 +166,9 @@ parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
         (Right x, _) -> Just ((OfpMessage hdr) x)
 
 parseMessageData x@(OfpMessage _ _) = Just x -- already parsed
+-}
 
+{-
 getOfpSetConfig :: Get OfpMessageData
 getOfpSetConfig = do 
   wFlags <- getWord16be
@@ -132,6 +177,9 @@ getOfpSetConfig = do
   return $ OfpSetConfig $ OfpSwitchConfig { ofp_switch_cfg_flags = toEnum (fromIntegral wFlags)
                                           , ofp_switch_cfg_miss_send_len = wSendL
                                           }
+-}
+
+{-
 getPacketOut :: Get OfpMessageData
 getPacketOut = do
   bid  <- getWord32be
@@ -139,13 +187,16 @@ getPacketOut = do
   alen <- getWord16be
   skip (fromIntegral alen)
   return $ OfpPacketOut (OfpPacketOutData bid pid)
+-}
 
+{-
 getStatsRequest :: Get OfpMessageData
 getStatsRequest  = do
   stype <- getWord16be
   case stype of
     0 -> return (OfpStatsRequest OFPST_DESC)
     _ -> return (OfpUnsupported (BS.empty))
+-}
 
 putMessage :: OfpMessage -> PutM ()
 putMessage (OfpMessage h d) = do
@@ -320,3 +371,4 @@ buildOfpPacketIn pktIn =
       -- FIXME: use only bytestring stuff
       dat = toLazyByteString $! fromByteString (runPutToByteString 32768 (ofp_pkt_in_data pktIn))
       len = LBS.length dat
+

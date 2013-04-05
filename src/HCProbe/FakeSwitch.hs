@@ -38,6 +38,7 @@ import Data.Bits
 import Data.Conduit
 import Data.Conduit.Network
 import Data.Conduit.TMChan
+import Data.Conduit.BinaryParse
 import qualified Data.Conduit.List as CL
 import Data.List
 import Data.Maybe
@@ -173,7 +174,7 @@ data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
                                    , switchCfg     :: TVar OfpSwitchConfig
                                    }
 
-pktSendTimeout = 500000
+pktSendTimeout = 5000000
 pktSendQLen    = 65536
 
 sendLen = 65536 `div` 2
@@ -197,7 +198,7 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
             let sender = sourceTBMChan pktSendQ 
                   $= CL.mapM stat
---                  =$= CL.map (BS.concat . LBS.toChunks . toLazyByteString . buildMessage)
+                  -- =$= CL.mapM (\x -> putStrLn "OUT:" >> putStrLn (show x) >> return x)
                   =$= CL.mapM (\x -> 
 #ifdef RUNTIMETESTS
                        do let rx = BS.concat . LBS.toChunks . toLazyByteString $ buildMessage x
@@ -217,20 +218,18 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
 
             -- TODO: write ofp correct reader using conduit/other iterative
             -- interface
-            let receiver = appSource ad $$ forever $ runMaybeT $ do
-                bs <- MaybeT $ await
-                (msg, rest) <- MaybeT $ return (ofpParsePacket bs)
-                liftIO $ do
-                    (dump "IN:" (ofp_header msg) bs) 
-                    dispatch ctx msg
-                lift $ leftover rest
+            let receiver = appSource ad -- $= CL.mapM (\x -> putStrLn "IN:" >> putStrLn (show (BS.unpack x)) >> return x)
+                                        $= conduitBinary -- :: Conduit BS8.ByteString Undef OfpMessage)
+                                        -- =$= CL.mapM (\x -> putStrLn (show x) >> return x)
+                                        $$ CL.mapM_ (\m@(OfpMessage h _) ->
+                                                    processMessage ctx (ofp_hdr_type h) m)
 
             let sendARPGrat = do
-                withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
+                atomically $ readTVar featureReplyMonitor >>= flip unless retry
                 liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
 
             let threads = [receiver, sender, 
-                          do withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
+                          do atomically $ readTVar featureReplyMonitor >>= flip unless retry
                              pktInGen fk pktSendQ]
             waitThreads <- liftIO $ mapM asyncBound threads
             mapM_ (flip allocate cancel) (map return waitThreads)
@@ -245,9 +244,11 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
               atomically $ writeTBMChan pktSendQ msg
               maybe (return ()) (\x -> (liftIO.x) msg) sH
 
-            dispatch !c !(msg@(OfpMessage hdr msgData)) = case (parseMessageData msg) of
+{-
+            dispatch !c msg@(OfpMessage hdr msgData)) = case (parseMessageData msg) of
               Nothing   ->  return ()
               Just !(msg'@(OfpMessage h _)) -> processMessage c (ofp_hdr_type hdr) msg'
+-}
 
             -- TODO: implement the following messages
             processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
@@ -273,8 +274,8 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
             -- FIXME: possible problems with other controllers rather than NOX
             processMessage c OFPT_BARRIER_REQUEST msg = do
               -- TODO: do something, process all pkts, etc
-              liftIO $ atomically (writeTVar (handshakeDone c) True)
               sendReplyT (headReply (ofp_header msg) OFPT_BARRIER_REPLY)
+              liftIO $ atomically (writeTVar (handshakeDone c) True)
 
             processMessage _ OFPT_VENDOR msg = do
               let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) BS.empty
