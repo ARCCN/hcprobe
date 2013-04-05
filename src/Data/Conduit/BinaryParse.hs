@@ -30,7 +30,7 @@ conduitBinary =
                           -- \x -> go ((maybe pushEndOfInput (flip pushChunk) x) p)
         where 
           go (Done bs ofs v)       = do yield v
-                                        conduit (runGetIncremental get `pushChunk` bs)
+                                        go (runGetIncremental get `pushChunk` bs)
           go (Fail u o e)          = monadThrow (ParseError u o e)
           go n@(Partial next)      = conduit n 
 

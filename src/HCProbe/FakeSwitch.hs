@@ -181,7 +181,7 @@ sendLen = 65536 `div` 2
 
 ofpClient pktGen sw host port = runTCPClient (clientSettings port host) (client pktGen sw)
 
-client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
+client pktInGen fk@(FakeSwitch sw switchIP l_ sH rH) ad = runResourceT $ do
     (_, !pktSendQ) <- allocate (newTBMChanIO pktSendQLen) (atomically.closeTBMChan)
     buf <- liftIO $ mkBuffer (1024*1024*4)
     go pktSendQ buf
