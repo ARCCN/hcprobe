@@ -225,12 +225,12 @@ client pktInGen fk@(FakeSwitch sw switchIP _ sH rH) ad = runResourceT $ do
                                                     processMessage ctx (ofp_hdr_type h) m)
 
             let sendARPGrat = do
-                atomically $ readTVar featureReplyMonitor >>= flip unless retry
+                withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
                 liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
 
             let threads = [receiver, sender, 
-                          do atomically $ readTVar featureReplyMonitor >>= flip unless retry
-                             pktInGen fk pktSendQ]
+                           do withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
+                              pktInGen fk pktSendQ]
             waitThreads <- liftIO $ mapM asyncBound threads
             mapM_ (flip allocate cancel) (map return waitThreads)
             liftIO $ do
