@@ -111,8 +111,8 @@ type  TVarL a  = TVar (Int, TVar a)
 empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
-pktGenTest :: (MACAddr -> MACAddr -> IPv4Addr -> IPv4Addr -> TestPacketTCP) -> Parameters -> TVarL PacketQ -> FakeSwitch -> TBMChan OfpMessage -> IO ()
-pktGenTest s params q fk chan  = do
+pktGenTest :: (MACAddr -> MACAddr -> IPv4Addr -> IPv4Addr -> TestPacketTCP) -> Parameters -> TVarL PacketQ -> (OfpMessage -> IO ()) -> FakeSwitch -> IO ()
+pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
     ls <- MR.randoms =<< MR.getStdGen
     let go (l1:l2:l3:l4:l5:l6:l7:l8:ls) (bid:bs) = do
             let pid = l1 `mod` (nports-1) + 2
@@ -128,8 +128,13 @@ pktGenTest s params q fk chan  = do
                               let !srcMac' = choice l3 =<< IntMap.lookup pid dct
                               let !dstMac' = choice l4 =<< IntMap.lookup pidDst dct
                               case (srcMac', dstMac') of
-                                (Just srcMac, Just dstMac) -> let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
-                                                              in atomically $ writeTBMChan chan $! (tcpTestPkt fk (fromIntegral l5) bid (fromIntegral pid) pl)
+                                (Just srcMac, Just dstMac) -> 
+                                    let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
+                                        msg= (tcpTestPkt fk (fromIntegral l5) bid (fromIntegral pid) pl)
+                                    in do stat msg
+                                          buf <- atomically $ readTQueue qIn
+                                          buf' <- SP.runPutToBuffer buf (putMessage msg)
+                                          atomically $ writeTQueue qOut buf'
                                 _                          -> return ()
 
             
@@ -336,7 +341,7 @@ toTryMain = do
     let ip = fromIntegral i .|. (0x10 `shiftL` 24)
     rnd <- R.newStdGen
     macs <- liftM S.toList (randomSet (fromIntegral (portNum params) * macSpaceDim params+1) S.empty)
-    return $ fst $ makeSwitch (defaultSwGen i ip rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+    fst <$> makeSwitch (defaultSwGen i ip rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
 
     
   w <- forM fakeSw $ \fake' -> do
@@ -346,7 +351,7 @@ toTryMain = do
         w <- async $ forever $ do
           
           bs <-  testTCPs params
-          wait =<< async (ofpClient (pktGenTest bs params pktQ) fake (BS8.pack (host params)) (read (port params)))
+          wait =<< async (ofpClient (pktGenTest bs params pktQ (onSend params pktQ stat)) fake (BS8.pack (host params)) (read (port params)))
           atomically $ modifyTVar stat (\s -> s { pktStatsConnLost = succ (pktStatsConnLost s) })
           threadDelay 1000000
         return (w,stat)

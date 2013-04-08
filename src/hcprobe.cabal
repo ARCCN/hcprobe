@@ -89,7 +89,6 @@ executable hcprobe
                        -fmax-simplifier-iterations=10
                        -fdicts-cheap
                        -fspec-constr-count=6
-                       -eventlog
   if flag(ThreadScope) 
       Ghc-options:     -eventlog
   if flag(Optimize)
