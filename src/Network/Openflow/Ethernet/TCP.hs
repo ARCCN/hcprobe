@@ -79,9 +79,16 @@ putTCP x = do
            undelay dataoff . (\x -> (((x `div` 4) .&. 0xF) `shiftL` 4)) . fromIntegral =<< distance start
            tcpPutPayload x
            hlen' <- distance start
-           let crc = 0 `icsum16'` (pseudoHdr hlen')
+           message_end <- marker    {- 0  -}
+           putIP (tcpSrcAddr x)     {- 4  -}
+           putIP (tcpDstAddr x)     {- 8  -}
+           putWord8 0               {- 9  -}
+           putWord8 (tcpProto x)    {- 10 -}
+           putWord16be (fromIntegral hlen')
+           let crc = 0 `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen 10 (toAddr message_end))
                        `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen hlen' (toAddr start))
            undelay acrc (Word16be (fin_icsum16' crc))
+           shrink message_end
   where
     pseudoHdr y = runPutToByteString 16 $ do
           putIP (tcpSrcAddr x)
@@ -97,7 +104,7 @@ putTCP x = do
     flags   = tcpFlags x
     wss     = tcpWinSize x
     isUrgent = ( flags .&. (fromIntegral $ fromEnum URG) ) /= 0
-{-# INLINABLE putTCP #-}
+{-# INLINE putTCP #-}
 
 tcpFlagsOf :: [TCPFlag] -> Word8
 tcpFlagsOf = BB.toBits . BB.fromList

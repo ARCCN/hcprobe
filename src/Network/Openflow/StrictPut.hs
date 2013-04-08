@@ -23,6 +23,7 @@ module Network.Openflow.StrictPut (
   putWord32be,
   putWord64be,
   putByteString,
+  putZeros,
   -- * Markers
   Marker,
   marker,
@@ -147,6 +148,10 @@ putByteString !bs = PutM f
           in do withForeignPtr fp $ \bsptr -> S.memcpy ptr (bsptr `plusPtr` offset) (fromIntegral len)
                 return ((), ptr `plusPtr` len)
 {-# INLINE putByteString #-}
+
+putZeros :: Int -> Put
+putZeros !i = PutM $ \p -> S.memset p 0 (fromIntegral i) >> return ((), p `plusPtr` i)
+
 
 -- | get current address
 

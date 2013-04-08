@@ -7,7 +7,7 @@ import Network.Openflow.StrictPut
 
 data EthFrame = EthFrame { destMAC    :: !MACAddr
                          , sourcMAC   :: !MACAddr
-                         , payLoadEth :: !Put
+                         , payLoadEth :: Put
                          }
 
 instance EthernetFrame EthFrame where

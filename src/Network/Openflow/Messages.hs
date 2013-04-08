@@ -353,7 +353,7 @@ buildOfpPort port = do
 putOfpPacketIn :: OfpPacketIn -> PutM ()
 putOfpPacketIn pktIn = do
   putWord32be (ofp_pkt_in_buffer_id pktIn)
-  al <- delayedWord16be -- (fromIntegral $ BS.length (ofp_pkt_in_data pktIn))
+  al <- delayedWord16be
   putWord16be (ofp_pkt_in_in_port pktIn)
   putWord8    (fromIntegral $ fromEnum (ofp_pkt_in_reason pktIn))
   putWord8    0 -- padding

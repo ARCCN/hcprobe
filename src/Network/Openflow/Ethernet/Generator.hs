@@ -31,7 +31,7 @@ putEthernetFrame x = putFrame
     -- FIXME: fix checksum calculation
     putCRC32 = putWord32be 0 -- (crc32 bs)
     {-# INLINE putCRC32 #-}
-{-# INLINABLE putEthernetFrame #-}
+{-# INLINE putEthernetFrame #-}
 
 buildEthernetFrame :: EthernetFrame a => a -> Builder
 buildEthernetFrame x =
@@ -51,17 +51,19 @@ makeEthernetFrame = runPutToByteString 2048 . putEthernetFrame
 putVLAN :: Maybe Word16 -> PutM ()
 putVLAN Nothing     = return () 
 putVLAN (Just vlan) = putWord16be 0x8100 >> putWord16be vlan
-{-# INLINABLE putVLAN #-}
+{-# INLINE putVLAN #-}
 
 buildVLAN :: Maybe Word16 -> Builder
 buildVLAN Nothing = mempty
 buildVLAN (Just vlan) = fromWord16be 0x8100 <> fromWord16be vlan
-{-# INLINABLE buildVLAN #-}
+{-# INLINE buildVLAN #-}
 
 putEmptyPayload :: Int -> PutM ()
+putEmptyPayload = putZeros
+{-
 putEmptyPayload n | n `mod` 8 == 0 = replicateM_ (n `div` 8) (putWord64be 0)
                   | n `mod` 4 == 0 = replicateM_ (n `div` 4) (putWord32be 0)
                   | n `mod` 2 == 0 = replicateM_ (n `div` 2) (putWord16be 0)
                   | otherwise      = replicateM_ n           (putWord8    0)
-{-# INLINABLE putEmptyPayload #-}
-
+-}
+{-# INLINE putEmptyPayload #-}
