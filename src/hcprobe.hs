@@ -73,7 +73,6 @@ testTCPs params = do
                           , testWSS = Just wss
                           , testFlags = tcpFlagsOf [ACK]
                           , testPayloadLen = (payloadLen params)
-                          , testPayload = BS.empty
                           , testSeqNo = Nothing
                           , testAckNo = Nothing
                           , testIpID = Nothing
@@ -97,9 +96,8 @@ testTCP params dstMac srcMac = do
                           , testWSS = Just wss
                           , testFlags = tcpFlagsOf [ACK]
                           , testPayloadLen = (payloadLen params)
-                          , testPayload = BS.empty
-                          , testSeqNo = Nothing
                           , testAckNo = Nothing
+                          , testSeqNo = Nothing
                           , testIpID = Nothing
                           }
 

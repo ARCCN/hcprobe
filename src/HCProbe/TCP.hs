@@ -21,7 +21,6 @@ data TestPacketTCP = TestPacketTCP { dstMAC    :: !MACAddr
                                    , testWSS   :: !(Maybe Int)
                                    , testFlags :: !Word8
                                    , testPayloadLen :: !Int 
-                                   , testPayload :: !(BS.ByteString)
                                    }
                                    deriving (Show)
 
