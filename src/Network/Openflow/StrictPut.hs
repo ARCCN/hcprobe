@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- |  This module is improved version of Nettle.OpenFlow.StrictPut 
 --    I hope we'll merge changes someday.
 --
@@ -30,9 +31,11 @@ module Network.Openflow.StrictPut (
   -- * Delay
   DelayedPut,
   undelay,
-  contramap,
+  -- contramap,
   delayedWord8,
   delayedWord16be,
+  Word16be(..),
+  RPut(..),
   -- * Buffer
   runPutToBuffer,
   Buffer,
@@ -165,26 +168,40 @@ toAddr :: Marker -> Addr#
 toAddr (Marker (Ptr a)) = a
 {-# INLINE toAddr #-}
 
+class RPut a where
+  rput :: Ptr a -> a -> IO ()
+
+instance RPut Word8 where
+  rput = poke
+--   {-# INLINE rput #-}
+
+newtype Word16be = Word16be Word16 deriving (Num)
+
+instance RPut Word16be where
+  rput p (Word16be x) = void (runPut (castPtr p) (putWord16be x))
+--  {-# INLINE rput #-}
+
 -- | Delayed action.
-newtype DelayedPut a = DelayedPut (a -> IO Int)
+newtype DelayedPut a = DelayedPut (Ptr a)
 
-contramap :: (a -> b) -> (DelayedPut b) -> (DelayedPut a)
-contramap f (DelayedPut g) = DelayedPut (g.f)
+--contramap :: (a -> b) -> (DelayedPut b) -> (DelayedPut a)
+--contramap f (DelayedPut g) = DelayedPut (g.f)
 
-undelay :: DelayedPut a 
+undelay :: (RPut a)
+        => DelayedPut a 
         -> a 
         -> PutM ()
-undelay (DelayedPut f) !x = PutM $ \p -> f x >> return ((),p)
+undelay (DelayedPut a) !x = PutM $ \p -> rput a x >> return ((),p)
 {-# INLINE undelay #-}
 
 delayedWord8 :: PutM (DelayedPut Word8)
 delayedWord8 = PutM $ \p -> poke p (0::Word8) >> 
-                            return (DelayedPut $ runPut p . putWord8, p `plusPtr` 1)
+                            return (DelayedPut p, p `plusPtr` 1)
 {-# INLINE delayedWord8 #-}
 
-delayedWord16be :: PutM (DelayedPut Word16)
+delayedWord16be :: PutM (DelayedPut Word16be)
 delayedWord16be = PutM $ \p -> poke (castPtr p) (0::Word16) >>
-                               return (DelayedPut $ runPut p . putWord16be, p `plusPtr` 2)
+                               return (DelayedPut (castPtr p), p `plusPtr` 2)
 {-# INLINE delayedWord16be #-}
 
 {-# INLINE shiftr_w16 #-}

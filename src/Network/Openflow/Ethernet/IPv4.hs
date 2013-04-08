@@ -51,8 +51,8 @@ putIPv4Pkt x = do
   putIP ipD
   hlen <- distance start
   ipPutPayload x
-  undelay totLen . fromIntegral =<< distance start
-  undelay acrc (csum16' 
+  undelay totLen . Word16be . fromIntegral =<< distance start
+  undelay acrc (Word16be $ csum16' 
                   (unsafeDupablePerformIO
                       $ BS.unsafePackAddressLen  hlen (toAddr start)))
   where

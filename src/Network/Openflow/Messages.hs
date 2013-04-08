@@ -203,19 +203,21 @@ putMessage (OfpMessage h d) = do
     alen <- putMessageHeader h
     ds  <- marker
     putMessageData d
-    undelay alen . fromIntegral =<< distance ds
+    undelay alen . Word16be . (ofp_hdr_length h + ) . fromIntegral =<< distance ds
 
-putMessageHeader :: OfpHeader -> PutM (DelayedPut Word16)
+putMessageHeader :: OfpHeader -> PutM (DelayedPut Word16be)
 putMessageHeader h = do
     putWord8 version
     putWord8 tp
-    x <- return . (contramap tolen) =<< delayedWord16be
+    x <- delayedWord16be
     putWord32be xid
     return x
   where version = ofp_hdr_version h
         tp      = (fromIntegral.fromEnum.ofp_hdr_type) h
+        {-
         tolen :: Word16 -> Word16
         tolen x = ofp_hdr_length h + x
+        -}
         xid     = ofp_hdr_xid h
 
 

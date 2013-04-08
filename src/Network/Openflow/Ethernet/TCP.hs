@@ -69,19 +69,19 @@ putTCP x = do
   {- 4  -} putWord16be dstPort
   {- 8  -} putWord32be seqno
   {- 12 -} putWord32be ackno
-  {- 13 -} dataoff <- return . contramap (\x -> (((x `div` 4) .&. 0xF) `shiftL` 4)) =<< delayedWord8  -- data offset
+  {- 13 -} dataoff <- delayedWord8  -- data offset
   {- 14 -} putWord8 flags
   {- 16 -} putWord16be wss
   {- 18 -} acrc <- delayedWord16be -- CRC
   {- 20 -} when isUrgent $ putWord16be (tcpUrgentPtr x)
            hlen <- distance start
            replicateM_ (hlen `mod` 4) (putWord8 0)
-           undelay dataoff . fromIntegral =<< distance start
+           undelay dataoff . (\x -> (((x `div` 4) .&. 0xF) `shiftL` 4)) . fromIntegral =<< distance start
            tcpPutPayload x
            hlen' <- distance start
            let crc = 0 `icsum16'` (pseudoHdr hlen')
                        `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen hlen' (toAddr start))
-           undelay acrc (fin_icsum16' crc)
+           undelay acrc (Word16be (fin_icsum16' crc))
   where
     pseudoHdr y = runPutToByteString 16 $ do
           putIP (tcpSrcAddr x)
