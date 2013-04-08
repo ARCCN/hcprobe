@@ -28,6 +28,7 @@ module Network.Openflow.StrictPut (
   marker,
   toAddr,
   distance,
+  shrink,
   -- * Delay
   DelayedPut,
   undelay,
@@ -163,6 +164,10 @@ distance :: Marker
 distance (Marker x) = PutM $ \x' -> return (x' `minusPtr` x, x')
 {-# INLINE distance #-}
 
+shrink :: Marker 
+       -> Put
+shrink (Marker x) = PutM $ \_ -> return ((),x)
+
 -- | Get real address
 toAddr :: Marker -> Addr#
 toAddr (Marker (Ptr a)) = a
@@ -173,13 +178,13 @@ class RPut a where
 
 instance RPut Word8 where
   rput = poke
---   {-# INLINE rput #-}
+  {-# INLINE rput #-}
 
 newtype Word16be = Word16be Word16 deriving (Num)
 
 instance RPut Word16be where
   rput p (Word16be x) = void (runPut (castPtr p) (putWord16be x))
---  {-# INLINE rput #-}
+  {-# INLINE rput #-}
 
 -- | Delayed action.
 newtype DelayedPut a = DelayedPut (Ptr a)
