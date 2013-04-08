@@ -7,7 +7,7 @@ import Network.Openflow.StrictPut
 
 data EthFrame = EthFrame { destMAC    :: !MACAddr
                          , sourcMAC   :: !MACAddr
-                         , payLoadEth :: !BS.ByteString
+                         , payLoadEth :: !Put
                          }
 
 instance EthernetFrame EthFrame where
@@ -15,7 +15,7 @@ instance EthernetFrame EthFrame where
   srcMacAddress    = sourcMAC
   vlanID         _ = Nothing
   typeCode       _ = 0x0800
-  putPayload       = putByteString.payLoadEth
+  putPayload       = payLoadEth
 
 data EthFrameP = EthFrameP (MACAddr) (MACAddr)  (Put)
 
