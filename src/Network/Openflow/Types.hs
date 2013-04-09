@@ -34,6 +34,11 @@ openflow_1_0 = 0x01
 -- TODO: split to several files
 -- TODO: replace Data.Set to something more effective for bitmaps
 
+
+class CrcCompable a where
+    csum :: Word32 -> a -> Word32
+
+
 type FlagSet = Word32
 type Flag = Word32
 
