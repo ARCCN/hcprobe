@@ -28,6 +28,8 @@ module Network.Openflow.StrictPut (
   Marker,
   marker,
   toAddr,
+  toPtr,
+  toMarker,
   distance,
   shrink,
   -- * Delay
@@ -177,6 +179,15 @@ shrink (Marker x) = PutM $ \_ -> return ((),x)
 toAddr :: Marker -> Addr#
 toAddr (Marker (Ptr a)) = a
 {-# INLINE toAddr #-}
+
+-- | Get marker from pointer
+toPtr :: Marker -> Ptr Word8
+toPtr (Marker (Ptr a)) = Ptr a
+{-# INLINE toPtr #-}
+
+toMarker :: Ptr Word8 -> Marker
+toMarker (a) = Marker a;
+{-# INLINE toMarker #-}
 
 class RPut a where
   rput :: Ptr a -> a -> IO ()

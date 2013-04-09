@@ -3,7 +3,8 @@ module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ,
                                putWord16le,
                                buildASCIIZ, buildMAC,
                                bsStrict, bsLazy, encodePutM, ipv4,
-                               csum16, csum16', csum16'', hexdumpBs, icsum16', fin_icsum16'
+                               csum16, csum16', csum16'', hexdumpBs, icsum16', fin_icsum16',
+                               icsum16
                              ) where
 
 import Network.Openflow.Types
