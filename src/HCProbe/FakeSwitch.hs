@@ -327,57 +327,67 @@ runSwitch sw host port = runTCPClient (clientSettings port host) (client' sw)
 
 client' :: EFakeSwitch -> AppData IO -> IO ()
 client' fk ad = 
-    appSource ad 
-    $= CL.mapM (\x -> putStr ">> " >> (print . BS.unpack $ x) >> return x)
-    =$= conduitBinary
-    =$= CL.mapM (\m@(OfpMessage h _) -> putStr "> " >> print m >> return ((ofp_hdr_type h),m))
-    =$= CL.mapMaybe (uncurry processMessage)
-    =$= CL.mapM (\x -> putStr "< " >> print x >> return x)
-    =$= CL.map (runPutToByteString 32768 . putMessage)
-    $$ appSink ad
+  runResourceT $ do
+    tranId <- liftIO $ newTVarIO 0
+    featureReplyMonitor <- liftIO $ newTVarIO False
+    swCfg <- liftIO $ newTVarIO defaultSwitchConfig
+    let !ctx = SwitchContext featureReplyMonitor tranId swCfg
+    lift $ go swCfg
   where
-    processMessage OFPT_PACKET_OUT m@(OfpMessage hdr msg) = Nothing
-        -- do maybe (return ()) (\x -> (liftIO.x) m) rH
+      go swCfg = 
+          appSource ad 
+          $= CL.mapM (\x -> putStr ">> " >> (print . BS.unpack $ x) >> return x)
+          =$= conduitBinary
+          =$= CL.mapM (\m@(OfpMessage h _) -> putStr "> " >> print m >> return ((ofp_hdr_type h),m))
+          =$= CL.mapM (uncurry processMessage)
+          =$= CL.catMaybes
+          =$= CL.mapM (\x -> putStr "< " >> print x >> return x)
+          =$= CL.map (runPutToByteString 32768 . putMessage)
+          $$ appSink ad
+        where
+            processMessage OFPT_PACKET_OUT m@(OfpMessage hdr msg) = return $ Nothing
+                -- do maybe (return ()) (\x -> (liftIO.x) m) rH
 
-    processMessage OFPT_HELLO (OfpMessage hdr _) = Just (headReply hdr OFPT_HELLO)
+            processMessage OFPT_HELLO (OfpMessage hdr _) = return $ Just (headReply hdr OFPT_HELLO)
 
-    processMessage OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = Just reply
-              where reply = featuresReply openflow_1_0 (eSwitchFeatures fk) (ofp_hdr_xid hdr)
+            processMessage OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = return $ Just reply
+                      where reply = featuresReply openflow_1_0 (eSwitchFeatures fk) (ofp_hdr_xid hdr)
 
-    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = Just reply
-              where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
+            processMessage OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = return $ Just reply
+                      where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
 
-    processMessage OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = Nothing
-              -- liftIO $ atomically $ modifyTVar (switchCfg c) (const cfg')
+            processMessage OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = do
+                      liftIO $ atomically $ modifyTVar swCfg (const cfg')
+                      return Nothing
 
-    processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) = Just (getConfigReply hdr defaultSwitchConfig)
-              -- (liftIO $ atomically $ readTVar (switchCfg c)) >>= \x -> sendReplyT (getConfigReply hdr x)
+            processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) = 
+                      (liftIO $ atomically $ readTVar swCfg) >>= return . Just . getConfigReply hdr
 
-    processMessage OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = Just (statsReply hdr)
-              -- (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
+            processMessage OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = return $ Just (statsReply hdr)
+                      -- (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
 
-            -- FIXME: possible problems with other controllers rather than NOX
-    processMessage OFPT_BARRIER_REQUEST msg = 
-              -- TODO: do something, process all pkts, etc
-              Just (headReply (ofp_header msg) OFPT_BARRIER_REPLY)
-              -- liftIO $ atomically (writeTVar (handshakeDone c) True)
+                    -- FIXME: possible problems with other controllers rather than NOX
+            processMessage OFPT_BARRIER_REQUEST msg = return $
+                      -- TODO: do something, process all pkts, etc
+                      Just (headReply (ofp_header msg) OFPT_BARRIER_REPLY)
+                      -- liftIO $ atomically (writeTVar (handshakeDone c) True)
 
-    processMessage OFPT_VENDOR msg = 
-              let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) BS.empty
-                  reply = errorReply (ofp_header msg) errT
-              in Just reply
+            processMessage OFPT_VENDOR msg = 
+                      let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) BS.empty
+                          reply = errorReply (ofp_header msg) errT
+                      in return $ Just reply
 
-            -- TODO: implement the following messages
-    processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = Nothing
-    processMessage OFPT_STATS_REQUEST (OfpMessage hdr msg) = Nothing
+                    -- TODO: implement the following messages
+            processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = return Nothing
+            processMessage OFPT_STATS_REQUEST (OfpMessage hdr msg) = return Nothing
 
-    processMessage _ _ = Nothing
+            processMessage _ _ = return Nothing
 {-
   runResourceT $ do
 
     tranId <- liftIO $ newTVarIO 0
     featureReplyMonitor <- liftIO $ newTVarIO False
-    swCfg <- liftIO $ newTVarIO defaultSwitchConfig
+ V   swCfg <- liftIO $ newTVarIO defaultSwitchConfig
     let !ctx = SwitchContext featureReplyMonitor tranId swCfg
     let qwork = do x <- await
                    case x of

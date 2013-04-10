@@ -91,3 +91,12 @@ addMACs ms = tell $ Endo (\p ->
             ms'    = M.fromList $ zip [1..nport] (map V.fromList macll)
         in p{eMacSpace = M.unionWith (V.++) ms' (eMacSpace p)})
 
+instance Default OfpSwitchFeatures where
+  def = OfpSwitchFeatures { ofp_datapath_id  = 0
+                          , ofp_n_buffers    = maxBuffers 
+                          , ofp_n_tables     = 1
+                          , ofp_capabilities = listToFlags ofCapabilities []
+                          , ofp_actions      = listToFlags ofActionType defActions
+                          , ofp_ports        = []
+                          }
+
