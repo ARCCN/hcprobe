@@ -67,7 +67,7 @@ putTCP :: TCP a => a -> PutM ()
 putTCP x = do
 --  trace ( (printf "%04X" (fromJust $ csum16 pkt))) $ return ()
 --  trace ( (hexdumpBs 160 " " "" pkt) ++ "\n") $ return ()
-           start <- liftM toPtr marker
+           start <- marker
   {- 2  -} putWord16be srcPort
   {- 4  -} putWord16be dstPort
   {- 8  -} putWord32be seqno
@@ -77,22 +77,22 @@ putTCP x = do
   {- 16 -} putWord16be wss
   {- 18 -} acrc <- delayedWord16be -- CRC
   {- 20 -} when isUrgent $ putWord16be (tcpUrgentPtr x)
-           hlen <- distance (toMarker start)
+           hlen <- distance start
            replicateM_ (hlen `mod` 4) (putWord8 0)
-           undelay dataoff . (\x -> (((x `div` 4) .&. 0xF) `shiftL` 4)) . fromIntegral =<< distance (toMarker start)
+           undelay dataoff . (\x -> (((x `div` 4) .&. 0xF) `shiftL` 4)) . fromIntegral =<< distance start
            tcpPutPayload x
-           hlen' <- distance (toMarker start)
-           message_end <- liftM toPtr marker    {- 0  -}
-           putIP (tcpSrcAddr x)                 {- 4  -}
-           putIP (tcpDstAddr x)                 {- 8  -}
-           putWord8 0                           {- 9  -}
-           putWord8 (tcpProto x)                {- 10 -}
+           hlen' <- distance start
+           message_end <- marker    {- 0  -}
+           putIP (tcpSrcAddr x)     {- 4  -}
+           putIP (tcpDstAddr x)     {- 8  -}
+           putWord8 0               {- 9  -}
+           putWord8 (tcpProto x)    {- 10 -}
            putWord16be (fromIntegral hlen')
 
-           let crc = 0 `icsum16`  ( V.unsafeFromForeignPtr0 ( unsafePerformIO (newForeignPtr_ (castPtr message_end))) 5 ) -- 10/2 Word16
-                       `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen hlen' (toAddr (toMarker start)))
+           let crc = 0 `icsum16`  ( V.unsafeFromForeignPtr0 ( unsafePerformIO (newForeignPtr_ (castPtr $ toPtr message_end))) 5 ) -- 10/2 Word16
+                       `icsum16` ( V.unsafeFromForeignPtr0 ( unsafePerformIO (newForeignPtr_ (castPtr $ toPtr start))) (hlen' `div` 2) ) -- FIXME:Word8 to Word16 here the problem 
            undelay acrc (Word16be (fin_icsum16' crc))
-           shrink $ toMarker message_end
+           shrink message_end
   where
     pseudoHdr y = runPutToByteString 16 $ do
           putIP (tcpSrcAddr x)
