@@ -1,5 +1,5 @@
 {-# Language BangPatterns, ScopedTypeVariables, CPP #-}
-module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
+module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..), EFakeSwitch(..)
                           , makePort
                           , makeSwitch
                           , defaultPortGen
@@ -13,6 +13,8 @@ module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..)
                           , encodeMsg
                           , maxBuffers
                           , dump
+                          -- 
+                          , runSwitch
                           ) where
 
 import HCProbe.ARP
@@ -74,7 +76,6 @@ makePort :: PortGen
          -> [OfpPortStateFlags]
          -> [OfpPortFeatureFlags]
          -> (OfpPhyPort, PortGen)
-
 makePort gen cfg st ft = (port, gen') 
   where pn  = pnum gen
         pnm = (pname gen) pn
@@ -105,6 +106,12 @@ defaultSwGen i ip g = SwitchGen i ip g
 queueSize :: Int
 queueSize = 32
 
+data EFakeSwitch = EFakeSwitch 
+      { eSwitchFeatures :: OfpSwitchFeatures                      -- ^ List of switch features
+      , eSwitchIP       :: IPv4Addr                               -- ^ Switch mac address
+      , eMacSpace       :: M.IntMap (V.Vector MACAddr)  -- ???
+      } deriving (Show)
+
 data FakeSwitch = FakeSwitch {  switchFeatures :: OfpSwitchFeatures
                               , switchIP       :: IPv4Addr
                               , macSpace       :: M.IntMap (V.Vector MACAddr)
@@ -112,6 +119,9 @@ data FakeSwitch = FakeSwitch {  switchFeatures :: OfpSwitchFeatures
                               , onRecvMessage  :: Maybe (OfpMessage -> IO ())
                               , bufferQueue    :: (TQueue Buffer,TQueue Buffer)
                              }
+
+mcPrefix :: MACAddr -> MACAddr
+mcPrefix = ((.|.)(0x00163e `shiftL` 24)).((.&.)0xFFFFFF)
 
 makeSwitch :: SwitchGen
            -> Int
@@ -122,9 +132,6 @@ makeSwitch :: SwitchGen
            -> [OfpPortStateFlags]
            -> [OfpPortFeatureFlags]
            -> IO (FakeSwitch, SwitchGen)
-mcPrefix :: MACAddr -> MACAddr
-mcPrefix = ((.|.)(0x00163e `shiftL` 24)).((.&.)0xFFFFFF)
-
 makeSwitch gen ports mpp cap act cfg st ff = do
         qIn  <- atomically $ newTQueue
         qOut <- atomically $ newTQueue
@@ -315,3 +322,103 @@ defActions = [ OFPAT_OUTPUT,OFPAT_SET_VLAN_VID,OFPAT_SET_VLAN_PCP
              , OFPAT_SET_TP_SRC,OFPAT_SET_TP_DST
              ]
 
+runSwitch :: EFakeSwitch -> BS8.ByteString -> Int -> IO ()
+runSwitch sw host port = runTCPClient (clientSettings port host) (client' sw)
+
+client' :: EFakeSwitch -> AppData IO -> IO ()
+client' fk ad = 
+    appSource ad 
+    $= CL.mapM (\x -> putStr ">> " >> (print . BS.unpack $ x) >> return x)
+    =$= conduitBinary
+    =$= CL.mapM (\m@(OfpMessage h _) -> putStr "> " >> print m >> return ((ofp_hdr_type h),m))
+    =$= CL.mapMaybe (uncurry processMessage)
+    =$= CL.mapM (\x -> putStr "< " >> print x >> return x)
+    =$= CL.map (runPutToByteString 32768 . putMessage)
+    $$ appSink ad
+  where
+    processMessage OFPT_PACKET_OUT m@(OfpMessage hdr msg) = Nothing
+        -- do maybe (return ()) (\x -> (liftIO.x) m) rH
+
+    processMessage OFPT_HELLO (OfpMessage hdr _) = Just (headReply hdr OFPT_HELLO)
+
+    processMessage OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = Just reply
+              where reply = featuresReply openflow_1_0 (eSwitchFeatures fk) (ofp_hdr_xid hdr)
+
+    processMessage OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = Just reply
+              where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
+
+    processMessage OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = Nothing
+              -- liftIO $ atomically $ modifyTVar (switchCfg c) (const cfg')
+
+    processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) = Just (getConfigReply hdr defaultSwitchConfig)
+              -- (liftIO $ atomically $ readTVar (switchCfg c)) >>= \x -> sendReplyT (getConfigReply hdr x)
+
+    processMessage OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = Just (statsReply hdr)
+              -- (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
+
+            -- FIXME: possible problems with other controllers rather than NOX
+    processMessage OFPT_BARRIER_REQUEST msg = 
+              -- TODO: do something, process all pkts, etc
+              Just (headReply (ofp_header msg) OFPT_BARRIER_REPLY)
+              -- liftIO $ atomically (writeTVar (handshakeDone c) True)
+
+    processMessage OFPT_VENDOR msg = 
+              let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) BS.empty
+                  reply = errorReply (ofp_header msg) errT
+              in Just reply
+
+            -- TODO: implement the following messages
+    processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = Nothing
+    processMessage OFPT_STATS_REQUEST (OfpMessage hdr msg) = Nothing
+
+    processMessage _ _ = Nothing
+{-
+  runResourceT $ do
+
+    tranId <- liftIO $ newTVarIO 0
+    featureReplyMonitor <- liftIO $ newTVarIO False
+    swCfg <- liftIO $ newTVarIO defaultSwitchConfig
+    let !ctx = SwitchContext featureReplyMonitor tranId swCfg
+    let qwork = do x <- await
+                   case x of
+                       Nothing -> return ()
+                       Just m  -> do yield m
+                                     liftIO . atomically $ writeTQueue pktStockQ (reuse m)
+                                     qwork
+        sender = sourceTQueue pktInQ $= qwork =$= CL.map extract $$ appSink ad
+
+    let receiver = appSource ad -- $= CL.mapM (\x -> putStrLn "IN:" >> putStrLn (show (BS.unpack x)) >> return x)
+           $= conduitBinary -- :: Conduit BS8.ByteString Undef OfpMessage)
+           -- =$= CL.mapM (\x -> putStrLn (show x) >> return x)
+           $$ CL.mapM_ (\m@(OfpMessage h _) -> processMessage ctx (ofp_hdr_type h) m)
+
+        sendARPGrat = do
+           withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
+           liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
+
+        threads = [receiver, sender, 
+                     do withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
+                        pktInGen fk]
+    waitThreads <- liftIO $ mapM asyncBound threads
+    mapM_ (flip allocate cancel) (map return waitThreads)
+    liftIO $ do
+      async sendARPGrat
+      v <- waitAnyCatchCancel waitThreads
+      case snd v of
+         Left e -> putStrLn (show e)
+         Right _ -> return ()
+  where
+    sendReplyT msg = do
+      --liftIO $ dump "OUT:" (ofp_header msg) 
+      maybe (return ()) (\x -> (liftIO.x) msg) sH
+      buf <- liftIO . atomically $ readTQueue pktStockQ
+      buf' <- runPutToBuffer buf (putMessage msg)
+      liftIO . atomically $ writeTQueue pktInQ buf'
+
+
+    nothing = return ()
+
+    nextTranID c = liftIO $ atomically $ do
+              modifyTVar (transactionID c) succ
+              readTVar (transactionID c) >>= return . fromIntegral
+  -}                
