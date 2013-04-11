@@ -9,13 +9,14 @@ module HCProbe.EDSL
   , PortNameGen(..)
   , addPort
   -- * run program
-  , HCProbe.FakeSwitch.runSwitch
   , withSwitch
+  -- * reexports
+  , HCProbe.FakeSwitch.runSwitch
+  , module Data.Default
+  , module Network.Openflow.Types
   ) where
 
-import Control.Monad ( forever )
 import Control.Monad.Writer
-import Control.Concurrent (yield)-- FIXME remove
 import Data.Default
 import Data.Monoid
 import Data.Bits

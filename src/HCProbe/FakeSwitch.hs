@@ -322,6 +322,7 @@ defActions = [ OFPAT_OUTPUT,OFPAT_SET_VLAN_VID,OFPAT_SET_VLAN_PCP
              , OFPAT_SET_TP_SRC,OFPAT_SET_TP_DST
              ]
 
+-- | Default switch without user program, mainly for testing purposes
 runSwitch :: EFakeSwitch -> BS8.ByteString -> Int -> IO ()
 runSwitch sw host port = runTCPClient (clientSettings port host) (client' sw)
 
@@ -364,7 +365,6 @@ client' fk ad =
                       (liftIO $ atomically $ readTVar swCfg) >>= return . Just . getConfigReply hdr
 
             processMessage OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = return $ Just (statsReply hdr)
-                      -- (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
 
                     -- FIXME: possible problems with other controllers rather than NOX
             processMessage OFPT_BARRIER_REQUEST msg = return $
@@ -382,6 +382,18 @@ client' fk ad =
             processMessage OFPT_STATS_REQUEST (OfpMessage hdr msg) = return Nothing
 
             processMessage _ _ = return Nothing
+
+{-
+-- | Run configured switch with program inside
+withSwitch fk u ad = 
+  runResourceT $ do
+      let listener = appSource ad $= conduitBinary
+                                  =$= CL.mapM (uncurry processMessage)
+                                  $$ sinkTQueue _inP
+          sender   = undefined
+  -}        
+
+
 {-
   runResourceT $ do
 
