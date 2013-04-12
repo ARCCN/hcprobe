@@ -109,7 +109,7 @@ trunc w = fromIntegral $ complement $ (w .&. 0xFFFF) + (w `shiftR` 16)
 {-# INLINE trunc #-}
 
 icsum16 :: Word32 -> V.Vector Word16 -> Word32
-icsum16 i bv = V.foldl' (\a -> (+a).fromIntegral) (i :: Word32) bv
+icsum16 !i bv = V.foldl' (\a -> (+a).fromIntegral) i bv
 
 rotate' :: Word16 -> Word16
 rotate' x = x `rotateL` 8
@@ -120,7 +120,7 @@ csum16' = fin_icsum16' . (icsum16' 0)
 {-# INLINE csum16' #-}
 
 icsum16' :: Word32 -> BS.ByteString -> Word32
-icsum16' i = icsum16 i . byteStringToVector
+icsum16' !i = icsum16 i . byteStringToVector
 {-# INLINE icsum16' #-}
 
 fin_icsum16' :: Word32 -> Word16
