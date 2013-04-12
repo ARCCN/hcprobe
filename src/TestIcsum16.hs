@@ -32,18 +32,8 @@ import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import System.Random
 
-testNew :: [Word16] -> Word32
-testNew lst = 
-    icsum16 0 (V.fromList lst)
-
 bsFromW16 w16 = BP.runPut $ BP.putBuilder $ foldl accPutWord16be BB.empty w16
     where accPutWord16be acc w = acc `BB.append` (BB.putWord16be w)
-
-
-testOld :: [Word16] -> Word32
-testOld lst = 
-    icsum16' 0 bs
-    where bs = bsFromW16 lst
 
 test :: [Word16] -> Bool
 test a = (testNew a) == (testOld a)
@@ -57,13 +47,8 @@ testOld lst =
 genLengthDEF = 10000 :: Int
 
 main = do
-    args <- getArgs
-    gen <- getStdGen
-    if length args > 0
-        then do
-            putStrLn "Test old crc"
-            sample $ testOld <$> vector genLengthDEF 
-        else do
-            putStrLn "Test new crc"
-            sample $ testNew <$> vector genLengthDEF
+    test <- arbitary
 
+    defaultMain [ bgrup "csumNew" $ nf testNew (V.fromList arbitary)
+                , bgrup "csumOld" $ nf testOld (bsfromW16 arbitary)
+                ]
