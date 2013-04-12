@@ -16,13 +16,16 @@ import qualified Data.Binary.Put as BP
 import Data.Binary.Get
 import Data.Binary.Builder as BB
 import Data.List
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Internal as BSI
-import qualified Data.ByteString.Lazy as BL
+--import qualified Data.ByteString as BS
+import qualified Data.ByteString.Internal as BS
+import qualified Data.ByteString.Lazy as BS
+import qualified Data.ByteString.Unsafe as BS
 import Control.Monad
 
 import Foreign.Storable
 import Foreign.ForeignPtr
+import GHC.Ptr
+
 
 import Text.Printf
 import Debug.Trace
@@ -44,16 +47,32 @@ wlist8 wlist16 = foldr w16towlist8 [] wlist16
           w16towlist8 w16 acc = fromIntegral ( w16 `shift` (-8) )
                               : fromIntegral w16
                               : acc
-testCompare wlist16 =
-    (icsum16 0 $ V.fromList wlist16 ) == (icsum16' 0 $ bsFromW16 wlist16)
+testPrepareOld wlist8 =
+    BS.pack (wlist8 ++ wlist8)
+testPrepareNew wlist8 =
+    V.unsafeCast $ V.fromList (wlist8 ++ wlist8)
+
+rtest16  start len = icsum16 0 (V.unsafeCast (V.unsafeFromForeignPtr0 (BS.inlinePerformIO (newForeignPtr_ start)) len)) -- FIXME:Word8 to Word16 here the problem 
+rtest16' (Ptr start) len = icsum16' 0 (BS.inlinePerformIO $ BS.unsafePackAddressLen len start)
+
+testCompare wlist8 =
+    (icsum16 0 $ testPrepareNew wlist8 ) == (icsum16' 0 $ testPrepareOld wlist8)
 
 genLengthDEF = 100 :: Int
 
 main = do
-    test <- sample' arbitrary :: IO [[Word16]]
+    test <- sample' arbitrary :: IO [[Word8]]
+    
+    (mem,_ofs,len) <- BS.toForeignPtr . BS.pack . head <$> sample' (vector genLengthDEF)
+    let mem' = unsafeForeignPtrToPtr mem -- for convinience
 
-    defaultMain [ bench "csumNew" $ nf (map (icsum16 0)) (map V.fromList test)
-                , bench "csumOld" $ nf (map (icsum16' 0)) (map bsFromW16 test)
-                --, bench "csumCompare" $ nf (map testCompare) test
+    defaultMain [ bgroup "from list"     
+                    [ bench "csumNew" $ nf (map (icsum16 0)) (map testPrepareNew test)
+                    , bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
+                    ]
+                , bgroup "from memory"
+                    [ bench "csumNew" $ nf (uncurry rtest16) (mem',len)
+                    , bench "csumOld" $ nf (uncurry rtest16') (mem',len)
+                    ]
                 ]
     print $ map testCompare test
