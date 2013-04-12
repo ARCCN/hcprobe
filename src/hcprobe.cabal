@@ -78,7 +78,7 @@ executable hcprobe
                        HUnit, statistics, mersenne-random, time, directory,
                        conduit, network-conduit,
                        resourcet, async, cereal,
-                       random, digest, stm, stm-conduit, stm-chans,
+                       random, digest, stm, stm-conduit>=1.1, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH,
                        cmdargs, ConfigFile, bitset,
