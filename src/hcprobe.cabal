@@ -200,7 +200,8 @@ executable TestIcsum
                        transformers, mtl, containers, vector,
                        errors, MissingH,
                        cmdargs, ConfigFile, bitset,
-                       nettle-openflow, QuickCheck, blaze-builder 
+                       nettle-openflow, QuickCheck, blaze-builder,
+                       criterion
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
 

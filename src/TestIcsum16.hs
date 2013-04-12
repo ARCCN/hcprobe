@@ -32,23 +32,28 @@ import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import System.Random
 
-bsFromW16 w16 = BP.runPut $ BP.putBuilder $ foldl accPutWord16be BB.empty w16
+import Criterion
+import Criterion.Main
+
+bsFromW16' w16 = BP.runPut $ BP.putBuilder $ foldl accPutWord16be BB.empty w16
     where accPutWord16be acc w = acc `BB.append` (BB.putWord16be w)
 
-test :: [Word16] -> Bool
-test a = (testNew a) == (testOld a)
-{-
-testNew lst = 
-    (icsum16 0 . V.fromList) <$> lst
+bsFromW16 wlist16 = BS.pack $ wlist8 wlist16
+wlist8 wlist16 = foldr w16towlist8 [] wlist16
+    where w16towlist8 :: Word16 -> [Word8] -> [Word8]
+          w16towlist8 w16 acc = fromIntegral ( w16 `shift` (-8) )
+                              : fromIntegral w16
+                              : acc
+testCompare wlist16 =
+    (icsum16 0 $ V.fromList wlist16 ) == (icsum16' 0 $ bsFromW16 wlist16)
 
-testOld lst = 
-    (icsum16' 0 . BS.pack) <$> lst -}
-
-genLengthDEF = 10000 :: Int
+genLengthDEF = 100 :: Int
 
 main = do
-    test <- arbitary
+    test <- sample' arbitrary :: IO [[Word16]]
 
-    defaultMain [ bgrup "csumNew" $ nf testNew (V.fromList arbitary)
-                , bgrup "csumOld" $ nf testOld (bsfromW16 arbitary)
+    defaultMain [ bench "csumNew" $ nf (map (icsum16 0)) (map V.fromList test)
+                , bench "csumOld" $ nf (map (icsum16' 0)) (map bsFromW16 test)
+                --, bench "csumCompare" $ nf (map testCompare) test
                 ]
+    print $ map testCompare test
