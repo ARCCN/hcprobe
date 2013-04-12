@@ -41,8 +41,10 @@ import Data.Conduit
 import Data.Conduit.Network
 import Data.Conduit.TMChan
 import Data.Conduit.TQueue
+import Data.Conduit.Mutable
 import Data.Conduit.BinaryParse
 import qualified Data.Conduit.List as CL
+import qualified Data.Conduit.Util as CU
 import Data.List
 import Data.Maybe
 import Data.Word
@@ -383,64 +385,3 @@ client' fk ad =
 
             processMessage _ _ = return Nothing
 
-{-
--- | Run configured switch with program inside
-withSwitch fk u ad = 
-  runResourceT $ do
-      let listener = appSource ad $= conduitBinary
-                                  =$= CL.mapM (uncurry processMessage)
-                                  $$ sinkTQueue _inP
-          sender   = undefined
-  -}        
-
-
-{-
-  runResourceT $ do
-
-    tranId <- liftIO $ newTVarIO 0
-    featureReplyMonitor <- liftIO $ newTVarIO False
- V   swCfg <- liftIO $ newTVarIO defaultSwitchConfig
-    let !ctx = SwitchContext featureReplyMonitor tranId swCfg
-    let qwork = do x <- await
-                   case x of
-                       Nothing -> return ()
-                       Just m  -> do yield m
-                                     liftIO . atomically $ writeTQueue pktStockQ (reuse m)
-                                     qwork
-        sender = sourceTQueue pktInQ $= qwork =$= CL.map extract $$ appSink ad
-
-    let receiver = appSource ad -- $= CL.mapM (\x -> putStrLn "IN:" >> putStrLn (show (BS.unpack x)) >> return x)
-           $= conduitBinary -- :: Conduit BS8.ByteString Undef OfpMessage)
-           -- =$= CL.mapM (\x -> putStrLn (show x) >> return x)
-           $$ CL.mapM_ (\m@(OfpMessage h _) -> processMessage ctx (ofp_hdr_type h) m)
-
-        sendARPGrat = do
-           withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-           liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
-
-        threads = [receiver, sender, 
-                     do withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
-                        pktInGen fk]
-    waitThreads <- liftIO $ mapM asyncBound threads
-    mapM_ (flip allocate cancel) (map return waitThreads)
-    liftIO $ do
-      async sendARPGrat
-      v <- waitAnyCatchCancel waitThreads
-      case snd v of
-         Left e -> putStrLn (show e)
-         Right _ -> return ()
-  where
-    sendReplyT msg = do
-      --liftIO $ dump "OUT:" (ofp_header msg) 
-      maybe (return ()) (\x -> (liftIO.x) msg) sH
-      buf <- liftIO . atomically $ readTQueue pktStockQ
-      buf' <- runPutToBuffer buf (putMessage msg)
-      liftIO . atomically $ writeTQueue pktInQ buf'
-
-
-    nothing = return ()
-
-    nextTranID c = liftIO $ atomically $ do
-              modifyTVar (transactionID c) succ
-              readTVar (transactionID c) >>= return . fromIntegral
-  -}                
