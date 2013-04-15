@@ -13,9 +13,6 @@ import Data.Bits
 import Data.List (foldl')
 import System.IO.Unsafe
 import qualified Data.BitSet.Generic as BB
-import qualified Data.Vector.Storable as V
-import Foreign.Ptr
-import Foreign.ForeignPtr
 
 -- import Debug.Trace
 -- import Text.Printf
@@ -88,9 +85,8 @@ putTCP x = do
            putWord8 0               {- 9  -}
            putWord8 (tcpProto x)    {- 10 -}
            putWord16be (fromIntegral hlen')
-
-           let crc = 0 `icsum16` ( V.unsafeFromForeignPtr0 ( unsafePerformIO (newForeignPtr_ (castPtr $! toPtr message_end))) 5 ) -- 10/2 Word16
-                       `icsum16` ( V.unsafeCast $! V.unsafeFromForeignPtr0 ( unsafePerformIO (newForeignPtr_ $! toPtr start)) hlen') -- FIXME:Word8 to Word16 here the problem 
+           let crc = 0 `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen 10 (toAddr message_end))
+                       `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen hlen' (toAddr start))
            undelay acrc (Word16be (fin_icsum16' crc))
            shrink message_end
   where
