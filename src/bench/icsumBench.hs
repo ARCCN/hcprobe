@@ -72,7 +72,7 @@ instance NFData CUInt where
 toCIcsum16 = c_icsum16 0
 
 genLengthDEF = 100000 :: Int
-genAmountDEF = 100 :: Int
+genAmountDEF = 5 :: Int
 
 main = do
     gen <- newStdGen
@@ -81,11 +81,6 @@ main = do
     (mem,_ofs,len) <- BS.toForeignPtr . BS.pack . head <$> sample' (vector genLengthDEF)
     let mem' = unsafeForeignPtrToPtr mem -- for convinience
     let len' = len `div` 2
-
--- Try to comment one of next three lines
-    print $ rtest16 mem' len
-    print $ rtest16' mem' len
-    print $ toCIcsum16 (FP.castPtr mem') (fromIntegral len' )
 
     defaultMain [ bgroup "from list"     
                     [ bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
@@ -98,3 +93,4 @@ main = do
                         (FP.castPtr mem', fromIntegral len')
                     ]
                 ]
+    touchForeignPtr mem -- to sade data from gc destructor
