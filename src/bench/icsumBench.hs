@@ -1,3 +1,6 @@
+{-# LANGUAGE ForeignFunctionInterface #-}
+{-# INCLUDE "icsum.h" #-}
+
 module Main ( main
             ) where
 
@@ -25,7 +28,8 @@ import Control.Monad
 import Foreign.Storable
 import Foreign.ForeignPtr
 import GHC.Ptr
-
+import Foreign.C
+import qualified Foreign.Ptr as FP
 
 import Text.Printf
 import Debug.Trace
@@ -58,23 +62,25 @@ rtest16' (Ptr start) len = icsum16' 0 (BS.inlinePerformIO $ BS.unsafePackAddress
 testCompare wlist8 =
     (icsum16 0 $ testPrepareNew wlist8 ) == (icsum16' 0 $ testPrepareOld wlist8)
 
+foreign import ccall "icsum.h c_icsum16" c_icsum16 :: CUInt -> FP.Ptr () -> CSize 
+
 genLengthDEF = 100000 :: Int
+genAmountDEF = 5 :: Int
 
 main = do
-    test <- sample' (vector genLengthDEF) :: IO [[Word8]]
+    gen <- newStdGen
+    let test = unGen (vector genLengthDEF) gen genAmountDEF :: [[Word8]]
 
     (mem,_ofs,len) <- BS.toForeignPtr . BS.pack . head <$> sample' (vector genLengthDEF)
     let mem' = unsafeForeignPtrToPtr mem -- for convinience
 
     defaultMain [ bgroup "from list"     
-                    [ bench "csumNew" $ nf (map (icsum16 0)) (map testPrepareNew test)
-                    , bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
+                    [ bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
+                    , bench "csumNew" $ nf (map (icsum16 0)) (map testPrepareNew test)
                     ]
                 , bgroup "from memory"
                     [ bench "csumNew" $ nf (uncurry rtest16) (mem',len)
                     , bench "csumOld" $ nf (uncurry rtest16') (mem',len)
                     ]
+                --, bench "csumC" $ nf 
                 ]
-    putStrLn ""
-    putStr "compare results: "
-    print $ map testCompare test
