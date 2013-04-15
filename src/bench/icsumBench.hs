@@ -1,5 +1,4 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-{-# INCLUDE "icsum.h" #-}
 
 module Main ( main
             ) where
@@ -57,9 +56,10 @@ testPrepareOld wlist8 =
 testPrepareNew wlist8 =
     V.unsafeCast $ V.fromList (wlist8 ++ wlist8)
 
-rtest16  start len = icsum16 0 (V.unsafeCast (V.unsafeFromForeignPtr0 
+rtest16  start len = 
+        (V.unsafeCast (V.unsafeFromForeignPtr0 
         (BS.inlinePerformIO (newForeignPtr_ start)) len)) -- FIXME:Word8 to Word16 here the problem 
-rtest16' (Ptr start) len = icsum16' 0 (BS.inlinePerformIO $ BS.unsafePackAddressLen len start)
+rtest16' (Ptr start) len = (BS.inlinePerformIO $ BS.unsafePackAddressLen len start)
 
 testCompare wlist8 =
     (icsum16 0 $ testPrepareNew wlist8 ) == (icsum16' 0 $ testPrepareOld wlist8)
@@ -83,12 +83,12 @@ main = do
     let len' = len `div` 2
 
     defaultMain [ bgroup "from list"     
-                    [ bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
-                    , bench "csumNew" $ nf (map (icsum16 0)) (map testPrepareNew test)
+                    [  bench "csumNew" $ nf (map (icsum16 0)) (map testPrepareNew test)
+                    ,  bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
                     ]
                 , bgroup "from memory"
-                    [ bench "csumNew" $ nf (uncurry rtest16) (mem',len)
-                    , bench "csumOld" $ nf (uncurry rtest16') (mem',len)
+                    [ bench "csumNew" $ nf (icsum16 0) (rtest16 mem' len)
+                    , bench "csumOld" $ nf (icsum16' 0) (rtest16' mem' len)
                     , bench "csumC" $ nf (uncurry toCIcsum16) 
                         (FP.castPtr mem', fromIntegral len')
                     ]
