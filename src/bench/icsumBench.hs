@@ -24,6 +24,7 @@ import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Unsafe as BS
 import Control.Monad
+import Control.DeepSeq
 
 import Foreign.Storable
 import Foreign.ForeignPtr
@@ -56,16 +57,22 @@ testPrepareOld wlist8 =
 testPrepareNew wlist8 =
     V.unsafeCast $ V.fromList (wlist8 ++ wlist8)
 
-rtest16  start len = icsum16 0 (V.unsafeCast (V.unsafeFromForeignPtr0 (BS.inlinePerformIO (newForeignPtr_ start)) len)) -- FIXME:Word8 to Word16 here the problem 
+rtest16  start len = icsum16 0 (V.unsafeCast (V.unsafeFromForeignPtr0 
+        (BS.inlinePerformIO (newForeignPtr_ start)) len)) -- FIXME:Word8 to Word16 here the problem 
 rtest16' (Ptr start) len = icsum16' 0 (BS.inlinePerformIO $ BS.unsafePackAddressLen len start)
 
 testCompare wlist8 =
     (icsum16 0 $ testPrepareNew wlist8 ) == (icsum16' 0 $ testPrepareOld wlist8)
 
-foreign import ccall "icsum.h c_icsum16" c_icsum16 :: CUInt -> FP.Ptr () -> CSize 
+foreign import ccall "icsum.h c_icsum16" c_icsum16 :: CUInt -> FP.Ptr () -> CSize -> CUInt 
+
+instance NFData CUInt where
+    rnf = rnf . (fromIntegral :: CUInt -> Word32)
+
+toCIcsum16 = c_icsum16 0
 
 genLengthDEF = 100000 :: Int
-genAmountDEF = 5 :: Int
+genAmountDEF = 100 :: Int
 
 main = do
     gen <- newStdGen
@@ -73,6 +80,12 @@ main = do
 
     (mem,_ofs,len) <- BS.toForeignPtr . BS.pack . head <$> sample' (vector genLengthDEF)
     let mem' = unsafeForeignPtrToPtr mem -- for convinience
+    let len' = len `div` 2
+
+-- Try to comment one of next three lines
+    print $ rtest16 mem' len
+    print $ rtest16' mem' len
+    print $ toCIcsum16 (FP.castPtr mem') (fromIntegral len' )
 
     defaultMain [ bgroup "from list"     
                     [ bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
@@ -81,6 +94,7 @@ main = do
                 , bgroup "from memory"
                     [ bench "csumNew" $ nf (uncurry rtest16) (mem',len)
                     , bench "csumOld" $ nf (uncurry rtest16') (mem',len)
+                    , bench "csumC" $ nf (uncurry toCIcsum16) 
+                        (FP.castPtr mem', fromIntegral len')
                     ]
-                --, bench "csumC" $ nf 
                 ]

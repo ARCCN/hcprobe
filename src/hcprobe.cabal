@@ -224,18 +224,19 @@ test-suite test-strictput-put
 
 benchmark bench-icsum
   type:               exitcode-stdio-1.0  
-  main-is:            icsumBench.hs   
+  main-is:            icsumBench.hs  
+  c-sources:          bench/icsum.c
   hs-source-dirs:     bench  
-  -- other-modules:    
-  build-depends:       base, binary >= 0.7.0.0, bytestring,
-                       HUnit, hcprobe,
-                       conduit, network-conduit,
-                       resourcet, async, cereal,
-                       random, digest, stm, stm-conduit, stm-chans,
-                       transformers, mtl, containers, vector,
-                       errors, MissingH,
-                       cmdargs, ConfigFile, bitset,
-                       nettle-openflow, QuickCheck, blaze-builder,
-                       criterion
+  build-depends:      base, binary >= 0.7.0.0, bytestring,
+                      HUnit, hcprobe, deepseq,
+                      conduit, network-conduit,
+                      resourcet, async, cereal,
+                      random, digest, stm, stm-conduit, stm-chans,
+                      transformers, mtl, containers, vector,
+                      errors, MissingH,
+                      cmdargs, ConfigFile, bitset,
+                      nettle-openflow, QuickCheck, blaze-builder,
+                      criterion
 
-  ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
+  ghc-options:        -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
+  cc-options:         -Wall -O2

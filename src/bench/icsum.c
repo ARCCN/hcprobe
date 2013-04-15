@@ -1,6 +1,6 @@
 #include "icsum.h"
 
-unsigned int c_icsum16 (unsigned short acc, void* data, size_t len)
+unsigned int c_icsum16 (unsigned int acc, void* data, size_t len)
 {
     unsigned short *vector = data;
     size_t i;
@@ -8,4 +8,5 @@ unsigned int c_icsum16 (unsigned short acc, void* data, size_t len)
     for (i=0; i<len; ++i, ++vector) {
         acc += *vector;
     }
+    return acc;
 }
