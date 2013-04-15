@@ -71,8 +71,8 @@ instance NFData CUInt where
 
 toCIcsum16 = c_icsum16 0
 
-genLengthDEF = 100000 :: Int
-genAmountDEF = 5 :: Int
+genLengthDEF = 1024 :: Int
+genAmountDEF = 500 :: Int
 
 main = do
     gen <- newStdGen
