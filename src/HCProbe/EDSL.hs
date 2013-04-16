@@ -15,6 +15,7 @@ module HCProbe.EDSL
   , withSwitch
   , hangOn
   , waitForType
+  , waitForBID
   -- * packet sending
   , nextBID
   -- * reexports
@@ -160,6 +161,27 @@ waitForType t = do
                     Just (a,b) -> do atomically $ writeTVar s os
                                      return b
 
+      go
+
+waitForBID :: Word32 -> FakeSwitchM (OfpMessage)
+waitForBID b = do
+  box <- lift $ newEmptyMVar
+  s   <- asks userSink
+  let ns = do mx <- await
+              case mx of
+                  Nothing -> lift $ putMVar box Nothing
+                  Just (_,m@(OfpMessage _ (OfpPacketOut (OfpPacketOutData b' _)))) | b == b' -> do
+                      lift $ putMVar box (Just m)
+                      return ()
+                  _ -> ns
+  lift $ do
+      os <- readTVarIO s
+      atomically $ writeTVar s ns
+      let go = do mx <- takeMVar box
+                  case mx of
+                      Nothing -> go
+                      Just m  -> do atomically $ writeTVar s os
+                                    return m
       go
 
 -- | get next buffer id
