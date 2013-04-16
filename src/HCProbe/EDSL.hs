@@ -18,6 +18,7 @@ module HCProbe.EDSL
   , waitForBID
   -- * packet sending
   , nextBID
+  , sendOFPPacketIn
   -- * reexports
   , HCProbe.FakeSwitch.runSwitch
   , module Data.Default
@@ -191,6 +192,18 @@ nextBID = do
     let nbuf = (ofp_n_buffers . eSwitchFeatures) cfg
     lift $ atomicModifyIORef' bbox (\c -> (if c+1>nbuf then 1 else c+1, c))
 
+-- | Send Open flow PacketIn message
+sendOFPPacketIn :: Word16   -- ^ port id
+                -> Word32   -- ^ transaction id
+                -> PutM ()
+                -> FakeSwitchM Word32
+sendOFPPacketIn pid tid pl = do
+        q <- asks queue
+        bid <- nextBID
+        lift . atomically . writeTQueue q $
+                  OfpMessage (header openflow_1_0 tid OFPT_PACKET_IN)
+                             (OfpPacketInReply (OfpPacketIn bid pid OFPR_NO_MATCH pl))
+        return bid
 
 -- | Run configured switch with program inside
 withSwitch :: EFakeSwitch -> ByteString -> Int -> FakeSwitchM () -> IO ()

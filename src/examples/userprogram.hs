@@ -11,6 +11,12 @@ import Control.Monad (replicateM_)
 import Control.Monad.Trans (lift)
 import Data.Bits                -- for IP creation [ TODO: remove ]
 import HCProbe.EDSL
+-- low level message generation
+import Network.Openflow.Ethernet.Generator
+import Network.Openflow.Ethernet.IPv4
+import Network.Openflow.Ethernet.TCP
+import HCProbe.Ethernet
+import HCProbe.TCP
 
 main :: IO ()
 main = do 
@@ -45,9 +51,21 @@ main = do
         -- Sending primitives:
         -- send simple packet
         -- tcp <- randomTCP
-        -- bid <- sendOFPPacket (simplePacketIn payload)
-
-        {-
-        -- wait for responce
-        waitForOFAnswer bid
-        -}
+        lift $ putStrLn "sending packet. and waiting for responce."
+        let pl = putEthernetFrame . (EthFrameP 23 45) . putIPv4Pkt $
+                    TestPacketTCP { dstMAC = 27
+                                  , srcMAC = 35
+                                  , srcIP  = 99
+                                  , dstIP  = 66
+                                  , dstPort = 22
+                                  , srcPort = 12342
+                                  , testWSS = Just 3
+                                  , testFlags = tcpFlagsOf [ACK]
+                                  , testPayloadLen = 32
+                                  , testAckNo = Nothing
+                                  , testSeqNo = Nothing
+                                  , testIpID = Nothing
+                                  }
+        bid <- sendOFPPacketIn 23 43 pl
+        waitForBID bid
+        lift $ putStrLn "done"
