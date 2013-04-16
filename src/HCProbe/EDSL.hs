@@ -150,9 +150,7 @@ waitForType :: OfpType -> FakeSwitchM (OfpMessage)
 waitForType t = do
     box <- lift $ newEmptyMVar 
     s <- asks userSink
-    let ns = CL.mapM (\x -> print (fst x) >> return x) 
-                =$= CL.filter ((t ==) . fst) 
-                =$= CL.head >>= lift . putMVar box
+    let ns = CL.filter ((t ==) . fst) =$= CL.head >>= lift . putMVar box
     lift $ do
       os <- readTVarIO s
       atomically $ writeTVar s ns
