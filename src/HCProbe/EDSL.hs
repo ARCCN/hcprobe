@@ -15,6 +15,8 @@ module HCProbe.EDSL
   , withSwitch
   , hangOn
   , waitForType
+  -- * packet sending
+  , nextBID
   -- * reexports
   , HCProbe.FakeSwitch.runSwitch
   , module Data.Default
@@ -22,6 +24,7 @@ module HCProbe.EDSL
   , module HCProbe.FakeSwitch.Processing
   ) where
 
+import Control.Arrow
 import Control.Applicative
 import Control.Concurrent.MVar
 import qualified Control.Concurrent (yield)
@@ -41,6 +44,7 @@ import qualified Data.Conduit.Util as CU
 import Data.Default
 import Data.List
 import Data.Monoid
+import Data.IORef
 import qualified Data.Vector.Unboxed as V
 import Data.Word
 import Data.ByteString (ByteString)
@@ -130,7 +134,12 @@ instance Default OfpSwitchFeatures where
                           }
 
 -- | User environment
-data UserEnv = UserEnv (TVar (Sink (OfpType,OfpMessage) IO ())) (TQueue OfpMessage)
+data UserEnv = UserEnv 
+      { switchConfig :: EFakeSwitch
+      , userSink :: (TVar (Sink (OfpType,OfpMessage) IO ())) 
+      , queue :: (TQueue OfpMessage)
+      , currentBID :: IORef Word32
+      }
 
 type FakeSwitchM a = ReaderT UserEnv IO a
 
@@ -140,7 +149,7 @@ hangOn = lift (forever Control.Concurrent.yield)
 waitForType :: OfpType -> FakeSwitchM (OfpMessage)
 waitForType t = do
     box <- lift $ newEmptyMVar 
-    UserEnv s _ <- ask
+    s <- asks userSink
     let ns = CL.mapM (\x -> print (fst x) >> return x) 
                 =$= CL.filter ((t ==) . fst) 
                 =$= CL.head >>= lift . putMVar box
@@ -155,11 +164,20 @@ waitForType t = do
 
       go
 
+-- | get next buffer id
+nextBID :: FakeSwitchM Word32
+nextBID = do
+    (cfg, bbox) <- asks (switchConfig &&& currentBID)
+    let nbuf = (ofp_n_buffers . eSwitchFeatures) cfg
+    lift $ atomicModifyIORef' bbox (\c -> (if c+1>nbuf then 1 else c+1, c))
+
+
 -- | Run configured switch with program inside
 withSwitch :: EFakeSwitch -> ByteString -> Int -> FakeSwitchM () -> IO ()
 withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
   sendQ <- atomically $ newTQueue
   swCfg <- newTVarIO defaultSwitchConfig
+  ref <- newIORef 1
   runResourceT $ do
     userS <- liftIO $ newTVarIO (CL.sinkNull) 
     let extract  = runPutToByteString 32768 . putMessage
@@ -171,7 +189,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) =$= CL.catMaybes =$ sinkTQueue sendQ)
                     (mutableSink userS)
         sender   = sourceTQueue sendQ $= CL.map extract $$ appSink ad
-        user     = runReaderT u (UserEnv userS sendQ)
+        user     = runReaderT u (UserEnv sw userS sendQ ref)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
     liftIO $ do
@@ -181,5 +199,3 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
         Left e -> putStrLn (show e)
         Right _ -> return ()
 
-randomTCP :: IO (ByteString)
-randomTCP = undefined

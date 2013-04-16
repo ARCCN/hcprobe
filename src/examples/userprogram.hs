@@ -7,7 +7,8 @@ module Main
   where
 
 import Control.Concurrent (threadDelay)
-import Control.Monad.Trans
+import Control.Monad (replicateM_)
+import Control.Monad.Trans (lift)
 import Data.Bits                -- for IP creation [ TODO: remove ]
 import HCProbe.EDSL
 
@@ -20,8 +21,10 @@ main = do
                   addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
                 addMACs [1..450]
     print fakeSw
+
     withSwitch fakeSw "localhost" 6633 $ do
-        -- await forever
+
+        -- wait for type examples: 
         lift $ putStr "waiting for barrier request.. "
         waitForType OFPT_BARRIER_REQUEST
         lift $ putStrLn  "[done]"
@@ -29,10 +32,16 @@ main = do
         waitForType OFPT_ECHO_REQUEST
         lift $ putStrLn "[done]"
         
+        -- thread delay example
         lift $ putStr "waiting for 1 second.. "
         lift $ threadDelay 1000000 -- wait for a second
         lift $ putStrLn "[done]"
         
+        -- next buffer id example
+        replicateM_ 10 $ do
+            x <- nextBID
+            lift . putStrLn $ "next buffer id " ++ show x
+
         -- Sending primitives:
         -- send simple packet
         -- tcp <- randomTCP
