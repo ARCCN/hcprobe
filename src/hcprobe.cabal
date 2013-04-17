@@ -205,6 +205,23 @@ executable testclient
   Ghc-options:         -Wall -threaded -O2
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all -XMagicHash 
 
+executable simpleSwitchExample 
+  main-is:           examples/simpleswitch.hs
+  buildable:         True
+
+  -- other-modules:    
+  build-depends:       base, binary, bytestring,
+                       conduit, network-conduit,
+                       resourcet, async, cereal,time,
+                       random, digest, stm, stm-conduit, stm-chans,
+                       transformers, mtl, containers, vector,
+                       errors, MissingH, blaze-builder, data-default, 
+                       mersenne-random-pure64,  mersenne-random,
+                       cmdargs, ConfigFile, directory, bitset
+  Ghc-options:         -Wall -threaded -O2
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all -XMagicHash 
+
+
 benchmark bench-strictput-all
   type:               exitcode-stdio-1.0
   hs-source-dirs:     bench
