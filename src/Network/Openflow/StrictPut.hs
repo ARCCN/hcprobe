@@ -154,9 +154,6 @@ putByteString !bs = PutM f
 putZeros :: Int -> Put
 putZeros !i = PutM $ \p -> S.memset p 0 (fromIntegral i) >> return ((), p `plusPtr` i)
 
-
--- | get current address
-
 -- | Mark currect address
 newtype Marker = Marker (Ptr Word8)
 

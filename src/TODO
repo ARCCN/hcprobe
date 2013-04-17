@@ -12,4 +12,11 @@
 [ ] TODO: make iterative crc
 [ ] TODO: make iterative binary reader
 [ ] TODO: make builders for all messages!!! and check correctness
-
+[+] TODO: use monadic stack over IO in order to use random gen
+[ ] TODO: store all MAC addresses in state in order to filter same MACs
+[ ] TODO: [EDSL] default reasonable port configuration
+[ ] TODO: [EDSL] copy last port
+[ ] TODO: [EDSL] randomTCP primitive
+[ ] TODO: [EDSL] simpleTCP primitive
+[ ] TODO: [EDSL] ofp messages primitives
+[ ] TODO: [EDSL] low level message interface

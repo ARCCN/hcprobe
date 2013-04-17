@@ -308,9 +308,6 @@ displayStats params chan = do
     threadDelay $ statsDelay params
 
 randomSet :: Word64 -> S.Set MACAddr -> IO (S.Set MACAddr)
-
---randomSet n s | S.size s == n = return s
-
 randomSet n s = do
   i <- randomIO :: IO Word8
   let macList = [1..fromIntegral n] :: [MACAddr]
