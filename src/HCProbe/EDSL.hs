@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
 module HCProbe.EDSL
   ( -- * Entities creation
 --    config
@@ -109,13 +109,14 @@ newtype PortNameGen = PortNameGen (Int -> ByteString)
 instance Default PortNameGen where
     def = PortNameGen (\i -> BS8.pack $ printf "eth%d" i)
 
-addPort :: [OfpPortConfigFlags]                 -- ^ config flags
+addPort :: (MonadIO m)
+        => [OfpPortConfigFlags]                 -- ^ config flags
         -> [OfpPortStateFlags]                  -- ^ state flags
         -> [OfpPortFeatureFlags]                -- ^ feature flags
         -> PortNameGen
-        -> WriterT (Endo OfpSwitchFeatures) (StateT SwitchState IO) ()
+        -> WriterT (Endo OfpSwitchFeatures) m ()
 addPort confFlags stateFlags featureFlags (PortNameGen genname) = do
-    bytes <- lift $ lift $ replicateM 3 (MR.randomIO :: IO Word8)
+    bytes <- liftIO $ replicateM 3 (MR.randomIO :: IO Word8)
     tell $ Endo $ \f ->
         --TODO: store mac in db?
         let pps  = ofp_ports f                            -- load existsing ports
@@ -136,13 +137,16 @@ addPort confFlags stateFlags featureFlags (PortNameGen genname) = do
   where 
     fmac acc b = (acc `shiftL` 8) .|. (fromIntegral b::Word64)
 
-ensureUnique :: MACAddr 
-             -> WriterT (Endo EFakeSwitch) (StateT SwitchState IO) MACAddr
+ensureUnique :: (MonadState SwitchState m) 
+             => MACAddr
+             -> WriterT (Endo EFakeSwitch) m MACAddr
 ensureUnique a = do
     st <- get
     return $ until (\m->not $ S.member m st) (\m->m+1) a
 
-addMACs :: [MACAddr] -> WriterT (Endo EFakeSwitch) (StateT SwitchState IO) ()
+addMACs :: (MonadState SwitchState m) 
+        => [MACAddr]
+        -> WriterT (Endo EFakeSwitch) m ()
 addMACs ms' = do
     ms <- sequence $ map ensureUnique ms'
     tell $ Endo (\p ->
