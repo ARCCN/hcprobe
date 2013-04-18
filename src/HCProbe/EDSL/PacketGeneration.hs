@@ -28,8 +28,9 @@ import Network.Openflow.Messages
 import Network.Openflow.StrictPut
 
 
-putOFMessage :: Writer (Endo OfpMessage) a -> Put 
-putOFMessage w = putMessage (appEndo (execWriter w) def)
+-- FIXME use buffer or such stuff
+putOFMessage :: Writer (Endo OfpMessage) a -> OfpMessage
+putOFMessage w = appEndo (execWriter w) def
 
 -- | Create header
 putOFHeader :: Writer (Endo OfpHeader) a -> Writer (Endo OfpMessage) ()

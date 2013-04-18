@@ -22,6 +22,7 @@ module HCProbe.EDSL
   -- , portMACs
   -- * packet sending
   , nextBID
+  , send
   , sendOFPPacketIn
   -- * reexports
   , HCProbe.FakeSwitch.runSwitch
@@ -226,6 +227,11 @@ nextBID = do
 
 portLength :: FakeSwitchM Int
 portLength = asks ( IM.size . eMacSpace . switchConfig)
+
+send :: OfpMessage -> FakeSwitchM ()
+send m = do
+  q <- asks queue
+  lift . atomically $ writeTQueue q m
 
 -- | Send Open flow PacketIn message
 sendOFPPacketIn :: Word16   -- ^ port id
