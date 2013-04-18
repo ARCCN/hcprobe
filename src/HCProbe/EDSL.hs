@@ -6,10 +6,10 @@ module HCProbe.EDSL
   {-,-} 
     switchOn
   , switch
-  , switches
-  , finSwitch
+  , config
     -- ** EDSL for features
   , addMACs
+  , clearMACs
   , features 
   , PortNameGen(..)
   , addPort
@@ -71,30 +71,22 @@ import qualified System.Random.Mersenne as MR
 
 type SwitchState = S.Set MACAddr
 
--- | Create switch
+config :: StateT SwitchState IO a
+       -> IO a
+config = flip evalStateT S.empty
 
-finSwitch :: StateT SwitchState IO EFakeSwitch
-          -> IO EFakeSwitch
-finSwitch s = evalStateT s S.empty
-
-switch :: IPv4Addr
-       -> WriterT (Endo EFakeSwitch) (StateT SwitchState IO) a
-       -> IO EFakeSwitch
-switch ip w = finSwitch $ switches ip w
-
-switches :: IPv4Addr                                         -- ^ Switch address
-         -> WriterT (Endo EFakeSwitch) (StateT SwitchState IO) a                   -- ^ Switch builder
-         -> StateT SwitchState IO EFakeSwitch
-switches ip = switchOn 
-  EFakeSwitch { eSwitchIP = ip
-              , eMacSpace = IM.empty
-              , eSwitchFeatures = def
-              }
+-- | create switch from default using builder
+switch :: (Monad m)
+        => IPv4Addr
+       -> WriterT (Endo EFakeSwitch) m a
+       -> m EFakeSwitch
+switch ip = switchOn def{eSwitchIP=ip}
 
 -- | Modify switch using builder
-switchOn :: EFakeSwitch                                     -- ^ Existing switch
-         -> WriterT (Endo EFakeSwitch) (StateT SwitchState IO) a                 -- ^ Switch Builder
-         -> StateT SwitchState IO EFakeSwitch
+switchOn :: (Monad m) 
+         => EFakeSwitch                                     -- ^ Existing switch
+         -> WriterT (Endo EFakeSwitch) m a                 -- ^ Switch Builder
+         -> m EFakeSwitch
 switchOn s b = do en <- execWriterT b 
                   return (appEndo en s)
 
@@ -156,6 +148,10 @@ addMACs ms' = do
             macll  = take nport $ unfoldr (Just.(splitAt nmacpp)) ms
             ms'    = IM.fromList $ zip [1..nport] (map V.fromList macll)
         in p{eMacSpace = IM.unionWith (V.++) ms' (eMacSpace p)})
+
+-- | remove all MAC addresses connected to switch
+clearMACs :: (Monad m) => WriterT (Endo EFakeSwitch) m ()
+clearMACs = tell $ Endo (\p -> p{eMacSpace = IM.empty})
 
 instance Default OfpSwitchFeatures where
   def = OfpSwitchFeatures { ofp_datapath_id  = 0
@@ -270,3 +266,6 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
 
 randomTCP :: IO (ByteString)
 randomTCP = undefined
+
+instance Default EFakeSwitch where
+  def = EFakeSwitch def def def 
