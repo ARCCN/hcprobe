@@ -17,6 +17,12 @@ module HCProbe.EDSL
   , withSwitch
   , hangOn
   , waitForType
+  , waitForBID
+  , portLength
+  -- , portMACs
+  -- * packet sending
+  , nextBID
+  , sendOFPPacketIn
   -- * reexports
   , HCProbe.FakeSwitch.runSwitch
   , module Data.Default
@@ -24,6 +30,7 @@ module HCProbe.EDSL
   , module HCProbe.FakeSwitch.Processing
   ) where
 
+import Control.Arrow
 import Control.Applicative
 import Control.Concurrent.MVar
 import qualified Control.Concurrent (yield)
@@ -46,6 +53,7 @@ import Data.List
 import Data.Monoid
 import qualified Data.Vector.Unboxed as V
 import Data.Word
+import Data.IORef
 import Data.ByteString (ByteString)
 import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -155,7 +163,12 @@ instance Default OfpSwitchFeatures where
                           }
 
 -- | User environment
-data UserEnv = UserEnv (TVar (Sink (OfpType,OfpMessage) IO ())) (TQueue OfpMessage)
+data UserEnv = UserEnv 
+        { switchConfig :: EFakeSwitch
+        , currentBID   :: IORef Word32
+        , userSink     :: TVar (Sink (OfpType,OfpMessage) IO ())
+        , queue        :: TQueue OfpMessage
+        }
 
 type FakeSwitchM a = ReaderT UserEnv IO a
 
@@ -165,7 +178,7 @@ hangOn = lift (forever Control.Concurrent.yield)
 waitForType :: OfpType -> FakeSwitchM (OfpMessage)
 waitForType t = do
     box <- lift $ newEmptyMVar 
-    UserEnv s _ <- ask
+    s   <- asks userSink
     let ns = CL.mapM (\x -> print (fst x) >> return x) 
                 =$= CL.filter ((t ==) . fst) 
                 =$= CL.head >>= lift . putMVar box
@@ -180,10 +193,55 @@ waitForType t = do
 
       go
 
+waitForBID :: Word32 -> FakeSwitchM (OfpMessage)
+waitForBID b = do
+  box <- lift $ newEmptyMVar
+  s   <- asks userSink
+  let ns = do mx <- await
+              case mx of
+                  Nothing -> lift $ putMVar box Nothing
+                  Just (_,m@(OfpMessage _ (OfpPacketOut (OfpPacketOutData b' _)))) | b == b' -> do
+                      lift $ putMVar box (Just m)
+                      return ()
+                  _ -> ns
+  lift $ do
+      os <- readTVarIO s
+      atomically $ writeTVar s ns
+      let go = do mx <- takeMVar box
+                  case mx of
+                      Nothing -> go
+                      Just m  -> do atomically $ writeTVar s os
+                                    return m
+      go
+
+-- | get next buffer id
+nextBID :: FakeSwitchM Word32
+nextBID = do
+    (cfg, bbox) <- asks (switchConfig &&& currentBID)
+    let nbuf = (ofp_n_buffers . eSwitchFeatures) cfg
+    lift $ atomicModifyIORef' bbox (\c -> (if c+1>nbuf then 1 else c+1, c))
+
+portLength :: FakeSwitchM Int
+portLength = asks ( IM.size . eMacSpace . switchConfig)
+
+-- | Send Open flow PacketIn message
+sendOFPPacketIn :: Word16   -- ^ port id
+                -> Word32   -- ^ transaction id
+                -> PutM ()
+                -> FakeSwitchM Word32
+sendOFPPacketIn pid tid pl = do
+        q <- asks queue
+        bid <- nextBID
+        lift . atomically . writeTQueue q $
+                  OfpMessage (header openflow_1_0 tid OFPT_PACKET_IN)
+                             (OfpPacketInReply (OfpPacketIn bid pid OFPR_NO_MATCH pl))
+        return bid
+
 -- | Run configured switch with program inside
 withSwitch :: EFakeSwitch -> ByteString -> Int -> FakeSwitchM () -> IO ()
 withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
   sendQ <- atomically $ newTQueue
+  ref   <- newIORef 0
   swCfg <- newTVarIO defaultSwitchConfig
   runResourceT $ do
     userS <- liftIO $ newTVarIO (CL.sinkNull) 
@@ -196,7 +254,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) =$= CL.catMaybes =$ sinkTQueue sendQ)
                     (mutableSink userS)
         sender   = sourceTQueue sendQ $= CL.map extract $$ appSink ad
-        user     = runReaderT u (UserEnv userS sendQ)
+        user     = runReaderT u (UserEnv sw ref userS sendQ)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
     liftIO $ do
