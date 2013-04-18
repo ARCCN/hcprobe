@@ -28,6 +28,7 @@ module HCProbe.EDSL
   , module Data.Default
   , module Network.Openflow.Types
   , module HCProbe.FakeSwitch.Processing
+  , module HCProbe.EDSL.PacketGeneration
   ) where
 
 import Control.Arrow
@@ -66,6 +67,7 @@ import Network.Openflow.Messages
 import Network.Openflow.StrictPut
 import HCProbe.FakeSwitch
 import HCProbe.FakeSwitch.Processing
+import HCProbe.EDSL.PacketGeneration
 import Text.Printf
 import qualified System.Random.Mersenne as MR
 

@@ -40,6 +40,8 @@ library
                       HCProbe.TCP
                       HCProbe.ARP
                       HCProbe.FakeSwitch
+                      HCProbe.EDSL
+                      HCProbe.EDSL.PacketGeneration
                       Data.Conduit.BinaryParse
     build-depends:    base, binary >= 0.7.0.0, bytestring,
                       network-conduit>=1.0, cereal,

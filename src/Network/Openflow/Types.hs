@@ -22,6 +22,7 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
 
 import Network.Openflow.Ethernet.Types (MACAddr)
 import Network.Openflow.StrictPut
+import Data.Default
 import Data.Word
 import qualified Data.ByteString as BS
 -- import qualified Data.Set as S
@@ -49,10 +50,15 @@ data OfpHeader = OfpHeader { ofp_hdr_version :: !Word8
                            }
                            deriving (Show)
 
+instance Default OfpHeader where def = OfpHeader def def def def
+
 data OfpMessage = OfpMessage { ofp_header  :: !OfpHeader
                              , ofp_data    :: !OfpMessageData
                              }
                              deriving (Show)
+
+instance Default OfpMessage where
+  def = OfpMessage def def
 
 data OfpMessageData =   OfpMessageRaw       !BS.ByteString
                       | OfpEchoRequest      !BS.ByteString
@@ -72,6 +78,9 @@ data OfpMessageData =   OfpMessageRaw       !BS.ByteString
                       | OfpStatsReply
                       | OfpUnsupported      !BS.ByteString
                       deriving (Show)
+
+instance Default OfpMessageData where
+  def = OfpEmptyReply
 
 data OfpType  = 
     -- Immutable messages
@@ -112,6 +121,7 @@ data OfpType  =
 
     deriving (Ord, Eq, Enum, Show)
 
+instance Default OfpType where def = OFPT_HELLO
 
 data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: !Word64
                                            , ofp_n_buffers    :: !Word32
