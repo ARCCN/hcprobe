@@ -396,11 +396,15 @@ data OfpPacketIn = OfpPacketIn { ofp_pkt_in_buffer_id :: !Word32
                                , ofp_pkt_in_data      :: !(PutM ())
                                }
 
+instance Default OfpPacketIn where def = OfpPacketIn def def def (return ())
+
 instance Show OfpPacketIn where
     show (OfpPacketIn a b c d) = "OfpPacketIn "++show a++" "++show b++" "++show c++"<data>"
 
 data OfpPacketInReason = OFPR_NO_MATCH | OFPR_ACTION
                          deriving (Eq, Ord, Enum, Show)
+
+instance Default OfpPacketInReason where def = OFPR_NO_MATCH
 
 
 data OfpPacketOutData = OfpPacketOutData { ofp_pkt_out_buffer_id :: !Word32

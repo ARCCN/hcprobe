@@ -54,7 +54,7 @@ library
                       cmdargs, ConfigFile, directory, bitset >= 1.4,
                       mersenne-random-pure64, mersenne-random,
                       nettle-openflow >= 0.2.0, ghc-prim, directory,
-                      data-flags, blaze-builder
+                      data-flags, blaze-builder, data-default
 
 
   Ghc-options:        -Wall 
@@ -84,7 +84,7 @@ executable hcprobe
                        transformers, mtl, containers, vector,
                        errors, MissingH,
                        cmdargs, ConfigFile, bitset,
-                       nettle-openflow, data-flags, blaze-builder
+                       nettle-openflow, data-flags, blaze-builder, data-default
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O2 -funbox-strict-fields -rtsopts
                        -fmax-simplifier-iterations=10

@@ -21,11 +21,12 @@ import HCProbe.TCP
 main :: IO ()
 main = do 
     let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
-    fakeSw <- switch ip $ do
-                features $ do
-                  addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
-                  addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
-                addMACs [1..450]
+    fakeSw <- config $ do
+                switch ip $ do
+                    features $ do
+                      addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
+                      addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
+                    addMACs [1..450]
     print fakeSw
 
     withSwitch fakeSw "localhost" 6633 $ do

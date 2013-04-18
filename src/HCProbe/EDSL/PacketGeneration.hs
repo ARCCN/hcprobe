@@ -7,9 +7,18 @@ module HCProbe.EDSL.PacketGeneration
   , putHdrType
   , putHdrLength
   , putHdrXid
+    -- * payload
+  , putRaw
+  , putPacketIn
+  , putPacketInBufferId
+  , putPacketInPort
+  , putPacketInReason
+  , putPacketInData
   ) where
 
 import Control.Monad.Writer
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.Default
 import Data.Monoid
 import Data.Word
@@ -41,3 +50,21 @@ putHdrLength l = tell . Endo $ \h -> h{ofp_hdr_length = l}
 -- | Add xid
 putHdrXid :: Word32 -> Writer (Endo OfpHeader) ()
 putHdrXid x = tell . Endo $ \h -> h{ofp_hdr_xid = x}
+
+putRaw :: ByteString -> Writer (Endo OfpMessage) ()
+putRaw bs = tell . Endo $ \m -> m{ofp_data = OfpMessageRaw bs}
+
+putPacketIn w = tell . Endo $ \m -> m{ofp_data = OfpPacketInReply (appEndo (execWriter w) def)}
+
+putPacketInReason :: OfpPacketInReason -> Writer (Endo OfpPacketIn) ()
+putPacketInReason r = tell . Endo $ \m -> m{ofp_pkt_in_reason = r}
+
+putPacketInPort :: Word16 -> Writer (Endo OfpPacketIn) ()
+putPacketInPort p = tell . Endo $ \m -> m{ofp_pkt_in_in_port = p}
+
+putPacketInBufferId :: Word32 -> Writer (Endo OfpPacketIn) ()
+putPacketInBufferId i = tell . Endo $ \m -> m{ofp_pkt_in_buffer_id = i}
+
+putPacketInData :: Put -> Writer (Endo OfpPacketIn) ()
+putPacketInData p = tell . Endo $ \m -> m{ofp_pkt_in_data = p}
+
