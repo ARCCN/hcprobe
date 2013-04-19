@@ -52,9 +52,12 @@ main = do
         -- send simple packet
         -- tcp <- randomTCP
         lift $ putStrLn "sending packet. and waiting for responce."
-        let pl = putEthernetFrame . (EthFrameP 23 45) . putIPv4Pkt $
-                    TestPacketTCP { dstMAC = 27
-                                  , srcMAC = 35
+        let port = 1
+            m1   = 37
+            m2   = 29
+        let pl = putEthernetFrame . (EthFrameP m1 m2) . putIPv4Pkt $
+                    TestPacketTCP { dstMAC = m2
+                                  , srcMAC = m1
                                   , srcIP  = 99
                                   , dstIP  = 66
                                   , dstPort = 22
@@ -66,6 +69,6 @@ main = do
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
-        bid <- sendOFPPacketIn 23 43 pl
+        bid <- sendOFPPacketIn port 43 pl
         waitForBID bid
         lift $ putStrLn "done"
