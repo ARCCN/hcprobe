@@ -73,6 +73,7 @@ import HCProbe.EDSL.PacketGeneration
 import Text.Printf
 import qualified System.Random.Mersenne as MR
 
+type MACGen = MR.MTGen
 data SwitchState = SwitchState (S.Set MACAddr)
 
 config :: StateT SwitchState IO a
@@ -361,5 +362,15 @@ genPerPortMACs port = do
                          else ue{macGen = PerPort $ IM.insert port (mac+1) mg}
                 else ue{macGen = PerPort $ IM.insert port 0 mg}
 
+genLocalMAC :: FakeSwitchM MACAddr
+genLocalMAC = do
+    (UserEnv st _ _ _) <- ask
+    let nm = IM.size $ eMacSpace st
+    em <- liftIO $ liftM (`mod` nm) MR.randomIO -- gen position in Map of random Port
+    let macs = (IM.elems $ eMacSpace st) !! em
+        nv = V.length macs
+    ev <- liftIO $ liftM (`mod` nv) MR.randomIO -- gen position in V of random Mac
+    return (macs V.! ev)
+    
 instance Default EFakeSwitch where
   def = EFakeSwitch def def def 
