@@ -28,6 +28,7 @@ module HCProbe.EDSL
   , module Data.Default
   , module Network.Openflow.Types
   , module HCProbe.FakeSwitch.Processing
+  , module HCProbe.EDSL.PacketGeneration
   ) where
 
 import Control.Arrow
@@ -66,6 +67,7 @@ import Network.Openflow.Messages
 import Network.Openflow.StrictPut
 import HCProbe.FakeSwitch
 import HCProbe.FakeSwitch.Processing
+import HCProbe.EDSL.PacketGeneration
 import Text.Printf
 import qualified System.Random.Mersenne as MR
 
@@ -268,6 +270,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
 randomTCP :: IO (ByteString)
 randomTCP = undefined
 
+
 genLocalMAC :: FakeSwitchM MACAddr
 genLocalMAC = do
     (UserEnv st _ _ _) <- ask
@@ -278,6 +281,5 @@ genLocalMAC = do
     ev <- liftIO $ liftM (`mod` nv) MR.randomIO -- gen position in V of random Mac
     return (macs V.! ev)
     
-
 instance Default EFakeSwitch where
   def = EFakeSwitch def def def 
