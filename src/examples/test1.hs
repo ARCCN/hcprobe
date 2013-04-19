@@ -56,8 +56,10 @@ main = do
                                           }
                 -- correct message
                 replicateM_ 10 $ do
+                        lift $ putStr "sending.. "
                         bid <- sendOFPPacketIn port 43 pl
                         waitForBID bid
+                        lift $ putStrLn "done"
 
                 -- broken length
                 let msg = putOFMessage $ do
