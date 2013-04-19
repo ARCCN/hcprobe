@@ -19,6 +19,9 @@ module HCProbe.EDSL
   , waitForType
   , waitForBID
   , portLength
+  , genLocalMAC
+  , genMassiveMACs
+  , genPerPortMACs
   -- , portMACs
   -- * packet sending
   , nextBID
@@ -70,7 +73,6 @@ import HCProbe.EDSL.PacketGeneration
 import Text.Printf
 import qualified System.Random.Mersenne as MR
 
-type MACGen = MR.MTGen
 data SwitchState = SwitchState (S.Set MACAddr)
 
 config :: StateT SwitchState IO a
@@ -164,12 +166,17 @@ instance Default OfpSwitchFeatures where
                           , ofp_ports        = []
                           }
 
+-- | Mac generation state
+data MACGen = None -- at begin
+            | Massive Int Int -- running througth all mac in switch
+            | PerPort (IM.IntMap Int) --  - || - in port
 -- | User environment
 data UserEnv = UserEnv 
         { switchConfig :: EFakeSwitch
         , currentBID   :: IORef Word32
         , userSink     :: TVar (Sink (OfpType,OfpMessage) IO ())
         , queue        :: TQueue OfpMessage
+        , macGen       :: MACGen
         }
 
 type FakeSwitchM a = ReaderT UserEnv IO a
@@ -261,7 +268,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) =$= CL.catMaybes =$ sinkTQueue sendQ)
                     (mutableSink userS)
         sender   = sourceTQueue sendQ $= CL.map extract' $$ appSink ad
-        user     = runReaderT u (UserEnv sw ref userS sendQ)
+        user     = runReaderT u (UserEnv sw ref userS sendQ None)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
     liftIO . void $ waitAnyCatchCancel waitThreads
@@ -273,13 +280,86 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
 
 genLocalMAC :: FakeSwitchM MACAddr
 genLocalMAC = do
-    (UserEnv st _ _ _) <- ask
+    st <- asks switchConfig
     let nm = IM.size $ eMacSpace st
     em <- liftIO $ liftM (`mod` nm) MR.randomIO -- gen position in Map of random Port
     let macs = (IM.elems $ eMacSpace st) !! em
         nv = V.length macs
     ev <- liftIO $ liftM (`mod` nv) MR.randomIO -- gen position in V of random Mac
     return (macs V.! ev)
-    
+
+checkMACGen :: (MACGen -> FakeSwitchM ()) -> FakeSwitchM ()
+checkMACGen f = do
+    st <- asks macGen
+    f st
+
+switchMACStateMass st = 
+    case st of 
+        None -> emptyMACState
+        (PerPort _) -> emptyMACState
+        (Massive _ _) -> return ()
+    where emptyMACState = withReaderT 
+                (\ue -> ue{macGen = Massive 0 0} ) 
+                $ return ()
+switchMACStatePort st =
+    case st of
+        None -> emptyMACState
+        (PerPort _) -> return ()
+        (Massive _ _) -> emptyMACState
+    where emptyMACState = withReaderT 
+                (\ue -> ue{macGen = PerPort IM.empty} ) 
+                $ return ()
+
+genMassiveMACs :: FakeSwitchM MACAddr
+genMassiveMACs = do
+    checkMACGen switchMACStateMass
+    sw <- asks switchConfig
+    (Massive mi vi) <- asks macGen
+    evalState
+    return $ ((eMacSpace sw) IM.! mi) V.! vi
+    where evalState = do
+            withReaderT nextStateElem $ ask
+          nextStateElem ue =
+            let (Massive mi vi) = macGen ue 
+                m = eMacSpace $ switchConfig ue
+                v = m IM.! mi
+                (mi', vi') = checkNextStateElem m v mi (vi+1)
+            in ue{macGen = Massive mi' vi'}
+          checkNextStateElem m v mi vi = 
+            let keys = IM.keys m
+                maxk = last keys
+                maxv = V.length $ v
+            in if (not $ IM.member mi m)
+                then if ( mi >= maxk )
+                        then checkNextStateElem m v (head keys) 0
+                        else checkNextStateElem m v (mi+1) 0
+                else if ( vi >= maxv )
+                        then checkNextStateElem m v (mi+1) 0
+                        else (mi, vi)
+
+genPerPortMACs :: Int -> FakeSwitchM MACAddr
+genPerPortMACs port = do
+   checkMACGen switchMACStatePort
+   sw <- asks switchConfig
+   (PerPort m) <- asks macGen
+   let n = if IM.member port m
+            then m IM.! port
+            else 0
+   evalState
+   return $ ((eMacSpace sw) IM.! port) V.! n
+   where evalState = do
+            withReaderT nextStateElem $ ask
+         nextStateElem ue =
+            let (PerPort mg) = macGen ue
+                m = eMacSpace $ switchConfig ue
+                mac = mg IM.! port
+            in if ( IM.member port m )
+                then let v = m IM.! port
+                         vl = V.length v
+                     in if ( mac+1 >= vl )
+                         then ue{macGen = PerPort $ IM.insert port 0 mg}
+                         else ue{macGen = PerPort $ IM.insert port (mac+1) mg}
+                else ue{macGen = PerPort $ IM.insert port 0 mg}
+
 instance Default EFakeSwitch where
   def = EFakeSwitch def def def 

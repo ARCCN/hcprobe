@@ -29,7 +29,7 @@ main = do
                     addMACs [1..450]
     print fakeSw
 
-    withSwitch fakeSw "localhost" 6633 $ do
+    withSwitch fakeSw "127.0.0.1" 6633 $ do
 
         -- wait for type examples: 
         lift $ putStr "waiting for barrier request.. "
@@ -56,9 +56,11 @@ main = do
         let port = 1
             m1   = 37
             m2   = 29
+        dstGenMac <- genLocalMAC
+        srcGenMac <- genLocalMAC
         let pl = putEthernetFrame . (EthFrameP m1 m2) . putIPv4Pkt $
-                    TestPacketTCP { dstMAC = m2
-                                  , srcMAC = m1
+                    TestPacketTCP { dstMAC = dstGenMac
+                                  , srcMAC = srcGenMac
                                   , srcIP  = 99
                                   , dstIP  = 66
                                   , dstPort = 22

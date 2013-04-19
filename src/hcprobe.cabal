@@ -51,7 +51,7 @@ library
                       conduit>=1.0, vector,
                       random, digest, statistics, binary-conduit >= 1.1.0,
                       transformers, mtl, containers,
-                      errors, MissingH,
+                      errors, MissingH, 
                       cmdargs, ConfigFile, directory, bitset >= 1.4,
                       mersenne-random-pure64, mersenne-random,
                       nettle-openflow >= 0.2.0, ghc-prim, directory,
@@ -83,7 +83,7 @@ executable hcprobe
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit>=1.1, stm-chans,
                        transformers, mtl, containers, vector,
-                       errors, MissingH,
+                       errors, MissingH, binary-conduit,
                        cmdargs, ConfigFile, bitset, binary-conduit >= 1.1,
                        nettle-openflow, data-flags, blaze-builder, data-default
 
@@ -109,7 +109,7 @@ executable ethertest
                        resourcet, async, cereal, time,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       errors, MissingH,
+                       errors, MissingH, binary-conduit >= 1.1,
                        mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, bitset,
                        nettle-openflow >= 0.2.0
@@ -129,7 +129,7 @@ executable TestPkgGen
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       errors, MissingH,
+                       errors, MissingH, binary-conduit >= 1.1,
                        cmdargs, ConfigFile, bitset,
                        nettle-openflow >= 0.2.0
 
@@ -147,7 +147,7 @@ executable TestARPGen
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       errors, MissingH, 
+                       errors, MissingH, binary-conduit >= 1.1,
                        cmdargs, ConfigFile, bitset,
                        nettle-openflow >= 0.2.0
 
@@ -164,7 +164,7 @@ executable TestTCPGen
                        resourcet, async, cereal, safe,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       errors, MissingH,
+                       errors, MissingH, binary-conduit >= 1.1,
                        cmdargs, ConfigFile, bitset,
                        nettle-openflow
 
@@ -183,7 +183,7 @@ executable TestMisc
                        resourcet, async, cereal,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       errors, MissingH,
+                       errors, MissingH, binary-conduit >= 1.1,
                        cmdargs, ConfigFile, bitset,
                        nettle-openflow
 
@@ -202,7 +202,7 @@ executable testclient
                        resourcet, async, cereal,time,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
-                       errors, MissingH, 
+                       errors, MissingH, binary-conduit >= 1.1,
                        mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, directory, bitset, binary-conduit 
   Ghc-options:         -Wall -threaded -O2
@@ -214,7 +214,7 @@ executable simpleSwitchExample
 
   -- other-modules:    
   build-depends:       base, binary, bytestring, hcprobe,
-                       conduit, network-conduit,
+                       conduit, network-conduit, binary-conduit >= 1.1,
                        resourcet, async, cereal,time,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
@@ -224,6 +224,21 @@ executable simpleSwitchExample
   Ghc-options:         -Wall -threaded -O2
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
+executable userProgramExample 
+  main-is:           examples/userprogram.hs
+  buildable:         True
+
+  -- other-modules:    
+  build-depends:       base, binary, bytestring,
+                       conduit, network-conduit, binary-conduit >= 1.1,
+                       resourcet, async, cereal,time,
+                       random, digest, stm, stm-conduit, stm-chans,
+                       transformers, mtl, containers, vector,
+                       errors, MissingH, blaze-builder, data-default, 
+                       mersenne-random-pure64,  mersenne-random,
+                       cmdargs, ConfigFile, directory, bitset
+  Ghc-options:         -Wall -threaded -O2
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all -XMagicHash
 
 benchmark bench-strictput-all
   type:               exitcode-stdio-1.0
@@ -253,7 +268,7 @@ benchmark bench-icsum
                       resourcet, async, cereal,
                       random, digest, stm, stm-conduit, stm-chans,
                       transformers, mtl, containers, vector,
-                      errors, MissingH,
+                      errors, MissingH, binary-conduit >= 1.1,
                       cmdargs, ConfigFile, bitset,
                       nettle-openflow, QuickCheck, blaze-builder,
                       criterion, conduit-binary
