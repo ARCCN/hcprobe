@@ -1,21 +1,16 @@
 {-# LANGUAGE BangPatterns, GeneralizedNewtypeDeriving, FlexibleInstances, DeriveDataTypeable #-}
 module Network.Openflow.Ethernet.TCP (TCPFlag(..), TCP(..), putTCP, tcpFlagsOf) where
 
-import Network.Openflow.Ethernet.Types
-import Network.Openflow.Misc
-import Control.Monad
--- import qualified Data.Set as S
--- import qualified Data.ByteString as BS
+import           Control.Monad
 import qualified Data.ByteString.Unsafe as BS
-import Data.Word
-import Network.Openflow.StrictPut
-import Data.Bits
-import Data.List (foldl')
-import System.IO.Unsafe
+import           Data.Bits
+import           Data.Word
 import qualified Data.BitSet.Generic as BB
+import           System.IO.Unsafe
 
--- import Debug.Trace
--- import Text.Printf
+import           Network.Openflow.Ethernet.Types
+import           Network.Openflow.Misc
+import           Network.Openflow.StrictPut
 
 type TCPPort = Word16
 
@@ -39,6 +34,7 @@ instance Enum TCPFlag where
   toEnum 0x20 = URG
   toEnum 0x40 = ECE
   toEnum 0x80 = CWR
+  toEnum _    = error "impossible"
 
 --instance Enum [TCPFlag] where
 --        fromEnum fs = foldl' (+) 0 $ map (bit . fromEnum) fs
@@ -76,7 +72,7 @@ putTCP x = do
   {- 20 -} when isUrgent $ putWord16be (tcpUrgentPtr x)
            hlen <- distance start
            replicateM_ (hlen `mod` 4) (putWord8 0)
-           undelay dataoff . (\x -> (((x `div` 4) .&. 0xF) `shiftL` 4)) . fromIntegral =<< distance start
+           undelay dataoff . (\y -> (((y `div` 4) .&. 0xF) `shiftL` 4)) . fromIntegral =<< distance start
            tcpPutPayload x
            hlen' <- distance start
            message_end <- marker    {- 0  -}
@@ -108,4 +104,3 @@ putTCP x = do
 
 tcpFlagsOf :: [TCPFlag] -> Word8
 tcpFlagsOf = BB.toBits . BB.fromList
-

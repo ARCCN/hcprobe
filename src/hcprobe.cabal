@@ -29,6 +29,8 @@ flag RuntimeTests
 
 library
     exposed-modules:  Network.Openflow.Types
+                      Network.Openflow.Ethernet
+                      Network.Openflow.Ethernet.Frame
                       Network.Openflow.Ethernet.Generator
                       Network.Openflow.Ethernet.TCP
                       Network.Openflow.Ethernet.ARP
@@ -211,7 +213,7 @@ executable simpleSwitchExample
   buildable:         True
 
   -- other-modules:    
-  build-depends:       base, binary, bytestring,
+  build-depends:       base, binary, bytestring, hcprobe,
                        conduit, network-conduit,
                        resourcet, async, cereal,time,
                        random, digest, stm, stm-conduit, stm-chans,

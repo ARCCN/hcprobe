@@ -445,6 +445,7 @@ instance Enum OfpStatsType where
   toEnum 4      = OFPST_PORT
   toEnum 5      = OFPST_QUEUE
   toEnum 0xFFFF = OFPST_VENDOR
+  toEnum _      = error "OfpStatsType is not supported"
 
 listToFlags :: (a -> Flag) -> [a] -> FlagSet
 listToFlags f = foldl (\acc val -> acc .|. (f val) ) 0

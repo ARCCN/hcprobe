@@ -3,11 +3,12 @@ module Network.Openflow.Ethernet.ARP ( ARPReply(..)
                                      )where
 
 import Network.Openflow.Ethernet.Types
-import Network.Openflow.Misc
+import Network.Openflow.Misc            -- TODO move to Network.Openflow.Ethernet.Put
 
 import Data.Word
 import Network.Openflow.StrictPut
 
+-- | Class describing ARP message
 class ARPReply a where
   hardwareType    :: a -> Word16
   ipProtocolType  :: a -> Word16
@@ -18,7 +19,6 @@ class ARPReply a where
   senderIPAddress :: a -> IPv4Addr
   targetHWAddress :: a -> MACAddr
   targetIPAddress :: a -> IPv4Addr
-
 
 putARPReply :: ARPReply a => a -> PutM ()
 putARPReply x = do
