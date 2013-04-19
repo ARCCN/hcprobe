@@ -42,7 +42,7 @@ import Data.Conduit.Network
 import Data.Conduit.TMChan
 import Data.Conduit.TQueue
 import Data.Conduit.Mutable
-import Data.Conduit.BinaryParse
+import Data.Conduit.Serialization.Binary
 import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Util as CU
 import Data.List
@@ -215,7 +215,7 @@ client pktInGen fk@(FakeSwitch sw switchIP l_ sH rH (pktInQ,pktStockQ)) ad = run
                   
 
     let receiver = appSource ad -- $= CL.mapM (\x -> putStrLn "IN:" >> putStrLn (show (BS.unpack x)) >> return x)
-           $= conduitBinary -- :: Conduit BS8.ByteString Undef OfpMessage)
+           $= conduitDecode -- :: Conduit BS8.ByteString Undef OfpMessage)
            -- =$= CL.mapM (\x -> putStrLn (show x) >> return x)
            $$ CL.mapM_ (\m@(OfpMessage h _) -> processMessage ctx (ofp_hdr_type h) m)
 
@@ -340,7 +340,7 @@ client' fk ad =
       go swCfg = 
           appSource ad 
           $= CL.mapM (\x -> putStr ">> " >> (print . BS.unpack $ x) >> return x)
-          =$= conduitBinary
+          =$= conduitDecode
           =$= CL.mapM (\m@(OfpMessage h _) -> putStr "> " >> print m >> return ((ofp_hdr_type h),m))
           =$= CL.mapM (uncurry processMessage)
           =$= CL.catMaybes

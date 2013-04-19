@@ -42,13 +42,12 @@ library
                       HCProbe.FakeSwitch
                       HCProbe.EDSL
                       HCProbe.EDSL.PacketGeneration
-                      Data.Conduit.BinaryParse
     build-depends:    base, binary >= 0.7.0.0, bytestring,
                       network-conduit>=1.0, cereal,
                       resourcet, async, network-data,
                       random, digest, stm, stm-conduit, stm-chans,
                       conduit>=1.0, vector,
-                      random, digest, statistics,
+                      random, digest, statistics, binary-conduit >= 1.1.0,
                       transformers, mtl, containers,
                       errors, MissingH,
                       cmdargs, ConfigFile, directory, bitset >= 1.4,
@@ -83,7 +82,7 @@ executable hcprobe
                        random, digest, stm, stm-conduit>=1.1, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH,
-                       cmdargs, ConfigFile, bitset,
+                       cmdargs, ConfigFile, bitset, binary-conduit >= 1.1,
                        nettle-openflow, data-flags, blaze-builder, data-default
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O2 -funbox-strict-fields -rtsopts
@@ -203,9 +202,9 @@ executable testclient
                        transformers, mtl, containers, vector,
                        errors, MissingH, 
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset
+                       cmdargs, ConfigFile, directory, bitset, binary-conduit 
   Ghc-options:         -Wall -threaded -O2
-  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all -XMagicHash 
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all 
 
 executable simpleSwitchExample 
   main-is:           examples/simpleswitch.hs
@@ -219,9 +218,9 @@ executable simpleSwitchExample
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default, 
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset
+                       cmdargs, ConfigFile, directory, bitset, binary-conduit 
   Ghc-options:         -Wall -threaded -O2
-  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all -XMagicHash 
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
 
 benchmark bench-strictput-all
@@ -239,7 +238,7 @@ test-suite test-strictput-put
   hs-source-dirs: test
   main-is: test-put.hs
   hs-source-dirs: test
-  build-depends: base, bytestring, hcprobe, quickcheck-assertions, QuickCheck, hspec, blaze-builder
+  build-depends: base, bytestring, hcprobe, quickcheck-assertions, QuickCheck, hspec, blaze-builder, conduit-binary
 
 benchmark bench-icsum
   type:               exitcode-stdio-1.0  
@@ -255,7 +254,7 @@ benchmark bench-icsum
                       errors, MissingH,
                       cmdargs, ConfigFile, bitset,
                       nettle-openflow, QuickCheck, blaze-builder,
-                      criterion
+                      criterion, conduit-binary
 
   ghc-options:        -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
   cc-options:         -Wall -O2

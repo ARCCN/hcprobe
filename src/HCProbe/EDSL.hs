@@ -44,7 +44,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.State.Lazy
 import Data.Bits
 import Data.Conduit
-import Data.Conduit.BinaryParse
+import Data.Conduit.Serialization.Binary
 import Data.Conduit.Mutable
 import Data.Conduit.Network
 import Data.Conduit.TQueue
@@ -256,7 +256,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
     userS <- liftIO $ newTVarIO (CL.sinkNull) 
     let extract  = runPutToByteString 32768 . putMessage
         listener =  appSource ad 
-            $= conduitBinary 
+            $= conduitDecode
             =$= CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m))
             -- =$= printMessage
             $$ CU.zipSinks
