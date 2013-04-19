@@ -64,15 +64,17 @@ rtest16' (Ptr start) len = (BS.inlinePerformIO $ BS.unsafePackAddressLen len sta
 testCompare wlist8 =
     (icsum16 0 $ testPrepareNew wlist8 ) == (icsum16' 0 $ testPrepareOld wlist8)
 
-foreign import ccall "icsum.h c_icsum16" c_icsum16 :: CUInt -> FP.Ptr () -> CSize -> CUInt 
+foreign import ccall unsafe "icsum.h c_icsum16" c_icsum16 :: CUInt -> FP.Ptr () -> CSize -> CUInt 
 
 instance NFData CUInt where
     rnf = rnf . (fromIntegral :: CUInt -> Word32)
 
 toCIcsum16 = c_icsum16 0
 
-genLengthDEF = 1024 :: Int
-genAmountDEF = 500 :: Int
+genLengthDEF :: Int
+genLengthDEF = 1024
+genAmountDEF :: Int
+genAmountDEF = 500
 
 main = do
     gen <- newStdGen

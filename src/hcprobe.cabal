@@ -255,7 +255,7 @@ test-suite test-strictput-put
   hs-source-dirs: test
   main-is: test-put.hs
   hs-source-dirs: test
-  build-depends: base, bytestring, hcprobe, quickcheck-assertions, QuickCheck, hspec, blaze-builder, conduit-binary
+  build-depends: base, bytestring, hcprobe, quickcheck-assertions, QuickCheck, hspec, blaze-builder
 
 benchmark bench-icsum
   type:               exitcode-stdio-1.0  
@@ -271,7 +271,7 @@ benchmark bench-icsum
                       errors, MissingH, binary-conduit >= 1.1,
                       cmdargs, ConfigFile, bitset,
                       nettle-openflow, QuickCheck, blaze-builder,
-                      criterion, conduit-binary
+                      criterion
 
-  ghc-options:        -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
-  cc-options:         -Wall -O2
+  ghc-options:        -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
+  cc-options:         -O2
