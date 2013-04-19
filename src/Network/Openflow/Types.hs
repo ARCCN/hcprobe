@@ -35,11 +35,6 @@ openflow_1_0 = 0x01
 -- TODO: split to several files
 -- TODO: replace Data.Set to something more effective for bitmaps
 
-
-class CrcCompable a where
-    csum :: Word32 -> a -> Word32
-
-
 type FlagSet = Word32
 type Flag = Word32
 
@@ -235,7 +230,9 @@ ofActionTypeUnflag flag
         | (1 `shiftL` 11) == flag = (toEnum 11)
         | (1 `shiftL` 12) == flag = (toEnum 12)
         | (1 `shiftL` 13) == flag = (toEnum 13)
+        | otherwise               = error "action type is not supported"
 
+ofCapabilities :: (Num a, Bits a) => OfpCapabilities -> a
 ofCapabilities OFPC_FLOW_STATS     = 1 `shiftL` 0
 ofCapabilities OFPC_TABLE_STATS    = 1 `shiftL` 1
 ofCapabilities OFPC_PORT_STATS     = 1 `shiftL` 2
@@ -255,7 +252,9 @@ ofCapabilitiesUnflag flag
         | (1 `shiftL`  5) == flag = (toEnum  5)
         | (1 `shiftL`  6) == flag = (toEnum  6)
         | (1 `shiftL`  7) == flag = (toEnum  7)
+        | otherwise               = error "capability is not supported"
 
+ofConfigFlags :: (Num a, Bits a) => OfpPortConfigFlags -> a
 ofConfigFlags   OFPPC_PORT_DOWN    = 1 `shiftL` 0
 ofConfigFlags   OFPPC_NO_STP       = 1 `shiftL` 1
 ofConfigFlags   OFPPC_NO_RECV      = 1 `shiftL` 2
@@ -273,7 +272,9 @@ ofConfigUnflag flag
         | (1 `shiftL`  4) == flag = (toEnum  4)
         | (1 `shiftL`  5) == flag = (toEnum  5)
         | (1 `shiftL`  6) == flag = (toEnum  6)
+        | otherwise               = error "config flag is not supported"
 
+ofStateFlags :: (Num a, Bits a) => OfpPortStateFlags -> a
 ofStateFlags   OFPPS_LINK_DOWN   = 1 `shiftL` 0
 ofStateFlags   OFPPS_STP_LISTEN  = 0 `shiftL` 8
 ofStateFlags   OFPPS_STP_LEARN   = 1 `shiftL` 8
@@ -289,7 +290,9 @@ ofStateUnflag flag
         | (2 `shiftL`  8) == flag = (toEnum  3)
         | (3 `shiftL`  8) == flag = (toEnum  4)
         | (3 `shiftL`  8) == flag = (toEnum  5)
+        | otherwise               = error "state flag is not supported" -- TODO use unsupported flag in enum?
 
+ofFeatureFlags ::  (Num a, Bits a) => OfpPortFeatureFlags -> a
 ofFeatureFlags   OFPPF_10MB_HD    = 1 `shiftL` 0
 ofFeatureFlags   OFPPF_10MB_FD    = 1 `shiftL` 1
 ofFeatureFlags   OFPPF_100MB_HD   = 1 `shiftL` 2
@@ -317,6 +320,7 @@ ofFeatureUnflag flag
         | (1 `shiftL`  9) == flag = (toEnum  9)
         | (1 `shiftL` 10) == flag = (toEnum 10)
         | (1 `shiftL` 11) == flag = (toEnum 11)
+        | otherwise               = error "no such flag"
 
 data OfpError = OfpError { ofp_error_type :: OfpErrorType
                          , ofp_error_data :: BS.ByteString
@@ -376,6 +380,7 @@ data OfpQueueOpFailedCode =   OFPQOFC_BAD_PORT           --  Invalid port (or po
                             | OFPQOFC_EPERM              --  Permissions error
                             deriving (Ord, Eq, Enum, Show)
 
+ofErrorType :: OfpErrorType -> Int
 ofErrorType (OFPET_HELLO_FAILED _)     = 0
 ofErrorType (OFPET_BAD_REQUEST  _)     = 1
 ofErrorType (OFPET_BAD_ACTION   _)     = 2
@@ -383,6 +388,7 @@ ofErrorType (OFPET_FLOW_MOD_FAILED _)  = 3
 ofErrorType (OFPET_PORT_MOD_FAILED _)  = 4
 ofErrorType (OFPET_QUEUE_OP_FAILED _)  = 5
 
+ofErrorCode :: OfpErrorType -> Int
 ofErrorCode (OFPET_HELLO_FAILED x)     = fromEnum x
 ofErrorCode (OFPET_BAD_REQUEST  x)     = fromEnum x
 ofErrorCode (OFPET_BAD_ACTION   x)     = fromEnum x
@@ -390,16 +396,17 @@ ofErrorCode (OFPET_FLOW_MOD_FAILED x)  = fromEnum x
 ofErrorCode (OFPET_PORT_MOD_FAILED x)  = fromEnum x
 ofErrorCode (OFPET_QUEUE_OP_FAILED x)  = fromEnum x
 
-data OfpPacketIn = OfpPacketIn { ofp_pkt_in_buffer_id :: !Word32
-                               , ofp_pkt_in_in_port   :: !Word16
-                               , ofp_pkt_in_reason    :: !OfpPacketInReason
-                               , ofp_pkt_in_data      :: !(PutM ())
+-- | PacketIn data
+data OfpPacketIn = OfpPacketIn { ofp_pkt_in_buffer_id :: !Word32                -- ^ switch buffer id
+                               , ofp_pkt_in_in_port   :: !Word16                -- ^ switch port that received message
+                               , ofp_pkt_in_reason    :: !OfpPacketInReason     -- ^ reason for query
+                               , ofp_pkt_in_data      :: !(PutM ())             -- ^ data
                                }
 
 instance Default OfpPacketIn where def = OfpPacketIn def def def (return ())
 
 instance Show OfpPacketIn where
-    show (OfpPacketIn a b c d) = "OfpPacketIn "++show a++" "++show b++" "++show c++"<data>"
+    show (OfpPacketIn a b c _) = "OfpPacketIn "++show a++" "++show b++" "++show c++"<data>"
 
 data OfpPacketInReason = OFPR_NO_MATCH | OFPR_ACTION
                          deriving (Eq, Ord, Enum, Show)
@@ -443,21 +450,13 @@ listToFlags :: (a -> Flag) -> [a] -> FlagSet
 listToFlags f = foldl (\acc val -> acc .|. (f val) ) 0
 
 flagsToList :: (Flag -> a) -> FlagSet -> [a]
-flagsToList f set = testFlag f set 1 []
+flagsToList f set = testFlag set 1 []
     where --TODO try without recursion (find fold/map functions for bitsets)
-        testFlag f set bitn list = 
+        testFlag set' bitn list = 
           let mask = bit bitn in
-          if testBit set bitn 
-            then testFlag f (clearBit set bitn) (bitn+1) ( (f mask):list )
+          if testBit set' bitn 
+            then testFlag (clearBit set' bitn) (bitn+1) ( (f mask):list )
             else 
               if set == 0
                 then list
-                else testFlag f set (bitn+1) list
-
-{-
-addFlag :: FlagSet -> Flag -> FlagSet
-addFlag = (.|.)
-
-rmFlag :: FlagSet -> Flag -> FlagSet
-rmFlag set flag = set .&. (0xffffff `xor` flag)
--}
+                else testFlag set' (bitn+1) list
