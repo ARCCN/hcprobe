@@ -24,7 +24,9 @@ module HCProbe.EDSL
   , nextBID
   , send
   , sendOFPPacketIn
+  , genLocalMAC
   -- * reexports
+  , MACGen
   , HCProbe.FakeSwitch.runSwitch
   , module Data.Default
   , module Network.Openflow.Types
@@ -33,7 +35,6 @@ module HCProbe.EDSL
   ) where
 
 import Control.Arrow
-import Control.Applicative
 import Control.Concurrent.MVar
 import qualified Control.Concurrent (yield)
 import Control.Concurrent.Async
@@ -52,18 +53,15 @@ import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Util as CU
 import Data.Default
 import Data.List
-import Data.Monoid
 import qualified Data.Vector.Unboxed as V
 import Data.Word
 import Data.IORef
 import Data.ByteString (ByteString)
-import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.IntMap as IM
 import qualified Data.Set as S
 import Network.Openflow.Types
-import Network.Openflow.Ethernet.Types
-import Network.Openflow.Ethernet.IPv4
+import Network.Openflow.Ethernet
 import Network.Openflow.Messages
 import Network.Openflow.StrictPut
 import HCProbe.FakeSwitch
@@ -150,8 +148,8 @@ addMACs ms' = do
             nport  = length $! ofp_ports (eSwitchFeatures p)
             nmacpp = nmacs `div` nport
             macll  = take nport $ unfoldr (Just.(splitAt nmacpp)) ms
-            ms'    = IM.fromList $ zip [1..nport] (map V.fromList macll)
-        in p{eMacSpace = IM.unionWith (V.++) ms' (eMacSpace p)})
+            ms''    = IM.fromList $ zip [1..nport] (map V.fromList macll)
+        in p{eMacSpace = IM.unionWith (V.++) ms'' (eMacSpace p)})
 
 -- | remove all MAC addresses connected to switch
 clearMACs :: (Monad m) => WriterT (Endo EFakeSwitch) m ()
@@ -192,7 +190,7 @@ waitForType t = do
       let go = do mx <- takeMVar box
                   case mx of
                     Nothing -> go
-                    Just (a,b) -> do atomically $ writeTVar s os
+                    Just (_,b) -> do atomically $ writeTVar s os
                                      return b
 
       go
@@ -254,7 +252,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
   swCfg <- newTVarIO defaultSwitchConfig
   runResourceT $ do
     userS <- liftIO $ newTVarIO (CL.sinkNull) 
-    let extract  = runPutToByteString 32768 . putMessage
+    let extract'  = runPutToByteString 32768 . putMessage
         listener =  appSource ad 
             $= conduitDecode
             =$= CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m))
@@ -262,20 +260,16 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
             $$ CU.zipSinks
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) =$= CL.catMaybes =$ sinkTQueue sendQ)
                     (mutableSink userS)
-        sender   = sourceTQueue sendQ $= CL.map extract $$ appSink ad
+        sender   = sourceTQueue sendQ $= CL.map extract' $$ appSink ad
         user     = runReaderT u (UserEnv sw ref userS sendQ)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
-    liftIO $ do
-      v <- waitAnyCatchCancel waitThreads
+    liftIO . void $ waitAnyCatchCancel waitThreads
+      {-
       print $ map fst $ filter (\(i,a) -> fst v == a) $ zip [1..] waitThreads
       case snd v of
         Left e -> putStrLn (show e)
-        Right _ -> return ()
-
-randomTCP :: IO (ByteString)
-randomTCP = undefined
-
+        Right _ -> return () -}
 
 genLocalMAC :: FakeSwitchM MACAddr
 genLocalMAC = do

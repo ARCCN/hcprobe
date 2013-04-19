@@ -18,13 +18,10 @@ module HCProbe.EDSL.PacketGeneration
 
 import Control.Monad.Writer
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
 import Data.Default
-import Data.Monoid
 import Data.Word
 
 import Network.Openflow.Types
-import Network.Openflow.Messages
 import Network.Openflow.StrictPut
 
 
@@ -55,6 +52,7 @@ putHdrXid x = tell . Endo $ \h -> h{ofp_hdr_xid = x}
 putRaw :: ByteString -> Writer (Endo OfpMessage) ()
 putRaw bs = tell . Endo $ \m -> m{ofp_data = OfpMessageRaw bs}
 
+putPacketIn :: Writer (Endo OfpPacketIn) a -> Writer (Endo OfpMessage) ()
 putPacketIn w = tell . Endo $ \m -> m{ofp_data = OfpPacketInReply (appEndo (execWriter w) def)}
 
 putPacketInReason :: OfpPacketInReason -> Writer (Endo OfpPacketIn) ()

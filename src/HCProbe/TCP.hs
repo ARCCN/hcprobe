@@ -1,12 +1,8 @@
 {-# Language BangPatterns #-}
 module HCProbe.TCP (TestPacketTCP(..)) where
 
-import Network.Openflow.Ethernet.Types
-import Network.Openflow.Ethernet.IPv4
-import Network.Openflow.Ethernet.TCP
+import Network.Openflow.Ethernet
 import Network.Openflow.Ethernet.Generator
-import qualified Data.ByteString as BS
-import Network.Openflow.StrictPut 
 import Data.Word
 
 data TestPacketTCP = TestPacketTCP { dstMAC    :: !MACAddr

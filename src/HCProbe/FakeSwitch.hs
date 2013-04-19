@@ -1,4 +1,4 @@
-{-# Language BangPatterns, ScopedTypeVariables, CPP #-}
+{-# Language BangPatterns, ScopedTypeVariables, CPP, FlexibleContexts #-}
 module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..), EFakeSwitch(..)
                           , makePort
                           , makeSwitch
@@ -25,44 +25,31 @@ import Network.Openflow.Messages
 import Network.Openflow.Misc
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
-import qualified Data.Set as S
 import Control.Applicative ((<$>))
-import qualified Control.Concurrent as M
 import Control.Concurrent.Async
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TBMChan
 import Control.Monad
-import Control.Error
 import Control.Monad.State
-import Control.Monad.STM
 import Control.Monad.Trans.Resource
 import Data.Bits
 import Data.Conduit
 import Data.Conduit.Network
-import Data.Conduit.TMChan
 import Data.Conduit.TQueue
-import Data.Conduit.Mutable
 import Data.Conduit.Serialization.Binary
 import qualified Data.Conduit.List as CL
-import qualified Data.Conduit.Util as CU
 import Data.List
-import Data.Maybe
 import Data.Word
 import qualified Data.Vector.Unboxed as V
 import qualified Data.IntMap as M 
 import Network.Openflow.StrictPut
 import System.Random
 import Text.Printf
-import Blaze.ByteString.Builder
-import qualified Data.ByteString.Lazy as LBS
 #ifdef RUNTIMETESTS
+import Blaze.ByteString.Builder
 import Data.ByteString.Lazy.Builder
 #endif 
 
-import Debug.Trace
-
-ethernetFrameMaxSize = 2048
-
+maxBuffers :: Word32
 maxBuffers = 0xFFFFFFF0
 
 data PortGen = PortGen { pnum   :: Int
@@ -138,7 +125,7 @@ makeSwitch gen ports mpp cap act cfg st ff = do
         qIn  <- atomically $ newTQueue
         qOut <- atomically $ newTQueue
         bfs  <- replicateM queueSize $ mkBuffer 16384
-        atomically $ mapM (writeTQueue qOut) bfs
+        atomically $ mapM_ (writeTQueue qOut) bfs
         return $ (FakeSwitch features (ipAddr gen) ms Nothing Nothing (qIn,qOut), gen')
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
                                      , ofp_n_buffers    = maxBuffers 
@@ -172,9 +159,9 @@ fmtMac mac = intercalate ":" $ map (printf "%02X") bytes
   where bytes = drop 2 $ unpack64 mac
 
 fmtPort :: OfpPhyPort -> String
-fmtPort p = printf "%02d %-6s HWAddr:%18s, ST: %s, FT: %s" pno pname mac st ft
+fmtPort p = printf "%02d %-6s HWAddr:%18s, ST: %s, FT: %s" pno pname' mac st ft
   where pno = ofp_port_no p
-        pname = BS8.unpack (ofp_port_name p)
+        pname' = BS8.unpack (ofp_port_name p)
         mac = fmtMac (ofp_port_hw_addr p)
         st  = show $ flagsToList ofStateUnflag (ofp_port_state p) --show $ S.toList (ofp_port_state p)
         ft  = show $ flagsToList ofFeatureUnflag (ofp_port_current p) --show $ S.toList (ofp_port_current p)
@@ -185,6 +172,7 @@ fmtSwitch f = printf "DPID: %s, %s\n" dp cap ++ intercalate "\n" ports
         cap = show $ flagsToList ofCapabilitiesUnflag (ofp_capabilities  f) --show (S.toList (ofp_capabilities f)) 
         ports = map fmtPort (ofp_ports f) 
 
+encodeMsg :: OfpMessage -> BS8.ByteString
 encodeMsg = runPutToByteString 32768 . putMessage
 
 data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
@@ -192,16 +180,21 @@ data SwitchContext = SwitchContext { handshakeDone :: TVar Bool
                                    , switchCfg     :: TVar OfpSwitchConfig
                                    }
 
+pktSendTimeout :: Int
 pktSendTimeout = 5000000
-pktSendQLen    = 65536
 
-sendLen = 65536 `div` 2
-
+ofpClient :: (FakeSwitch -> IO ())
+                   -> FakeSwitch -> BS8.ByteString -> Int -> IO ()
 ofpClient pktGen sw host port = runTCPClient (clientSettings port host) (client pktGen sw)
 
-client pktInGen fk@(FakeSwitch sw switchIP l_ sH rH (pktInQ,pktStockQ)) ad = runResourceT $ do
+client :: (MonadIO m, MonadUnsafeIO m, MonadThrow m, MonadBaseControl IO m) 
+       => (FakeSwitch -> IO ()) 
+       -> FakeSwitch 
+       -> AppData IO 
+       -> m ()
+client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = runResourceT $ do
 
-    tranId <- liftIO $ newTVarIO 0
+    tranId <- liftIO $ newTVarIO (0::Int)
     featureReplyMonitor <- liftIO $ newTVarIO False
     swCfg <- liftIO $ newTVarIO defaultSwitchConfig
     let !ctx = SwitchContext featureReplyMonitor tranId swCfg
@@ -220,16 +213,16 @@ client pktInGen fk@(FakeSwitch sw switchIP l_ sH rH (pktInQ,pktStockQ)) ad = run
            $$ CL.mapM_ (\m@(OfpMessage h _) -> processMessage ctx (ofp_hdr_type h) m)
 
         sendARPGrat = do
-           withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
+           _ <- withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
            liftM (arpGrat fk (-1 :: Word32)) (nextTranID ctx) >>= sendReplyT
 
         threads = [receiver, sender, 
-                     do withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
+                     do _ <- withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
                         pktInGen fk]
     waitThreads <- liftIO $ mapM asyncBound threads
     mapM_ (flip allocate cancel) (map return waitThreads)
     liftIO $ do
-      async sendARPGrat
+      _ <- async sendARPGrat
       v <- waitAnyCatchCancel waitThreads
       case snd v of
          Left e -> putStrLn (show e)
@@ -243,24 +236,24 @@ client pktInGen fk@(FakeSwitch sw switchIP l_ sH rH (pktInQ,pktStockQ)) ad = run
       liftIO . atomically $ writeTQueue pktInQ buf'
 
     -- TODO: implement the following messages
-    processMessage _ OFPT_PACKET_OUT m@(OfpMessage hdr msg) = do
+    processMessage _ OFPT_PACKET_OUT m@(OfpMessage _hdr _msg) = do
         maybe (return ()) (\x -> (liftIO.x) m) rH
 
     processMessage _ OFPT_HELLO (OfpMessage hdr _) = sendReplyT (headReply hdr OFPT_HELLO)
 
-    processMessage c OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = sendReplyT reply
+    processMessage _ OFPT_FEATURES_REQUEST (OfpMessage hdr _msg) = sendReplyT reply
               where reply = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)
 
     processMessage _ OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = sendReplyT reply
               where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
 
-    processMessage c OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = do
+    processMessage c OFPT_SET_CONFIG (OfpMessage _hdr (OfpSetConfig cfg')) = do
               liftIO $ atomically $ modifyTVar (switchCfg c) (const cfg')
 
-    processMessage c OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) =
+    processMessage c OFPT_GET_CONFIG_REQUEST (OfpMessage hdr _msg) =
               (liftIO $ atomically $ readTVar (switchCfg c)) >>= \x -> sendReplyT (getConfigReply hdr x)
 
-    processMessage c OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = sendReplyT (statsReply hdr)
+    processMessage _ OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = sendReplyT (statsReply hdr)
         --      (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
 
             -- FIXME: possible problems with other controllers rather than NOX
@@ -275,8 +268,8 @@ client pktInGen fk@(FakeSwitch sw switchIP l_ sH rH (pktInQ,pktStockQ)) ad = run
               sendReplyT reply
 
             -- TODO: implement the following messages
-    processMessage _ OFPT_FLOW_MOD (OfpMessage hdr msg) = nothing
-    processMessage _ OFPT_STATS_REQUEST (OfpMessage hdr msg) = nothing
+    processMessage _ OFPT_FLOW_MOD _  = nothing
+    processMessage _ OFPT_STATS_REQUEST _ = nothing
 
     processMessage _ _ _ = nothing
 
@@ -294,8 +287,10 @@ client pktInGen fk@(FakeSwitch sw switchIP l_ sH rH (pktInQ,pktStockQ)) ad = run
                                                else retry) `orElse` (Just <$> f)
 
 -- FIXME: last raises exception on empty list
+defaultPacketInPort :: OfpSwitchFeatures -> Word16
 defaultPacketInPort = ofp_port_no . last . ofp_ports
 
+arpGrat :: FakeSwitch -> Word32 -> Word32 -> OfpMessage
 arpGrat fk bid tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
   where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
         pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = bid
@@ -318,6 +313,7 @@ dump _s _hdr _bs = return ()
 --  let tp = show (ofp_hdr_type hdr)
 --  putStr $ printf "%-4s %-24s %s\n" s tp (hexdumpBs 32 " " "" (BS.take 32 bs))
 
+defActions :: [OfpActionType]
 defActions = [ OFPAT_OUTPUT,OFPAT_SET_VLAN_VID,OFPAT_SET_VLAN_PCP
              , OFPAT_STRIP_VLAN,OFPAT_SET_DL_SRC,OFPAT_SET_DL_DST
              , OFPAT_SET_NW_SRC,OFPAT_SET_NW_DST,OFPAT_SET_NW_TOS
@@ -331,10 +327,7 @@ runSwitch sw host port = runTCPClient (clientSettings port host) (client' sw)
 client' :: EFakeSwitch -> AppData IO -> IO ()
 client' fk ad = 
   runResourceT $ do
-    tranId <- liftIO $ newTVarIO 0
-    featureReplyMonitor <- liftIO $ newTVarIO False
     swCfg <- liftIO $ newTVarIO defaultSwitchConfig
-    let !ctx = SwitchContext featureReplyMonitor tranId swCfg
     lift $ go swCfg
   where
       go swCfg = 
@@ -348,22 +341,21 @@ client' fk ad =
           =$= CL.map (runPutToByteString 32768 . putMessage)
           $$ appSink ad
         where
-            processMessage OFPT_PACKET_OUT m@(OfpMessage hdr msg) = return $ Nothing
-                -- do maybe (return ()) (\x -> (liftIO.x) m) rH
+            processMessage OFPT_PACKET_OUT (OfpMessage _hdr _msg) = return $ Nothing
 
             processMessage OFPT_HELLO (OfpMessage hdr _) = return $ Just (headReply hdr OFPT_HELLO)
 
-            processMessage OFPT_FEATURES_REQUEST (OfpMessage hdr msg) = return $ Just reply
+            processMessage OFPT_FEATURES_REQUEST (OfpMessage hdr _msg) = return $ Just reply
                       where reply = featuresReply openflow_1_0 (eSwitchFeatures fk) (ofp_hdr_xid hdr)
 
             processMessage OFPT_ECHO_REQUEST (OfpMessage hdr (OfpEchoRequest payload)) = return $ Just reply
                       where reply = echoReply openflow_1_0 payload (ofp_hdr_xid hdr)
 
-            processMessage OFPT_SET_CONFIG (OfpMessage hdr (OfpSetConfig cfg')) = do
+            processMessage OFPT_SET_CONFIG (OfpMessage _hdr (OfpSetConfig cfg')) = do
                       liftIO $ atomically $ modifyTVar swCfg (const cfg')
                       return Nothing
 
-            processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr msg) = 
+            processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr _msg) = 
                       (liftIO $ atomically $ readTVar swCfg) >>= return . Just . getConfigReply hdr
 
             processMessage OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = return $ Just (statsReply hdr)
@@ -380,8 +372,8 @@ client' fk ad =
                       in return $ Just reply
 
                     -- TODO: implement the following messages
-            processMessage OFPT_FLOW_MOD (OfpMessage hdr msg) = return Nothing
-            processMessage OFPT_STATS_REQUEST (OfpMessage hdr msg) = return Nothing
+            processMessage OFPT_FLOW_MOD (OfpMessage _hdr _msg) = return Nothing
+            processMessage OFPT_STATS_REQUEST (OfpMessage _hdr _msg) = return Nothing
 
             processMessage _ _ = return Nothing
 

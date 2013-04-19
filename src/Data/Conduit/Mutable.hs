@@ -5,7 +5,7 @@ module Data.Conduit.Mutable
 import Data.Conduit
 import Control.Concurrent.STM
 import Control.Monad.Trans
-import Control.Monad.IO.Class
+import Control.Monad.IO.Class()
 
 mutableSink :: (MonadIO m) => TVar (Sink a m ()) -> Sink a m ()
 mutableSink s = 

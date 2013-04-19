@@ -22,23 +22,19 @@ import Network.Openflow.Misc
 import Network.Openflow.StrictPut
 import Data.Binary (Binary(..))
 import Data.Binary.Get
-import Data.Word ( Word8, Word16, Word32, Word64 )
-import Data.Bits
-import qualified Data.Set as S
+import Data.Word
 import Data.ByteString (ByteString)
 import Blaze.ByteString.Builder -- import Data.ByteString.Lazy.Builder
 import Data.Monoid
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Char8 as BS8
 import Control.Monad
 import Control.Applicative
-
-import Debug.Trace
 
 -- FIXME: rename ofpParse* to getOfp*
 
 
+ofpHeaderLen :: Int
 ofpHeaderLen = (8 + 8 + 16 + 32) `div` 8
 
 ofpHelloRequest :: Word8 -> Word32 -> PutM ()
@@ -49,21 +45,15 @@ ofpHelloRequest v xid = putMessageHeader h >> return ()
                       , ofp_hdr_xid     = xid
                       }
 
-ofpHelloRequestBuilder :: Word8 -> Word32 -> Builder
-ofpHelloRequestBuilder v xid = buildMessageHeader h 0
-  where h = OfpHeader { ofp_hdr_version = v
-                      , ofp_hdr_type    = OFPT_HELLO
-                      , ofp_hdr_length  = fromIntegral ofpHeaderLen
-                      , ofp_hdr_xid     = xid
-                      }
-
 header :: Word8 -> Word32 -> OfpType -> OfpHeader
 header v x t = OfpHeader v t (fromIntegral ofpHeaderLen) x
 
+featuresReply :: Word8 -> OfpSwitchFeatures -> Word32 -> OfpMessage
 featuresReply ov sw xid = OfpMessage hdr feature_repl
   where hdr = header ov xid OFPT_FEATURES_REPLY
         feature_repl = OfpFeatureReply sw
 
+echoReply :: Word8 -> ByteString -> Word32 -> OfpMessage
 echoReply ov payload xid = OfpMessage hdr (OfpEchoReply payload)
   where hdr = header ov xid OFPT_ECHO_REPLY       
 
@@ -71,6 +61,7 @@ headReply :: OfpHeader -> OfpType -> OfpMessage
 headReply h t = OfpMessage newHead OfpEmptyReply
   where newHead = h {ofp_hdr_type = t, ofp_hdr_length = fromIntegral ofpHeaderLen}
 
+errorReply :: OfpHeader -> OfpError -> OfpMessage
 errorReply h tp = OfpMessage newHead (OfpErrorReply tp)
   where newHead = h { ofp_hdr_type = OFPT_ERROR, ofp_hdr_length = fromIntegral ofpHeaderLen}
 
@@ -86,8 +77,8 @@ statsReply h = OfpMessage sHead sData
                   }
         sData = OfpStatsReply
 
-packetIn = undefined
 
+{-
 ofpParseHeader :: Get OfpHeader
 ofpParseHeader = do
     v   <- getWord8
@@ -96,17 +87,8 @@ ofpParseHeader = do
     xid <- getWord32be
     -- FIXME: enum code overflow
     return $ OfpHeader v (toEnum (fromIntegral tp)) len xid
-
-{-
-ofpParsePacket :: BS.ByteString -> Maybe (OfpMessage, BS.ByteString)
-ofpParsePacket s = withResult $ flip runGet s $ do
-  hdr <- ofpParseHeader
-  let plen = (fromIntegral (ofp_hdr_length hdr)) - ofpHeaderLen
-  bs  <- getByteString plen
-  return $ OfpMessage hdr (OfpMessageRaw bs)
-  where withResult (Left _, _)    = Nothing
-        withResult (Right msg, rest) = Just (msg, rest)
 -}
+
 
 instance Binary OfpHeader where
   put _ = error "put message is not implemented" -- FIXME support method?
@@ -294,6 +276,7 @@ buildMessageHeader h l = fromWord8 (ofp_hdr_version h)
           <> fromWord16be (ofp_hdr_length h + fromIntegral l)
           <> fromWord32be (ofp_hdr_xid h)
 
+buildMessageData :: OfpMessageData -> Builder
 buildMessageData OfpHello = mempty
 buildMessageData (OfpFeatureReply f) =
         fromWord64be (ofp_datapath_id f)  <>
@@ -321,10 +304,6 @@ buildMessageData OfpStatsReply =
   <> buildASCIIZ 256 "hcprobe" -- Software description
   <> buildASCIIZ 32  "none"    -- Serial number
   <> buildASCIIZ 256 "none"    -- Human readable description of datapath
-
--- FIXME: change to something more effective
-bitFlags :: Num b => (a -> b) -> S.Set a -> b
-bitFlags fn fs = S.fold (\v acc -> acc + (fn v)) 0 fs
 
 putOfpPort :: OfpPhyPort -> PutM ()
 putOfpPort port = do

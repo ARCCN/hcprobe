@@ -8,7 +8,6 @@ module Main
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async -- EDSL for asynchronous actions
-import Control.Monad (replicateM)
 import Data.Bits                -- for IP creation [ TODO: remove ]
 import HCProbe.EDSL
 

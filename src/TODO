@@ -20,3 +20,7 @@
 [ ] TODO: [EDSL] simpleTCP primitive
 [ ] TODO: [EDSL] ofp messages primitives
 [ ] TODO: [EDSL] low level message interface
+
+[ ] TODO: use uniplate/biplate to create different variants of messages
+[ ] TODO: ethernet: correct flag reading
+[ ] TODO: test and bench all messages

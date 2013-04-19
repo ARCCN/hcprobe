@@ -49,16 +49,17 @@ module Network.Openflow.StrictPut (
   reuse
   ) where
 
-import Control.Applicative
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Internal as S
 import GHC.Word
-import Foreign
+import Foreign hiding (void, unsafeForeignPtrToPtr)
+import Control.Monad (void)
 import GHC.Exts
 import System.IO.Unsafe
 
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 -- A state monad with state being the pointer to write location.
-newtype PutM a = PutM { unPut :: Ptr Word8 -> IO (a, Ptr Word8) }
+newtype PutM a = PutM (Ptr Word8 -> IO (a, Ptr Word8))
 
 type Put = PutM ()
 

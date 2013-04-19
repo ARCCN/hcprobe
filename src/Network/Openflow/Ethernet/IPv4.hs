@@ -4,17 +4,12 @@ module Network.Openflow.Ethernet.IPv4 (IPv4Flag(..), IPv4(..), putIPv4Pkt) where
 import Network.Openflow.Ethernet.Types
 import Network.Openflow.Misc
 import Data.Word
-import qualified Data.ByteString as BS
+-- import qualified Data.ByteString as BS
 import qualified Data.ByteString.Unsafe as BS
 import Network.Openflow.StrictPut 
 import Data.Bits
 
-import Data.Maybe
-import Text.Printf
-import Debug.Trace
 import System.IO.Unsafe
-
-import Debug.Trace
 
 data IPv4Flag = DF | MF | Res deriving (Eq, Ord, Show, Read)
 
@@ -22,6 +17,7 @@ instance Enum IPv4Flag where
   fromEnum DF   = 4
   fromEnum MF   = 2
   fromEnum Res  = 1
+  toEnum _ = error "method is not supported yet"
 
 class IPv4 a where
   ipHeaderLen  :: a -> Word8
@@ -69,4 +65,3 @@ putIPv4Pkt x = do
     proto  = ipProto x
     ipS    = ipSrc x
     ipD    = ipDst x
-

@@ -76,6 +76,7 @@ putTCP x = do
            tcpPutPayload x
            hlen' <- distance start
            message_end <- marker    {- 0  -}
+           {- pseudo hdr -}
            putIP (tcpSrcAddr x)     {- 4  -}
            putIP (tcpDstAddr x)     {- 8  -}
            putWord8 0               {- 9  -}
@@ -86,12 +87,6 @@ putTCP x = do
            undelay acrc (Word16be (fin_icsum16' crc))
            shrink message_end
   where
-    pseudoHdr y = runPutToByteString 16 $ do
-          putIP (tcpSrcAddr x)
-          putIP (tcpDstAddr x)
-          putWord8 0
-          putWord8 (tcpProto x)
-          putWord16be (fromIntegral y)
     srcPort = tcpSrcPort x
     dstPort = tcpDstPort x
     seqno   = tcpSeqNo x

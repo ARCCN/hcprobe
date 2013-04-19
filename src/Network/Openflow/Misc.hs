@@ -141,8 +141,8 @@ byteStringToVector bs = vec
   where
     vec = V.unsafeFromForeignPtr (castForeignPtr fptr) (scale off) (scale len)
     (fptr, off, len) = BSI.toForeignPtr bs
-    scale = (`div` sizeOfElem vec)
-    sizeOfElem :: (Storable a) => V.Vector a -> Int
-    sizeOfElem vec = sizeOf (undefined `asTypeOf` V.head vec)
+    scale = (`div` sizeOfElem)
+    sizeOfElem :: Int
+    sizeOfElem = sizeOf (undefined `asTypeOf` V.head vec)
 {-# INLINE byteStringToVector  #-}
 
