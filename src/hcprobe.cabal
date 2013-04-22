@@ -66,7 +66,7 @@ library
                       -fdicts-cheap
 --                      -fspec-constr-count=6
                       -funbox-strict-fields
-  c-source:           cbits/crc16-prim.cmm
+  c-sources:          cbits/crc16-prim.cmm
   if flag(ThreadScope) 
       Ghc-options:    -eventlog
   if flag(Optimize)
@@ -86,12 +86,13 @@ executable hcprobe
                        transformers, mtl, containers, vector,
                        errors, MissingH, binary-conduit,
                        cmdargs, ConfigFile, bitset, binary-conduit >= 1.1,
-                       nettle-openflow, data-flags, blaze-builder, data-default
+                       nettle-openflow, data-flags, blaze-builder, data-default, ghc-prim
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O2 -funbox-strict-fields -rtsopts
                        -fmax-simplifier-iterations=10
                        -fdicts-cheap
                        -fspec-constr-count=6
+  c-sources:           cbits/crc16-prim.cmm
   if flag(ThreadScope) 
       Ghc-options:     -eventlog
   if flag(Optimize)
@@ -113,7 +114,7 @@ executable ethertest
                        errors, MissingH, binary-conduit >= 1.1,
                        mersenne-random-pure64,  mersenne-random,
                        cmdargs, ConfigFile, bitset,
-                       nettle-openflow >= 0.2.0
+                       nettle-openflow >= 0.2.0, ghc-prim
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -132,7 +133,7 @@ executable TestPkgGen
                        transformers, mtl, containers, vector,
                        errors, MissingH, binary-conduit >= 1.1,
                        cmdargs, ConfigFile, bitset,
-                       nettle-openflow >= 0.2.0
+                       nettle-openflow >= 0.2.0, ghc-prim
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -150,7 +151,7 @@ executable TestARPGen
                        transformers, mtl, containers, vector,
                        errors, MissingH, binary-conduit >= 1.1,
                        cmdargs, ConfigFile, bitset,
-                       nettle-openflow >= 0.2.0
+                       nettle-openflow >= 0.2.0, ghc-prim
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
@@ -166,7 +167,7 @@ executable TestTCPGen
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH, binary-conduit >= 1.1,
-                       cmdargs, ConfigFile, bitset,
+                       cmdargs, ConfigFile, bitset, ghc-prim,
                        nettle-openflow
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
@@ -186,7 +187,7 @@ executable TestMisc
                        transformers, mtl, containers, vector,
                        errors, MissingH, binary-conduit >= 1.1,
                        cmdargs, ConfigFile, bitset,
-                       nettle-openflow
+                       nettle-openflow, ghc-prim
 
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
 
@@ -211,7 +212,7 @@ executable testclient
 
 executable simpleSwitchExample 
   main-is:           examples/simpleswitch.hs
-  buildable:         True
+  buildable:         False
 
   -- other-modules:    
   build-depends:       base, binary, bytestring, hcprobe,
@@ -221,13 +222,12 @@ executable simpleSwitchExample
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default, 
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset, binary-conduit 
-  Ghc-options:         -Wall -threaded -O2
+                       cmdargs, ConfigFile, directory, bitset, binary-conduit, ghc-prim
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
 executable userProgramExample 
   main-is:           examples/userprogram.hs
-  buildable:         True
+  buildable:         False 
 
   -- other-modules:    
   build-depends:       base, binary, bytestring,
@@ -237,7 +237,7 @@ executable userProgramExample
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default, 
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset
+                       cmdargs, ConfigFile, directory, bitset, ghc-prim
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
 benchmark bench-strictput-all
@@ -250,6 +250,17 @@ benchmark bench-strictput-all
                       -fdicts-cheap
                       -fspec-constr-count=6
 
+benchmark bench-iscum
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     bench
+  main-is:            icsumBench.hs
+  build-depends:      base, criterion, bytestring, hcprobe, random,  QuickCheck, deepseq, binary, vector
+  c-sources:          cbits/crc16-prim.cmm cbits/icsum.c
+  ghc-options:        -O2
+                      -fmax-simplifier-iterations=10
+                      -fdicts-cheap
+                      -fspec-constr-count=6
+
 test-suite test-strictput-put
   type: exitcode-stdio-1.0
   hs-source-dirs: test
@@ -257,21 +268,4 @@ test-suite test-strictput-put
   hs-source-dirs: test
   build-depends: base, bytestring, hcprobe, quickcheck-assertions, QuickCheck, hspec, blaze-builder
 
-benchmark bench-icsum
-  type:               exitcode-stdio-1.0  
-  main-is:            icsumBench.hs  
-  c-sources:          bench/icsum.c
-  hs-source-dirs:     bench  
-  build-depends:      base, binary >= 0.7.0.0, bytestring,
-                      HUnit, hcprobe, deepseq,
-                      conduit, network-conduit,
-                      resourcet, async, cereal,
-                      random, digest, stm, stm-conduit, stm-chans,
-                      transformers, mtl, containers, vector,
-                      errors, MissingH, binary-conduit >= 1.1,
-                      cmdargs, ConfigFile, bitset,
-                      nettle-openflow, QuickCheck, blaze-builder,
-                      criterion
 
-  ghc-options:        -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields -auto-all -caf-all
-  cc-options:         -O2

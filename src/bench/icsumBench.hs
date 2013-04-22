@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE ForeignFunctionInterface, BangPatterns #-}
 
 module Main ( main
             ) where
@@ -81,18 +81,20 @@ main = do
     let test = unGen (vector genLengthDEF) gen genAmountDEF :: [[Word8]]
 
     (mem,_ofs,len) <- BS.toForeignPtr . BS.pack . head <$> sample' (vector genLengthDEF)
-    let mem' = unsafeForeignPtrToPtr mem -- for convinience
-    let len' = len `div` 2
+    let !mem' = unsafeForeignPtrToPtr mem -- for convinience
+    let !(Ptr a') = mem'
+    let !len' = (len `div` 2)
 
     defaultMain [ bgroup "from list"     
                     [  bench "csumNew" $ nf (map (icsum16 0)) (map testPrepareNew test)
                     ,  bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
                     ]
-                , bgroup "from memory"
-                    [ bench "csumNew" $ nf (icsum16 0) (rtest16 mem' len)
-                    , bench "csumOld" $ nf (icsum16' 0) (rtest16' mem' len)
-                    , bench "csumC" $ nf (uncurry toCIcsum16) 
-                        (FP.castPtr mem', fromIntegral len')
-                    ]
+                , bcompare
+                        [ bench "csumC" $ nf (uncurry toCIcsum16) 
+                            (FP.castPtr mem', fromIntegral len')
+                        , bench "csumNew"  $ nf (icsum16 0) (rtest16 mem' len)
+                        , bench "csumNewP" $ nf (icsum16p 0 a') len
+                        , bench "csumOld"  $ nf (icsum16' 0) (rtest16' mem' len)
+                        ]
                 ]
     touchForeignPtr mem -- to sade data from gc destructor

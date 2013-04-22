@@ -19,7 +19,6 @@ module HCProbe.EDSL
   , waitForType
   , waitForBID
   , portLength
-  , genLocalMAC
   , genMassiveMACs
   , genPerPortMACs
   -- , portMACs
@@ -293,13 +292,13 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
 
 genLocalMAC :: FakeSwitchM MACAddr
 genLocalMAC = do
-    st <- asks switchConfig
-    let nm = IM.size $ eMacSpace st
-    em <- liftIO $ liftM (`mod` nm) MR.randomIO -- gen position in Map of random Port
-    let macs = (IM.elems $ eMacSpace st) !! em
-        nv = V.length macs
-    ev <- liftIO $ liftM (`mod` nv) MR.randomIO -- gen position in V of random Mac
-    return (macs V.! ev)
+   st <- asks switchConfig
+   let nm = IM.size $ eMacSpace st
+   em <- liftIO $ liftM (`mod` nm) MR.randomIO -- gen position in Map of random Port
+   let macs = (IM.elems $ eMacSpace st) !! em
+       nv = V.length macs
+   ev <- liftIO $ liftM (`mod` nv) MR.randomIO -- gen position in V of random Mac
+   return (macs V.! ev)
 
 checkMACGen :: (MACGen -> FakeSwitchM ()) -> FakeSwitchM ()
 checkMACGen f = do

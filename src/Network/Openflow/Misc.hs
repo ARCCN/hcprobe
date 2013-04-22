@@ -1,10 +1,14 @@
-{-# Language BangPatterns #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE GHCForeignImportPrim #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnliftedFFITypes #-}
+{-# LANGUAGE BangPatterns #-}
 module Network.Openflow.Misc ( unpack64, putMAC, putIP, putASCIIZ,
                                putWord16le,
                                buildASCIIZ, buildMAC,
                                bsStrict, bsLazy, encodePutM, ipv4,
                                csum16, csum16', csum16'', hexdumpBs, icsum16', fin_icsum16',
-                               icsum16
+                               icsum16, icsum16p, p_crc16_u#
                              ) where
 
 import Network.Openflow.Types
@@ -23,6 +27,8 @@ import qualified Data.ByteString.Internal as BSI
 import qualified Data.ByteString.Lazy as BL
 import Blaze.ByteString.Builder -- import Data.ByteString.Lazy.Builder
 import Control.Monad
+import GHC.Base -- Int and I#
+import GHC.Word
 
 import Foreign.Storable
 import Foreign.ForeignPtr
@@ -110,6 +116,13 @@ trunc w = fromIntegral $ complement $ (w .&. 0xFFFF) + (w `shiftR` 16)
 
 icsum16 :: Word32 -> V.Vector Word16 -> Word32
 icsum16 !i bv = V.foldl' (\a -> (+a).fromIntegral) i bv
+{-# INLINE icsum16 #-}
+
+foreign import prim "crc16u" p_crc16_u# :: Word# -> Addr# -> Int# -> Word#
+
+icsum16p :: Word32 -> Addr# -> Int -> Word32
+icsum16p !(W32# w#) a# !(I# l#) = W32# (narrow32Word# (p_crc16_u# w# a# l#))
+{-# INLINE icsum16p #-}
 
 rotate' :: Word16 -> Word16
 rotate' x = x `rotateL` 8
