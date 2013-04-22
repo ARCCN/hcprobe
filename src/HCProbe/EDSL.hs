@@ -27,6 +27,7 @@ module HCProbe.EDSL
   , nextBID
   , send
   , sendOFPPacketIn
+  , arpGreeting
   , genLocalMAC
   -- * reexports
   , MACGen
@@ -187,7 +188,7 @@ hangOn = lift (forever Control.Concurrent.yield)
 
 waitForType :: OfpType -> FakeSwitchM (OfpMessage)
 waitForType t = do
-    box <- lift $ newEmptyMVar 
+    box <- lift $ newEmptyMVar
     s   <- asks userSink
     let ns = CL.mapM (\x -> print (fst x) >> return x) 
                 =$= CL.filter ((t ==) . fst) 
@@ -256,6 +257,12 @@ sendOFPPacketIn pid pl = do
                   OfpMessage (header openflow_1_0 xid OFPT_PACKET_IN)
                              (OfpPacketInReply (OfpPacketIn bid pid OFPR_NO_MATCH pl))
         return bid
+
+arpGreeting :: FakeSwitchM ()
+arpGreeting = do
+    (q, fk) <- asks (queue &&& switchConfig)
+    xid <- nextXID
+    lift . atomically . writeTQueue q $ eArpGrat fk (-1 :: Word32) xid
 
 -- | Run configured switch with program inside
 withSwitch :: EFakeSwitch -> ByteString -> Int -> FakeSwitchM () -> IO ()

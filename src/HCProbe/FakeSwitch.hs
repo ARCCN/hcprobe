@@ -8,6 +8,7 @@ module HCProbe.FakeSwitch ( PortGen(..), FakeSwitch(..), EFakeSwitch(..)
                           , mcPrefix
                           , ofpClient
                           , arpGrat
+                          , eArpGrat
                           , defActions
                           , defaultPacketInPort
                           , encodeMsg
@@ -291,7 +292,17 @@ defaultPacketInPort :: OfpSwitchFeatures -> Word16
 defaultPacketInPort = ofp_port_no . last . ofp_ports
 
 arpGrat :: FakeSwitch -> Word32 -> Word32 -> OfpMessage
-arpGrat fk bid tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
+arpGrat fk bid tid = arpGrat' sw ip bid tid  
+  where ip  = switchIP fk 
+        sw  = switchFeatures fk
+
+eArpGrat :: EFakeSwitch -> Word32 -> Word32 -> OfpMessage
+eArpGrat fk bid tid = arpGrat' sw ip bid tid  
+  where ip  = eSwitchIP fk 
+        sw  = eSwitchFeatures fk
+
+arpGrat' :: OfpSwitchFeatures -> IPv4Addr -> Word32 -> Word32 -> OfpMessage
+arpGrat' sw ip bid tid = OfpMessage hdr (OfpPacketInReply  pktIn)
   where hdr   = header openflow_1_0 tid OFPT_PACKET_IN
         pktIn = OfpPacketIn { ofp_pkt_in_buffer_id = bid
                             , ofp_pkt_in_in_port   = defaultPacketInPort sw
@@ -300,8 +311,6 @@ arpGrat fk bid tid   = OfpMessage hdr (OfpPacketInReply  pktIn)
                             }
         arpGratData = putEthernetFrame (ARPGratuitousReply mac ip)
         mac = ofp_datapath_id sw
-        ip  = switchIP fk 
-        sw  = switchFeatures fk
 
 
 -- TODO: move liftIO here
