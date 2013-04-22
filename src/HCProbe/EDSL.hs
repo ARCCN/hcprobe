@@ -24,6 +24,7 @@ module HCProbe.EDSL
   -- , portMACs
   -- * packet sending
   , nextBID
+  , nextXID
   , send
   , sendOFPPacketIn
   , arpGreeting

@@ -31,12 +31,19 @@ main = do
 
     withSwitch fakeSw "127.0.0.1" 6633 $ do
 
+        xid <- nextXID
+        send $ putOFMessage $ do
+                    putOFHeader $ do
+                       putHdrVersion openflow_1_0
+                       putHdrType OFPT_HELLO
+                       putHdrXid xid
+
         -- wait for type examples: 
         lift $ putStr "waiting for barrier request.. "
         waitForType OFPT_BARRIER_REQUEST
         lift $ putStrLn  "[done]"
         lift $ putStr "waiting for echo request.. "
-        waitForType OFPT_ECHO_REQUEST
+        --waitForType OFPT_ECHO_REQUEST
         lift $ putStrLn "[done]"
         
         -- thread delay example
