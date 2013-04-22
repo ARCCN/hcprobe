@@ -123,6 +123,9 @@ icsum16' :: Word32 -> BS.ByteString -> Word32
 icsum16' !i = icsum16 i . byteStringToVector
 {-# INLINE icsum16' #-}
 
+
+
+
 fin_icsum16' :: Word32 -> Word16
 fin_icsum16' = rotate' . trunc
 {-# INLINE fin_icsum16' #-}

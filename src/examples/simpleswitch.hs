@@ -7,8 +7,8 @@ module Main
   where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async -- EDSL for asynchronous actions
-import Data.Bits                -- for IP creation [ TODO: remove ]
+import Control.Concurrent.Async (race_) -- EDSL for asynchronous actions
+import Data.Bits                        -- for IP creation [ TODO: remove ]
 import HCProbe.EDSL
 
 main = do 
