@@ -3,13 +3,13 @@
 crc16u {
     /* R1 uint32_t input, uint16_t data, Int size */
     I16 c;
-    c = R1;
+    // c = R1;
     R4 = 0;
     loop:
-    c = c + bits32[R2+R4];
+    R1 = HALF_W_(R1 + bits32[R2+R4]);
     R4 = R4+2;
     if (R4<R3) goto loop; 
-    R1 = c;
+//    R1 = c;
     jump %ENTRY_CODE(Sp(0));
 }
 
