@@ -73,7 +73,6 @@ import HCProbe.EDSL.PacketGeneration
 import Text.Printf
 import qualified System.Random.Mersenne as MR
 
-type MACGen = MR.MTGen
 data SwitchState = SwitchState (S.Set MACAddr)
 
 config :: StateT SwitchState IO a
@@ -175,6 +174,7 @@ data MACGen = None -- at begin
 data UserEnv = UserEnv 
         { switchConfig :: EFakeSwitch
         , currentBID   :: IORef Word32
+        , currentXID   :: IORef Word32
         , userSink     :: TVar (Sink (OfpType,OfpMessage) IO ())
         , queue        :: TQueue OfpMessage
         , macGen       :: MACGen
@@ -231,6 +231,11 @@ nextBID = do
     let nbuf = (ofp_n_buffers . eSwitchFeatures) cfg
     lift $ atomicModifyIORef' bbox (\c -> (if c+1>nbuf then 1 else c+1, c))
 
+nextXID :: FakeSwitchM Word32
+nextXID = do
+    xid <- asks currentXID
+    lift $ atomicModifyIORef' xid (\c -> (c+1, c) )
+
 portLength :: FakeSwitchM Int
 portLength = asks ( IM.size . eMacSpace . switchConfig)
 
@@ -241,14 +246,14 @@ send m = do
 
 -- | Send Open flow PacketIn message
 sendOFPPacketIn :: Word16   -- ^ port id
-                -> Word32   -- ^ transaction id
                 -> PutM ()
                 -> FakeSwitchM Word32
-sendOFPPacketIn pid tid pl = do
+sendOFPPacketIn pid pl = do
         q <- asks queue
         bid <- nextBID
+        xid <- nextXID
         lift . atomically . writeTQueue q $
-                  OfpMessage (header openflow_1_0 tid OFPT_PACKET_IN)
+                  OfpMessage (header openflow_1_0 xid OFPT_PACKET_IN)
                              (OfpPacketInReply (OfpPacketIn bid pid OFPR_NO_MATCH pl))
         return bid
 
@@ -269,7 +274,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) =$= CL.catMaybes =$ sinkTQueue sendQ)
                     (mutableSink userS)
         sender   = sourceTQueue sendQ $= CL.map extract' $$ appSink ad
-        user     = runReaderT u (UserEnv sw ref userS sendQ None)
+        user     = runReaderT u (UserEnv sw ref ref userS sendQ None)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
     liftIO . void $ waitAnyCatchCancel waitThreads
@@ -362,15 +367,5 @@ genPerPortMACs port = do
                          else ue{macGen = PerPort $ IM.insert port (mac+1) mg}
                 else ue{macGen = PerPort $ IM.insert port 0 mg}
 
-genLocalMAC :: FakeSwitchM MACAddr
-genLocalMAC = do
-    (UserEnv st _ _ _) <- ask
-    let nm = IM.size $ eMacSpace st
-    em <- liftIO $ liftM (`mod` nm) MR.randomIO -- gen position in Map of random Port
-    let macs = (IM.elems $ eMacSpace st) !! em
-        nv = V.length macs
-    ev <- liftIO $ liftM (`mod` nv) MR.randomIO -- gen position in V of random Mac
-    return (macs V.! ev)
-    
 instance Default EFakeSwitch where
   def = EFakeSwitch def def def 

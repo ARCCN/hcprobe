@@ -72,6 +72,6 @@ main = do
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
-        bid <- sendOFPPacketIn port 43 pl
+        bid <- sendOFPPacketIn port pl
         waitForBID bid
         lift $ putStrLn "done"
