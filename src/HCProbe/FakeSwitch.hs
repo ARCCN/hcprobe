@@ -269,7 +269,8 @@ client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = run
               sendReplyT reply
 
             -- TODO: implement the following messages
-    processMessage _ OFPT_FLOW_MOD _  = nothing
+    processMessage _ OFPT_FLOW_MOD m  = 
+        maybe (return ()) (\x -> (liftIO.x) m) rH
     processMessage _ OFPT_STATS_REQUEST _ = nothing
 
     processMessage _ _ _ = nothing
