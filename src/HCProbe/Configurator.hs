@@ -40,7 +40,7 @@ configDEF :: String
 configDEF = "hcprobe.conf"
 
 instance Default Parameters where
-  def = Parameters (Just configDEF)      -- config
+  def = Parameters Nothing               -- config
                    100                   -- macSpaceDim
                    16                    -- switchNum
                    48                    -- port num
