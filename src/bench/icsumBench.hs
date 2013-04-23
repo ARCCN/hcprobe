@@ -1,46 +1,33 @@
-{-# LANGUAGE ForeignFunctionInterface, BangPatterns #-}
+{-# LANGUAGE ForeignFunctionInterface, BangPatterns, MagicHash #-}
 
 module Main ( main
             ) where
 
-import System.Environment
-import Network.Openflow.Misc
-
-import Network.Openflow.Types
-import Network.Openflow.Ethernet.Types
 import Data.Word
 import Data.Bits
-import Data.Monoid
-import qualified Data.Vector.Storable as V
 import Control.Applicative
-import Network.Openflow.StrictPut
+import qualified Data.Vector.Storable as V
 import qualified Data.Binary.Put as BP 
-import Data.Binary.Get
 import Data.Binary.Builder as BB
-import Data.List
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BS
-import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Unsafe as BS
-import Control.Monad
 import Control.DeepSeq
 
-import Foreign.Storable
 import Foreign.ForeignPtr
 import GHC.Ptr
 import Foreign.C
 import qualified Foreign.Ptr as FP
 
-import Text.Printf
-import Debug.Trace
-
 import Test.QuickCheck
-import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import System.Random
+import System.Mem
 
 import Criterion
 import Criterion.Main
+
+import Network.Openflow.Misc
 
 bsFromW16' w16 = BP.runPut $ BP.putBuilder $ foldl accPutWord16be BB.empty w16
     where accPutWord16be acc w = acc `BB.append` (BB.putWord16be w)
@@ -80,21 +67,37 @@ main = do
     gen <- newStdGen
     let test = unGen (vector genLengthDEF) gen genAmountDEF :: [[Word8]]
 
+    quickCheck (\x -> icsum16 0 (testPrepareNew x) == icsum16' 0 (testPrepareOld x))
+    quickCheck (\x -> 
+                    let (mem,_ofs,len) = BS.toForeignPtr (BS.pack $ x++x)
+                        !mem' = unsafeForeignPtrToPtr mem -- for convinience
+                        !(Ptr a') = mem'
+                        !len' = (len `div` 2)
+                    in fromIntegral (toCIcsum16 (FP.castPtr mem') (fromIntegral len')) == icsum16' 0 (testPrepareOld x))
+    quickCheck (\x -> 
+                    let (mem,_ofs,len) = BS.toForeignPtr (BS.pack (x++x))
+                        !mem' = unsafeForeignPtrToPtr mem -- for convinience
+                        !(Ptr a#) = mem'
+                        a = (icsum16p 0 a# len) 
+                        b = icsum16' 0 (testPrepareOld x)
+                    in a == b)
+
     (mem,_ofs,len) <- BS.toForeignPtr . BS.pack . head <$> sample' (vector genLengthDEF)
     let !mem' = unsafeForeignPtrToPtr mem -- for convinience
     let !(Ptr a') = mem'
     let !len' = (len `div` 2)
 
-    defaultMain [ bgroup "from list"     
-                    [  bench "csumNew" $ nf (map (icsum16 0)) (map testPrepareNew test)
-                    ,  bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
-                    ]
-                , bcompare
+    performGC
+    defaultMain [ bcompare
                         [ bench "csumC" $ nf (uncurry toCIcsum16) 
                             (FP.castPtr mem', fromIntegral len')
                         , bench "csumNew"  $ nf (icsum16 0) (rtest16 mem' len)
                         , bench "csumNewP" $ nf (icsum16p 0 a') len
                         , bench "csumOld"  $ nf (icsum16' 0) (rtest16' mem' len)
                         ]
+                , bgroup "from list"     
+                    [  bench "csumNew" $ nf (map (icsum16 0)) (map testPrepareNew test)
+                    ,  bench "csumOld" $ nf (map (icsum16' 0)) (map testPrepareOld test)
+                    ]
                 ]
     touchForeignPtr mem -- to sade data from gc destructor
