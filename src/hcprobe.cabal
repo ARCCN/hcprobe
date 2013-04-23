@@ -64,10 +64,7 @@ library
   Ghc-options:        -Wall 
                       -threaded 
                       -O2 
---                      -fllvm -optlo-O3
-                      -fmax-simplifier-iterations=10
-                      -fdicts-cheap
---                      -fspec-constr-count=6
+                      -fllvm -optlo-O3
                       -funbox-strict-fields
   c-sources:          cbits/crc16-prim.cmm
   if flag(ThreadScope) 
@@ -260,10 +257,7 @@ benchmark bench-iscum
   main-is:            icsumBench.hs
   build-depends:      base, criterion, bytestring, hcprobe, random,  QuickCheck, deepseq, binary, vector
   c-sources:          cbits/crc16-prim.cmm cbits/icsum.c
-  ghc-options:        -O2
-                      -fmax-simplifier-iterations=10
-                      -fdicts-cheap
-                      -fspec-constr-count=6
+  ghc-options:        -O2 -Wall -fllvm
 
 test-suite test-strictput-put
   type: exitcode-stdio-1.0
