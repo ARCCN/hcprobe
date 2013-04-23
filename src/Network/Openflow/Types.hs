@@ -9,7 +9,11 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , OfpErrorType(..), OfpHelloFailedCode(..), OfpBadActionCode(..)
                               , OfpBadRequestCode(..), OfpFlowModFailedCode(..), OfpPortModFailedCode(..)
                               , OfpQueueOpFailedCode(..), OfpPacketIn(..), OfpPacketInReason(..)
-                              , OfpPacketOutData(..), OfpStatsType(..)
+                              , OfpPacketOutData(..), OfpStatsType(..), 
+                              -- * flow mod
+                              OfpFlowModData(..), OfpFlowModCommand(..), OfpMatch(..)
+                              , OfpFlowModFlag(..), ofpf_SEND_FLOW_REM, ofpf_CHECK_OVERLAP, ofpf_EMERG
+                              -- * other
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags, ofErrorType
                               , ofCapabilitiesUnflag, ofStateUnflag, ofConfigUnflag, ofFeatureUnflag
@@ -20,14 +24,15 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , listToFlags, flagsToList
                               ) where
 
-import Network.Openflow.Ethernet.Types (MACAddr)
+import Control.Applicative
+import Network.Openflow.Ethernet.Types (MACAddr, IPv4Addr)
 import Network.Openflow.StrictPut
+import Data.Binary
+import Data.Binary.Get
 import Data.Default
 import Data.Word
 import qualified Data.ByteString as BS
--- import qualified Data.Set as S
 import Data.Bits
--- import Data.Flags
 
 openflow_1_0 :: Word8
 openflow_1_0 = 0x01
@@ -71,8 +76,10 @@ data OfpMessageData =   OfpMessageRaw       !BS.ByteString
                       | OfpPacketInReply    !OfpPacketIn
                       | OfpStatsRequest     !OfpStatsType
                       | OfpStatsReply
+                      | OfpFlowMod          !OfpFlowModData 
                       | OfpUnsupported      !BS.ByteString
                       deriving (Show)
+
 
 instance Default OfpMessageData where
   def = OfpEmptyReply
@@ -413,6 +420,101 @@ data OfpPacketInReason = OFPR_NO_MATCH | OFPR_ACTION
 
 instance Default OfpPacketInReason where def = OFPR_NO_MATCH
 
+
+data OfpFlowModData = OfpFlowModData 
+      { ofp_flow_mod_match         :: !OfpMatch             -- ^ fields to match
+      , ofp_flow_mod_cookie        :: !Word64               -- ^ opaque controller-issued identifier
+      , ofp_flow_mod_command       :: !OfpFlowModCommand    
+      , ofp_flow_mod_idle_timeout  :: !Word16               -- ^ idle time before discarding (seconds)
+      , ofp_flow_mod_hard_timeout  :: !Word16               -- ^ max time before discarding  (seconds)
+      , ofp_flow_mod_priority      :: !Word16               -- ^ proprity level of flow entry
+      , ofp_flow_mod_buffer_id     :: !Word32               -- ^ buffered packet to apply to (or -1)
+      , ofp_flow_mod_out_port      :: !Word16
+      , ofp_flow_mod_flags         :: !OfpFlowModFlag
+      , ofp_flow_mod_action_header :: !BS.ByteString
+      }
+      deriving (Show)
+
+instance Binary OfpFlowModData where
+  put x = error "not yet implemented" -- TODO: implement? 
+  get = OfpFlowModData <$> get            -- match
+                       <*> getWord64be    -- cookie
+                       <*> get            -- command
+                       <*> getWord16be    -- idle
+                       <*> getWord16be    -- hard
+                       <*> getWord16be    -- prio
+                       <*> getWord32be    -- bufferid
+                       <*> getWord16be    -- out-port
+                       <*> get            -- mod flag
+                       <*> pure BS.empty  -- TODO: fixme
+
+data OfpFlowModCommand = OFPFC_ADD                -- ^ new flow
+                       | OFPFC_MODIFY             -- ^ modify all matching flows
+                       | OFPFC_MODIFY_STRICT      -- ^ modify entry strictly matching wildcard
+                       | OFPFC_DELETE             -- ^ delete all matching flows
+                       | OFPFC_DELETE_STRICT      -- ^ strictly matching wildcards and priority
+                       deriving (Eq,Enum,Show)
+
+instance Binary OfpFlowModCommand where
+    put = error "not yet implemented" -- putWord16be . fromIntegral . fromEnum
+    get = toEnum . fromIntegral <$> getWord16be
+
+
+newtype OfpFlowModFlag = OfpFlowModFlag {unOfpFlowModFlag :: Word16}
+                         deriving (Eq,Show)
+
+
+ofpf_SEND_FLOW_REM , ofpf_CHECK_OVERLAP, ofpf_EMERG :: OfpFlowModFlag
+ofpf_SEND_FLOW_REM = OfpFlowModFlag (1`shiftL`0)
+ofpf_CHECK_OVERLAP = OfpFlowModFlag (1`shiftL`1)
+ofpf_EMERG         = OfpFlowModFlag (1`shiftL`2)
+
+instance Binary OfpFlowModFlag where
+  put = error "not yet impemented"
+  get = OfpFlowModFlag <$> getWord16be
+
+data OfpMatch = OfpMatch 
+      { ofp_match_wildcards   :: !Word32    -- ^ wildcard fields
+      , ofp_match_in_ports    :: !Word16    -- ^ input switch port
+      , ofp_match_dl_src      :: !MACAddr   -- ^ ethernet source address
+      , ofp_match_dl_dst      :: !MACAddr   -- ^ ethernet dest address
+      , ofp_match_dl_vlan     :: !Word16    -- ^ input VLAN id
+      , ofp_match_dl_vlan_pcp :: !Word8     -- ^ VLAN priority
+      , ofp_match_dl_type     :: !Word16    -- ^ ethernet frame type
+      , ofp_match_nw_tos      :: !Word8     -- ^ IP ToS
+      , ofp_match_nw_proto    :: !Word8     -- ^ IP protocol or lower 8 bits ARP OP code
+      , ofp_match_nw_src      :: IPv4Addr   -- ^ IP source address
+      , ofp_match_nw_dst      :: IPv4Addr   -- ^ IP destination address
+      , ofp_match_tp_src      :: !Word16    -- ^ TCP/UDP source port
+      , ofp_match_tp_dst      :: !Word16    -- ^ TCP/UDP dest port
+      }
+      deriving (Show)
+
+instance Binary OfpMatch where
+  put = error "not yet implemented" -- TODO implement
+  get = OfpMatch <$> getWord32be 
+                 <*> getWord16be
+                 <*> (unBMac <$> get)
+                 <*> (unBMac <$> get)
+                 <*> getWord16be
+                 <*> getWord8
+                 <*  getWord8
+                 <*> getWord16be
+                 <*> getWord8
+                 <*> getWord8
+                 <*  getWord16be
+                 <*> getWord32be
+                 <*> getWord32be
+                 <*> getWord16be
+                 <*> getWord16be
+
+newtype BMac = BMac {unBMac :: MACAddr}
+
+instance Binary BMac where
+  put = error "not yet implemented"
+  get = do x <- fromIntegral <$> getWord16be
+           y <- fromIntegral <$> getWord32be
+           return . BMac $ (x `shiftL` 32) + y
 
 data OfpPacketOutData = OfpPacketOutData { ofp_pkt_out_buffer_id :: !Word32
                                          , ofp_pkt_out_in_port   :: !Word16

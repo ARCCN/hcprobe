@@ -9,8 +9,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Blaze.ByteString.Builder -- import Data.ByteString.Lazy.Builder 
 
-import Network.Openflow.Ethernet.Types
-import Network.Openflow.Ethernet.TCP
+import Network.Openflow.Ethernet
 import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Misc
 import HCProbe.ARP
@@ -62,9 +61,7 @@ testPkg :: TestEthernetFrame -> Result
 testPkg a = testBuildFrame a ==? testPutFrame a
 
 instance Arbitrary TestPacketTCP where
-        arbitrary = do
-                    n <- (`mod` 32700) <$> arbitrary
-                    TestPacketTCP <$> arbitrary -- mac0
+        arbitrary = TestPacketTCP <$> arbitrary -- mac0
                                   <*> arbitrary -- mac1
                                   <*> arbitrary -- ip0
                                   <*> arbitrary -- ip1
@@ -75,8 +72,7 @@ instance Arbitrary TestPacketTCP where
                                   <*> arbitrary -- ack no
                                   <*> arbitrary -- wss
                                   <*> arbitrary -- (pure ack)-- ack
-                                  <*> pure n
-                                  <*> (BS.pack <$> vectorOf n arbitrary)
+                                  <*> arbitrary
 
 testTCP :: TestPacketTCP -> Result
 testTCP x = testBuildFrame x ==? testPutFrame x
