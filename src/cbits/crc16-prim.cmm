@@ -1,15 +1,28 @@
 #include "Cmm.h"
 
+#define W_TO_SHORT(x) %lobits32(x)
+
+
 crc16u {
-    /* R1 uint32_t input, uint16_t data, Int size */
-    I16 c;
-    // c = R1;
+    /* R1 uint32_t input,
+       R2 uint16_t data,
+       R3 Int size */
+    I32 c;
+    if (R3 == 0) goto end;
+    c = R1;
     R4 = 0;
     loop:
-    R1 = HALF_W_(R1 + bits32[R2+R4]);
-    R4 = R4+2;
-    if (R4<R3) goto loop; 
-//    R1 = c;
+//    R1 = (R1 + TO_W_(bits16[R2+R4]) % 0xFFFF) % 0xFFFFFFFF;
+//    R4 = R4 + 2;
+//    R1 = HALF_W_(HALF_W_(R1) + HALF_W_(bits32[R2+R4]));
+    c  = c + W_TO_SHORT(bits16[R2+R4]);
+    R4 = R4 + 2;
+    if (R4<R3) goto loop;
+    if (R4>R3) {
+        c = c + W_TO_SHORT(bits8[R2+R3] << 8);
+    }
+    R1 = TO_W_(c);
+    end:
     jump %ENTRY_CODE(Sp(0));
 }
 

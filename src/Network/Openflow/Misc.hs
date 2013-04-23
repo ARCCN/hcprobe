@@ -118,10 +118,10 @@ icsum16 :: Word32 -> V.Vector Word16 -> Word32
 icsum16 !i bv = V.foldl' (\a -> (+a).fromIntegral) i bv
 {-# INLINE icsum16 #-}
 
-foreign import prim "crc16u" p_crc16_u# :: Word# -> Addr# -> Int# -> Word#
+foreign import prim "crc16u" p_crc16_u# :: Word# -> Addr# -> Word# -> Word#
 
 icsum16p :: Word32 -> Addr# -> Int -> Word32
-icsum16p !(W32# w#) a# !(I# l#) = W32# (narrow32Word# (p_crc16_u# w# a# l#))
+icsum16p !(W32# w#) a# !(I# l#) = W32# (narrow32Word# (p_crc16_u# w# a# (int2Word# l#)))
 {-# INLINE icsum16p #-}
 
 rotate' :: Word16 -> Word16
