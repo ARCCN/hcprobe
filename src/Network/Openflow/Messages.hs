@@ -121,6 +121,7 @@ instance Binary OfpMessage where
                                                     case s of
                                                        0 -> return (OfpStatsRequest OFPST_DESC)
                                                        _ -> return (OfpUnsupported BS.empty)
+                      OFPT_FLOW_MOD           -> OfpFlowMod <$> get
                       _                       -> OfpUnsupported <$> getByteString l
            c' <- bytesRead
            skip (fromIntegral $! fromIntegral l - (c'-c))
