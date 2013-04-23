@@ -82,8 +82,7 @@ putTCP x = do
            putWord8 0               {- 9  -}
            putWord8 (tcpProto x)    {- 10 -}
            putWord16be (fromIntegral hlen')
-           let crc = 0 `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen 10 (toAddr message_end))
-                       `icsum16'` (unsafePerformIO $ BS.unsafePackAddressLen hlen' (toAddr start))
+           let crc = icsum16p (icsum16p 0 (toAddr message_end) 10) (toAddr start) hlen'
            undelay acrc (Word16be (fin_icsum16' crc))
            shrink message_end
   where
