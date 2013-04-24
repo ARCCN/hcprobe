@@ -29,6 +29,7 @@ module HCProbe.EDSL
   , sendOFPPacketIn
   , arpGreeting
   , genLocalMAC
+  , delay
   -- * reexports
   , MACGen
   , HCProbe.FakeSwitch.runSwitch
@@ -263,6 +264,11 @@ arpGreeting = do
     (q, fk) <- asks (queue &&& switchConfig)
     xid <- nextXID
     lift . atomically . writeTQueue q $ eArpGrat fk (-1 :: Word32) xid
+
+-- | Delay in nanoseconds
+delay :: Int -> FakeSwitch ()
+delay tm = lift (threadDelay tm)
+
 
 -- | Run configured switch with program inside
 withSwitch :: EFakeSwitch -> ByteString -> Int -> FakeSwitchM () -> IO ()
