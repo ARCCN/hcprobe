@@ -44,6 +44,7 @@ import Control.Concurrent.MVar
 import qualified Control.Concurrent (yield)
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import Control.Concurrent ( threadDelay )
 import Control.Monad.Writer
 import Control.Monad.Trans.Resource
 import Control.Monad.Trans.Reader
@@ -266,8 +267,8 @@ arpGreeting = do
     lift . atomically . writeTQueue q $ eArpGrat fk (-1 :: Word32) xid
 
 -- | Delay in nanoseconds
-delay :: Int -> FakeSwitch ()
-delay tm = lift (threadDelay tm)
+delay :: Int -> FakeSwitchM ()
+delay = lift . threadDelay
 
 
 -- | Run configured switch with program inside
