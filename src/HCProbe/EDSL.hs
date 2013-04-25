@@ -313,6 +313,7 @@ checkMACGen f = do
     st <- asks macGen
     f st
 
+switchMACStateMass :: Monad m => MACGen -> ReaderT UserEnv m ()
 switchMACStateMass st = 
     case st of 
         None -> emptyMACState
@@ -321,6 +322,8 @@ switchMACStateMass st =
     where emptyMACState = withReaderT 
                 (\ue -> ue{macGen = Massive 0 0} ) 
                 $ return ()
+
+switchMACStatePort :: Monad m => MACGen -> ReaderT UserEnv m ()
 switchMACStatePort st =
     case st of
         None -> emptyMACState
@@ -335,9 +338,9 @@ genMassiveMACs = do
     checkMACGen switchMACStateMass
     sw <- asks switchConfig
     (Massive mi vi) <- asks macGen
-    evalState
+    _ <- evalState'
     return $ ((eMacSpace sw) IM.! mi) V.! vi
-    where evalState = do
+    where evalState' = do
             withReaderT nextStateElem $ ask
           nextStateElem ue =
             let (Massive mi vi) = macGen ue 
@@ -365,9 +368,9 @@ genPerPortMACs port = do
    let n = if IM.member port m
             then m IM.! port
             else 0
-   evalState
+   _ <- evalState'
    return $ ((eMacSpace sw) IM.! port) V.! n
-   where evalState = do
+   where evalState' = do
             withReaderT nextStateElem $ ask
          nextStateElem ue =
             let (PerPort mg) = macGen ue
