@@ -39,10 +39,12 @@ module HCProbe.EDSL
   ) where
 
 import Control.Arrow
+import Control.Applicative
 import Control.Concurrent.MVar
-import qualified Control.Concurrent (yield)
+import qualified Control.Concurrent ( yield )
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import Control.Exception ( bracket )
 import Control.Monad.Writer
 import Control.Monad.Trans.Resource
 import Control.Monad.Trans.Reader
@@ -187,43 +189,30 @@ hangOn :: ReaderT UserEnv IO a
 hangOn = lift (forever Control.Concurrent.yield)
 
 waitForType :: OfpType -> FakeSwitchM (OfpMessage)
-waitForType t = do
-    box <- lift $ newEmptyMVar
-    s   <- asks userSink
-    let ns = CL.mapM (\x -> print (fst x) >> return x) 
-                =$= CL.filter ((t ==) . fst) 
-                =$= CL.head >>= lift . putMVar box
-    lift $ do
-      os <- readTVarIO s
-      atomically $ writeTVar s ns
-      let go = do mx <- takeMVar box
-                  case mx of
-                    Nothing -> go
-                    Just (_,b) -> do atomically $ writeTVar s os
-                                     return b
-
-      go
+waitForType t = fmap snd . withUserSink $ \box ->
+  CL.mapM (\x -> print (fst x) >> return x) 
+       =$= CL.filter ((t ==) . fst) 
+       =$= CL.head >>= lift . putMVar box
 
 waitForBID :: Word32 -> FakeSwitchM (OfpMessage)
-waitForBID b = do
-  box <- lift $ newEmptyMVar
-  s   <- asks userSink
-  let ns = do mx <- await
-              case mx of
-                  Nothing -> lift $ putMVar box Nothing
-                  Just (_,m@(OfpMessage _ (OfpPacketOut (OfpPacketOutData b' _)))) | b == b' -> do
-                      lift $ putMVar box (Just m)
-                      return ()
-                  _ -> ns
+waitForBID b = withUserSink $ \box -> 
+  let loop = do
+      mx <- await
+      case mx of
+        Nothing -> lift $ putMVar box Nothing
+        Just (_,m@(OfpMessage _ (OfpPacketOut (OfpPacketOutData b' _)))) 
+            | b == b' -> lift (putMVar box (Just m)) >> return ()
+        _ -> loop
+  in loop
+
+withUserSink :: (MVar (Maybe b) -> Sink (OfpType, OfpMessage) IO ()) -> FakeSwitchM b 
+withUserSink u = do
+  s <- asks userSink
   lift $ do
-      os <- readTVarIO s
-      atomically $ writeTVar s ns
-      let go = do mx <- takeMVar box
-                  case mx of
-                      Nothing -> go
-                      Just m  -> do atomically $ writeTVar s os
-                                    return m
-      go
+    box <- newEmptyMVar
+    bracket (atomically $ readTVar s >>= \x -> writeTVar s (u box) >> return x)
+            (\o -> atomically $ writeTVar s o)
+            (\_ -> let go = takeMVar box >>= maybe go return in go)
 
 -- | get next buffer id
 nextBID :: FakeSwitchM Word32
@@ -328,9 +317,9 @@ genMassiveMACs = do
     checkMACGen switchMACStateMass
     sw <- asks switchConfig
     (Massive mi vi) <- asks macGen
-    evalState
+    evalState'
     return $ ((eMacSpace sw) IM.! mi) V.! vi
-    where evalState = do
+    where evalState' = do
             withReaderT nextStateElem $ ask
           nextStateElem ue =
             let (Massive mi vi) = macGen ue 
