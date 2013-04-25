@@ -53,7 +53,10 @@ data OfpHeader = OfpHeader { ofp_hdr_version :: !Word8
 instance Default OfpHeader where def = OfpHeader def def def def
 
 data OfpMessage = OfpMessage { ofp_header  :: !OfpHeader
-                             , ofp_data    :: !OfpMessageData
+                             , ofp_data    ::  OfpMessageData 
+                             -- ofp_data field is not strict as it's
+                             -- possible not to parse it unless it's 
+                             -- needed so it's the real case for lazyness.
                              }
                              deriving (Show)
 

@@ -101,33 +101,29 @@ instance Binary OfpMessage where
   put _ = error "put message is not supported" -- FIXME support method ?
   get = do hdr <- get 
            c <- bytesRead
-           let l = fromIntegral (ofp_hdr_length hdr) - ofpHeaderLen 
-           m <- OfpMessage hdr <$> 
-                  case ofp_hdr_type hdr of
-                      OFPT_HELLO              -> return OfpHello
-                      OFPT_FEATURES_REQUEST   -> return OfpFeaturesRequest
-                      OFPT_ECHO_REQUEST       -> OfpEchoRequest <$> getByteString l 
-                      OFPT_SET_CONFIG         -> OfpSetConfig  <$>
-                                                    (OfpSwitchConfig <$> (toEnum . fromIntegral <$> getWord16be)
-                                                                     <*> getWord16be)
-                      OFPT_GET_CONFIG_REQUEST -> return (OfpGetConfigRequest)
-                      OFPT_PACKET_OUT         -> do bid  <- getWord32be
-                                                    pid  <- getWord16be
-                                                    alen <- getWord16be
-                                                    skip (fromIntegral alen)
-                                                    return (OfpPacketOut (OfpPacketOutData bid pid))
-                      OFPT_VENDOR             -> OfpVendor <$> getByteString l
-                      OFPT_STATS_REQUEST      -> do s <- getWord16be
-                                                    case s of
-                                                       0 -> return (OfpStatsRequest OFPST_DESC)
-                                                       _ -> return (OfpUnsupported BS.empty)
-                      OFPT_FLOW_MOD           -> OfpFlowMod <$> get
-                      _                       -> OfpUnsupported <$> getByteString l
-           c' <- bytesRead
-           skip (fromIntegral $! fromIntegral l - (c'-c))
-           return m
+           s <- getLazyByteString (fromIntegral (ofp_hdr_length hdr) - fromIntegral ofpHeaderLen)
+           return (OfpMessage hdr (runGet (getMessage (ofp_hdr_type hdr)) s))
 
-
+getMessage :: a -> Get OfpMessageData
+getMessage !OFPT_HELLO = return OfpHello
+getMessage !OFPT_FEATURES_REQUEST   = return OfpFeaturesRequest
+getMessage !OFPT_ECHO_REQUEST       = OfpEchoRequest . bsStrict <$> getRemainingLazyByteString
+getMessage !OFPT_SET_CONFIG         = OfpSetConfig  <$>
+                                        (OfpSwitchConfig <$> (toEnum . fromIntegral <$> getWord16be)
+                                                         <*> getWord16be)
+getMessage !OFPT_GET_CONFIG_REQUEST = return (OfpGetConfigRequest)
+getMessage !OFPT_PACKET_OUT         = do bid  <- getWord32be
+                                         pid  <- getWord16be
+                                         alen <- getWord16be
+                                         skip (fromIntegral alen)
+                                         return (OfpPacketOut (OfpPacketOutData bid pid))
+getMessage !OFPT_VENDOR             = OfpVendor . bsStrict <$> getRemainingLazyByteString
+getMessage !OFPT_STATS_REQUEST      = do s <- getWord16be
+                                         case s of
+                                            0 -> return (OfpStatsRequest OFPST_DESC)
+                                            _ -> return (OfpUnsupported BS.empty)
+-- getMessage !OFPT_FLOW_MOD           = OfpFlowMod . bsStrict <$> getRemainingLazyByteString
+getMessage _                        = OfpUnsupported .bsStrict <$> getRemainingLazyByteString
 
 {-
 parseMessageData :: OfpMessage -> Maybe OfpMessage
