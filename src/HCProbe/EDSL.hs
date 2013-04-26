@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings, FlexibleContexts, CPP #-}
 module HCProbe.EDSL
   ( -- * Entities creation
 --    config
@@ -375,4 +375,13 @@ genPerPortMACs port = do
                 else ue{macGen = PerPort $ IM.insert port 0 mg}
 
 instance Default EFakeSwitch where
-  def = EFakeSwitch def def def 
+  def = EFakeSwitch def def def
+
+#if ! MIN_VERSION_base(4,6,0)
+atomicModifyIORef' :: IORef a -> (a -> (a,b)) -> IO b
+atomicModifyIORef' ref f = do
+    b <- atomicModifyIORef ref
+    		(\x -> let (a, b) = f x
+			in (a, a `seq` b))
+    b `seq` return b
+#endif

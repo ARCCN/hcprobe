@@ -32,6 +32,7 @@ import Data.Binary.Get
 import Data.Default
 import Data.Word
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import Data.Bits
 
 openflow_1_0 :: Word8
