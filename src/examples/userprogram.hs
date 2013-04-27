@@ -29,7 +29,7 @@ main = do
                     addMACs [1..450]
     print fakeSw
 
-    withSwitch fakeSw "127.0.0.1" 6633 $ do
+    withSwitch fakeSw "127.0.0.1" 6633 Nothing $ do
 
         xid <- nextXID
         send $ putOFMessage $ do

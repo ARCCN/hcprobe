@@ -272,17 +272,24 @@ delay = lift . threadDelay
 
 
 -- | Run configured switch with program inside
-withSwitch :: EFakeSwitch -> ByteString -> Int -> FakeSwitchM () -> IO ()
-withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
+withSwitch :: EFakeSwitch 
+           -> ByteString 
+           -> Int 
+           -> Maybe (Conduit (OfpType, OfpMessage) IO (OfpType, OfpMessage) )
+           -> FakeSwitchM () 
+           -> IO ()
+withSwitch sw host port uh u = runTCPClient (clientSettings port host) $ \ad -> do
   sendQ <- atomically $ newTQueue
   ref   <- newIORef 0
   swCfg <- newTVarIO defaultSwitchConfig
+  let handler = takeUserHandler uh
   runResourceT $ do
     userS <- liftIO $ newTVarIO (CL.sinkNull) 
     let extract'  = runPutToByteString 32768 . putMessage
         listener =  appSource ad 
             $= conduitDecode
-            =$= CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m))
+            =$= ( CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m)) :: Conduit OfpMessage IO (OfpType, OfpMessage) )
+            =$= handler
             -- =$= printMessage
             $$ CU.zipSinks
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) =$= CL.catMaybes =$ sinkTQueue sendQ)
@@ -297,6 +304,8 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
       case snd v of
         Left e -> putStrLn (show e)
         Right _ -> return () -}
+  where takeUserHandler Nothing = CL.map (\m -> m)
+        takeUserHandler (Just h) = h
 
 genLocalMAC :: FakeSwitchM MACAddr
 genLocalMAC = do
