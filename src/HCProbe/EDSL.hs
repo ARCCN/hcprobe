@@ -31,6 +31,7 @@ module HCProbe.EDSL
   , arpGreeting
   , genLocalMAC
   , delay
+  , predicateHandler
   -- * reexports
   , MACGen
   , HCProbe.FakeSwitch.runSwitch
@@ -396,4 +397,17 @@ genPerPortMACs port = do
                 else ue{macGen = PerPort $ IM.insert port 0 mg}
 
 instance Default EFakeSwitch where
-  def = EFakeSwitch def def def 
+  def = EFakeSwitch def def def
+
+type OfpPredicate = OfpType -> Bool
+
+predicateHandler :: Num a 
+                => OfpPredicate
+                -> IORef a
+                -> (OfpType, OfpMessage)
+                -> IO (OfpType, OfpMessage)
+predicateHandler pred ref (t,m) = do
+    when (pred t) $ do
+        n <- readIORef ref
+        writeIORef ref (n+1)
+    return (t,m)

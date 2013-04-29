@@ -17,6 +17,7 @@ import Network.Openflow.Ethernet.IPv4
 import Network.Openflow.Ethernet.TCP
 import HCProbe.Ethernet
 import HCProbe.TCP
+import Data.IORef
 
 main :: IO ()
 main = do 
@@ -56,6 +57,9 @@ main = do
             x <- nextBID
             lift . putStrLn $ "next buffer id " ++ show x
 
+        count <- lift $ ( newIORef 0 :: IO (IORef Int))
+        setUserHandler $ predicateHandler (\_->True) count
+
         -- Sending primitives:
         -- send simple packet
         -- tcp <- randomTCP
@@ -81,4 +85,6 @@ main = do
                                   }
         bid <- sendOFPPacketIn port pl
         waitForBID bid
+        n <- lift $  readIORef count
+        lift $ print n
         lift $ putStrLn "done"
