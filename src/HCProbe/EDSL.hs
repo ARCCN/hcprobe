@@ -407,7 +407,6 @@ predicateHandler :: Num a
                 -> (OfpType, OfpMessage)
                 -> IO (OfpType, OfpMessage)
 predicateHandler pred ref (t,m) = do
-    when (pred t) $ do
-        n <- readIORef ref
-        writeIORef ref (n+1)
+    when (pred t) $
+        modifyIORef' ref (\n->n+1)
     return (t,m)
