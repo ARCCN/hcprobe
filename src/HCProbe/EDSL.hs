@@ -181,6 +181,7 @@ data UserEnv = UserEnv
         , currentBID   :: IORef Word32
         , currentXID   :: IORef Word32
         , userSink     :: TVar (Sink (OfpType,OfpMessage) IO ())
+        , userHandler  :: TVar (Conduit (OfpType, OfpMessage) IO (OfpType, OfpMessage))
         , queue        :: TQueue OfpMessage
         , macGen       :: MACGen
         }
@@ -264,16 +265,17 @@ delay = lift . threadDelay
 withSwitch :: EFakeSwitch 
            -> ByteString 
            -> Int 
-           -> Maybe (Conduit (OfpType, OfpMessage) IO (OfpType, OfpMessage) )
+--           -> Maybe (Conduit (OfpType, OfpMessage) IO (OfpType, OfpMessage) )
            -> FakeSwitchM () 
            -> IO ()
-withSwitch sw host port uh u = runTCPClient (clientSettings port host) $ \ad -> do
+withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
   sendQ <- atomically $ newTQueue
   ref   <- newIORef 0
   swCfg <- newTVarIO defaultSwitchConfig
-  let handler = takeUserHandler uh
   runResourceT $ do
-    userS <- liftIO $ newTVarIO (CL.sinkNull) 
+    userS <- liftIO $ newTVarIO (CL.sinkNull)
+    userH <- liftIO $ newTVarIO $ CL.map (\m->m)
+    handler <- liftIO $ atomically $ readTVar userH
     let extract'  = runPutToByteString 32768 . putMessage
         listener =  appSource ad 
             $= conduitDecode
@@ -284,7 +286,7 @@ withSwitch sw host port uh u = runTCPClient (clientSettings port host) $ \ad -> 
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) =$= CL.catMaybes =$ sinkTQueue sendQ)
                     (mutableSink userS)
         sender   = sourceTQueue sendQ $= CL.map extract' $$ appSink ad
-        user     = runReaderT u (UserEnv sw ref ref userS sendQ None)
+        user     = runReaderT u (UserEnv sw ref ref userS userH sendQ None)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
     liftIO . void $ waitAnyCatchCancel waitThreads
