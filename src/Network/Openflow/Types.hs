@@ -51,7 +51,7 @@ data OfpHeader = OfpHeader { ofp_hdr_version :: !Word8
                            }
                            deriving (Show)
 
-instance Default OfpHeader where def = OfpHeader def def def def
+instance Default OfpHeader where def = OfpHeader openflow_1_0 def def def
 
 data OfpMessage = OfpMessage { ofp_header  :: !OfpHeader
                              , ofp_data    :: OfpMessageData 
