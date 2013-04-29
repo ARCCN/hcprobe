@@ -21,6 +21,7 @@ module HCProbe.EDSL
   , portLength
   , genMassiveMACs
   , genPerPortMACs
+  , setUserHandler
   -- , portMACs
   -- * packet sending
   , nextBID
@@ -181,7 +182,7 @@ data UserEnv = UserEnv
         , currentBID   :: IORef Word32
         , currentXID   :: IORef Word32
         , userSink     :: TVar (Sink (OfpType,OfpMessage) IO ())
-        , userHandler  :: TVar (Conduit (OfpType, OfpMessage) IO (OfpType, OfpMessage))
+        , userHandler  :: TVar ((OfpType, OfpMessage) -> IO (OfpType, OfpMessage))
         , queue        :: TQueue OfpMessage
         , macGen       :: MACGen
         }
@@ -216,6 +217,14 @@ withUserSink u = do
     bracket (atomically $ readTVar s >>= \x -> writeTVar s (u box) >> return x)
             (\o -> atomically $ writeTVar s o)
             (\_ -> let go = takeMVar box >>= maybe go return in go)
+
+setUserHandler :: ( (OfpType, OfpMessage) -> IO (OfpType, OfpMessage) )
+                -> FakeSwitchM ()
+setUserHandler h = do
+  tHandler <- asks userHandler
+  liftIO $ atomically $ writeTVar tHandler h
+  -- realy need next?
+  withReaderT (\s->s{userHandler = tHandler}) $ return ()
 
 -- | get next buffer id
 nextBID :: FakeSwitchM Word32
@@ -274,13 +283,15 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
   swCfg <- newTVarIO defaultSwitchConfig
   runResourceT $ do
     userS <- liftIO $ newTVarIO (CL.sinkNull)
-    userH <- liftIO $ newTVarIO $ CL.map (\m->m)
-    handler <- liftIO $ atomically $ readTVar userH
+    userH <- liftIO $ newTVarIO $ (\m->return m)
     let extract'  = runPutToByteString 32768 . putMessage
         listener =  appSource ad 
             $= conduitDecode
             =$= ( CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m)) :: Conduit OfpMessage IO (OfpType, OfpMessage) )
-            =$= handler
+            =$= CL.mapM (\m -> do
+                            action <- readTVarIO userH
+                            action m
+                        )
             -- =$= printMessage
             $$ CU.zipSinks
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) =$= CL.catMaybes =$ sinkTQueue sendQ)
