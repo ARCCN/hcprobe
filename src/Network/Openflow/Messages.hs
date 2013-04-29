@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns #-}
 module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  -- , ofpParsePacket  -- FIXME <- not needed
                                  -- , parseMessageData
@@ -31,6 +31,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Control.Monad
 import Control.Applicative
 
+import Debug.Trace
 -- FIXME: rename ofpParse* to getOfp*
 
 
@@ -100,30 +101,32 @@ instance Binary OfpHeader where
 instance Binary OfpMessage where
   put _ = error "put message is not supported" -- FIXME support method ?
   get = do hdr <- get 
-           c <- bytesRead
            s <- getLazyByteString (fromIntegral (ofp_hdr_length hdr) - fromIntegral ofpHeaderLen)
-           return (OfpMessage hdr (runGet (getMessage (ofp_hdr_type hdr)) s))
+           let body = runGet (getMessage (ofp_hdr_type hdr)) s
+           return (OfpMessage hdr body)
 
-getMessage :: a -> Get OfpMessageData
-getMessage !OFPT_HELLO = return OfpHello
-getMessage !OFPT_FEATURES_REQUEST   = return OfpFeaturesRequest
-getMessage !OFPT_ECHO_REQUEST       = OfpEchoRequest . bsStrict <$> getRemainingLazyByteString
-getMessage !OFPT_SET_CONFIG         = OfpSetConfig  <$>
-                                        (OfpSwitchConfig <$> (toEnum . fromIntegral <$> getWord16be)
-                                                         <*> getWord16be)
-getMessage !OFPT_GET_CONFIG_REQUEST = return (OfpGetConfigRequest)
-getMessage !OFPT_PACKET_OUT         = do bid  <- getWord32be
-                                         pid  <- getWord16be
-                                         alen <- getWord16be
-                                         skip (fromIntegral alen)
-                                         return (OfpPacketOut (OfpPacketOutData bid pid))
-getMessage !OFPT_VENDOR             = OfpVendor . bsStrict <$> getRemainingLazyByteString
-getMessage !OFPT_STATS_REQUEST      = do s <- getWord16be
-                                         case s of
-                                            0 -> return (OfpStatsRequest OFPST_DESC)
-                                            _ -> return (OfpUnsupported BS.empty)
+getMessage :: OfpType -> Get OfpMessageData
+getMessage x = case x of
+                 !OFPT_HELLO -> return OfpHello
+                 !OFPT_FEATURES_REQUEST   -> return OfpFeaturesRequest
+                 !OFPT_ECHO_REQUEST       -> OfpEchoRequest . bsStrict <$> getRemainingLazyByteString
+                 !OFPT_SET_CONFIG         -> OfpSetConfig  <$>
+                                               (OfpSwitchConfig <$> (toEnum . fromIntegral <$> getWord16be)
+                                                                <*> getWord16be)
+                 !OFPT_GET_CONFIG_REQUEST -> return (OfpGetConfigRequest)
+                 !OFPT_PACKET_OUT         -> do bid  <- getWord32be
+                                                pid  <- getWord16be
+                                                alen <- getWord16be
+                                                skip (fromIntegral alen)
+                                                return (OfpPacketOut (OfpPacketOutData bid pid))
+                 !OFPT_VENDOR             -> OfpVendor . bsStrict <$> getRemainingLazyByteString
+                 !OFPT_STATS_REQUEST      -> do s <- getWord16be
+                                                case s of
+                                                   0 -> return (OfpStatsRequest OFPST_DESC)
+                                                   _ -> return (OfpUnsupported BS.empty)
+                 x                        -> OfpUnsupported .bsStrict <$> getRemainingLazyByteString
 -- getMessage !OFPT_FLOW_MOD           = OfpFlowMod . bsStrict <$> getRemainingLazyByteString
-getMessage _                        = OfpUnsupported .bsStrict <$> getRemainingLazyByteString
+-- getMessage _                        = OfpUnsupported .bsStrict <$> getRemainingLazyByteString
 
 {-
 parseMessageData :: OfpMessage -> Maybe OfpMessage

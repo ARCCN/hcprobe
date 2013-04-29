@@ -230,6 +230,7 @@ client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = run
          Right _ -> return ()
   where
     sendReplyT msg = do
+
       --liftIO $ dump "OUT:" (ofp_header msg) 
       maybe (return ()) (\x -> (liftIO.x) msg) sH
       buf <- liftIO . atomically $ readTQueue pktStockQ
