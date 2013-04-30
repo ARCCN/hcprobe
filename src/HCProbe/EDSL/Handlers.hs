@@ -3,9 +3,11 @@ module HCProbe.EDSL.Handlers
     , predicateHandler
     , PktStats(..)
     , initPacketStats
+    , setStatsHandler
     , statsSend
     , statsSendOFPPacketIn
     , getStats
+    , assembleStats
     ) where
 
 import qualified Data.IntMap as IM
@@ -45,32 +47,33 @@ data PktStats = PktStats { pktStatsSentTotal :: !Int
                          , pktStatsConnLost  :: !Int
                          , pktStatsRoundtripTime :: !(Maybe NominalDiffTime)
                          } deriving Show
-data PacketQueue = PacketQueue { packetQ :: TVarL (IM.IntMap UTCTime)
+data StatsEntity = StatsEntity { packetQ :: TVarL (IM.IntMap UTCTime)
                                , stats   :: TVar PktStats
                                }
-initPacketStats :: FakeSwitchM PacketQueue
+initPacketStats :: (MonadIO m)
+                => m StatsEntity
 initPacketStats = do
     im <- liftIO $ newTVarIO IM.empty
     pQ <- liftIO $ newTVarIO (0,im)
-    st <- liftIO $ newTVarIO 
-            (PktStats 0 0 0 0 Nothing)
-    let pS = PacketQueue pQ st
-    setUserHandler $ statsHandler pS
-    return pS
+    st <- liftIO $ newTVarIO (PktStats 0 0 0 0 Nothing)
+    return $ StatsEntity pQ st
 
-statsHandler :: PacketQueue 
+setStatsHandler :: StatsEntity
+                -> FakeSwitchM ()
+setStatsHandler pS = setUserHandler $ statsHandler pS
+
+statsHandler :: StatsEntity 
              -> (OfpType, OfpMessage) 
              -> IO (OfpType, OfpMessage)
-statsHandler (PacketQueue q s) 
+statsHandler (StatsEntity q s) 
              m@(_, (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid)))) = do
   now <- getCurrentTime
   pq  <- readTVarIO . snd =<< readTVarIO q
   whenJustM (IM.lookup ibid pq) $ \dt -> do
-    atomically $ 
+    atomically $ do
       modifyTVar s (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st)
                                 , pktStatsRoundtripTime = Just( now `diffUTCTime` dt )
                                 })
-    atomically $ do
       (l,pq') <- readTVar q
       modifyTVar pq' $ IM.delete ibid
       writeTVar q (l-1,pq')
@@ -80,10 +83,10 @@ statsHandler _ m = return m
 
 --FIXME: remove hardcoded parameters
 statsOnSend :: (MonadIO m) 
-            => PacketQueue
+            => StatsEntity
             -> OfpMessage
             -> m ()
-statsOnSend (PacketQueue q s) 
+statsOnSend (StatsEntity q s) 
             ( OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = liftIO $ do
   now <- getCurrentTime
   atomically $ do
@@ -111,14 +114,14 @@ whenJustM (Just a) m = do
     m a; 
     return()
 
-statsSend :: PacketQueue
+statsSend :: StatsEntity
           -> OfpMessage
           -> FakeSwitchM ()
 statsSend q m = do 
     statsOnSend q m
     send m 
 
-statsSendOFPPacketIn :: PacketQueue
+statsSendOFPPacketIn :: StatsEntity
                      -> Word16
                      -> PutM ()
                      -> FakeSwitchM Word32
@@ -132,7 +135,22 @@ statsSendOFPPacketIn q pid pl = do
     return bid
 
 getStats :: (MonadIO m)
-         => PacketQueue
+         => StatsEntity
          -> m PktStats
-getStats (PacketQueue _ s) = 
+getStats (StatsEntity _ s) = 
     liftIO $ readTVarIO s
+
+assembleStats :: (MonadIO m)
+              => [StatsEntity]
+              -> m PktStats
+assembleStats lSE = liftIO $ do
+  lPS <- sequence $ map getStats lSE
+  let summ = foldl1 addStats lPS 
+      len  = length lPS
+  return $ summ{ pktStatsRoundtripTime 
+        = (\a -> return $ a / (fromIntegral len) ) 
+            =<< (pktStatsRoundtripTime summ)}
+  where
+    addStats (PktStats s r l cl rtt ) (PktStats as ar al acl artt) = 
+      PktStats (s+as) (r+ar) (l+al) (cl+acl) (liftM2 (+) rtt artt)
+ 

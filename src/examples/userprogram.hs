@@ -31,12 +31,15 @@ main = do
                     addMACs [1..450]
     print fakeSw
 
+    lSE <- sequence $ map (\_->initPacketStats) [1..100]
+
     withSwitch fakeSw "127.0.0.1" 6633 $ do
-        
-        packSt <- initPacketStats
+       
+        let stEnt = head lSE
+        setStatsHandler stEnt
 
         xid <- nextXID
-        statsSend packSt $ putOFMessage $ do
+        statsSend stEnt $ putOFMessage $ do
                              putOFHeader $ do
                                putHdrVersion openflow_1_0
                                putHdrType OFPT_HELLO
@@ -86,8 +89,9 @@ main = do
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
-        bid <- statsSendOFPPacketIn packSt port pl
+        bid <- statsSendOFPPacketIn stEnt port pl
         waitForBID bid
-        stats <- getStats packSt
-        lift $ print stats
         lift $ putStrLn "done"
+    
+    stats <- assembleStats lSE 
+    print stats
