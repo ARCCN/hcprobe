@@ -14,6 +14,7 @@ module HCProbe.EDSL
   , PortNameGen(..)
   , addPort
     -- * 
+  , FakeSwitchM
   , withSwitch
   , hangOn
   , waitForType
@@ -31,7 +32,6 @@ module HCProbe.EDSL
   , arpGreeting
   , genLocalMAC
   , delay
-  , predicateHandler
   -- * reexports
   , MACGen
   , HCProbe.FakeSwitch.runSwitch
@@ -400,79 +400,4 @@ genPerPortMACs port = do
 instance Default EFakeSwitch where
   def = EFakeSwitch def def def
 
-type OfpPredicate = OfpType -> Bool
 
-predicateHandler :: Num a 
-                => OfpPredicate
-                -> IORef a
-                -> (OfpType, OfpMessage)
-                -> IO (OfpType, OfpMessage)
-predicateHandler pred ref (t,m) = do
-    when (pred t) $
-        modifyIORef' ref (\n->n+1)
-    return (t,m)
-
-data PktStats = PktStats { pktStatsSentTotal :: !Int
-                         , pktStatsRecvTotal :: !Int
-                         , pktStatsLostTotal :: !Int
-                         , pktStatsConnLost  :: !Int
-                         , pktStatsRoundtripTime :: !(Maybe NominalDiffTime)
-                         }
-data PacketQueue = PacketQueue { packetQ :: TVar (Int, IM.IntMap UTCTime)
-                               , stats   :: TVar PktStats
-                               }
-initPacketStats :: FakeSwitchM PacketQueue
-initPacketStats = do
-    pQ <- liftIO $ newTVarIO
-    st <- liftIO $ newTVarIO
-    let pS = PacketQueue pQ st
-    setUserHandler $ statsHandler pS
-    return pS
-
-statsHandler :: PacketQueue 
-             -> (OfpType, OfpMessage) 
-             -> IO (OfpType, OfpMessage)
-statsHandler (PacketQueue tpq tst) 
-             m@(_, (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = do
-  now <- getCurrentTime
-  (l,pq) <- readTVarIO tpq
-  whenJustM (IntMap.lookup ibid pq) $ \dt -> do
-    atomically $ 
-      modifyTVar tst (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st)
-                                , pktStatsRoundtripTime = Just( now `diffUTCTime` dt )
-                                })
-    atomically $ do
-      (l,pq') <- readTVar q
-      modifyTVar pq' $ IntMap.delete ibid
-      writeTVar q (l-1,pq')
-  return m
-  where ibid = fromIntegral bid
-statsHandler _ m = return m
-
---FIXME: remove hardcoded parameters
-statsOnSend :: PacketQueue 
-            -> OfpMessage
-            -> FakeSwitchM ()
-statsOnSend (packetQueue q s) 
-            ( OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = liftIO $ do
-  now <- getCurrentTime
-  atomically $ do
-    (l,s') <- readTVar q
-    modifyTVar s' (IntMap.insert (fromIntegral bid) now)
-    writeTVar q (l+1,s')
-  atomically $ modifyTVar s (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st) })
-  sweepQ now
-
-  where
-    sweepQ now = atomically $ do
-      (l,g) <- readTVar q
-      when (l > 1024) $ do
-        pq <- readTVar g
-        let rationalTimeout = toRational 1
-        let (_lost, rest) = IntMap.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
-        writeTVar g $! rest
-        modifyTVar s (\st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st)
-                                  })
-        writeTVar q (IntMap.size rest,g)
- 
-            

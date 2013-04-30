@@ -54,7 +54,7 @@ library
                       conduit>=1.0, vector,
                       random, digest, statistics, binary-conduit >= 1.1.0,
                       transformers, mtl, containers,
-                      errors, MissingH, 
+                      errors, MissingH, time,
                       cmdargs, ConfigFile, directory, bitset >= 1.4,
                       mersenne-random-pure64, mersenne-random,
                       nettle-openflow >= 0.2.0, ghc-prim, directory,

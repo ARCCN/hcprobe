@@ -17,6 +17,7 @@ import Network.Openflow.Ethernet.IPv4
 import Network.Openflow.Ethernet.TCP
 import HCProbe.Ethernet
 import HCProbe.TCP
+import HCProbe.EDSL.Handlers
 import Data.IORef
 
 main :: IO ()
@@ -31,6 +32,8 @@ main = do
     print fakeSw
 
     withSwitch fakeSw "127.0.0.1" 6633 $ do
+        
+        packSt <- initPacketStats
 
         xid <- nextXID
         send $ putOFMessage $ do
@@ -58,7 +61,7 @@ main = do
             lift . putStrLn $ "next buffer id " ++ show x
 
         count <- lift $ ( newIORef 0 :: IO (IORef Int))
-        setUserHandler $ predicateHandler (\_->True) count
+        -- setUserHandler $ predicateHandler (\_->True) count
 
         -- Sending primitives:
         -- send simple packet
