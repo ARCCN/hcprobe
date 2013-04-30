@@ -31,7 +31,7 @@ main = do
                     addMACs [1..450]
     print fakeSw
 
-    lSE <- sequence $ map (\_->initPacketStats) [1..100]
+    lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..100]
 
     withSwitch fakeSw "127.0.0.1" 6633 $ do
        

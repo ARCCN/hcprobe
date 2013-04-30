@@ -47,16 +47,21 @@ data PktStats = PktStats { pktStatsSentTotal :: !Int
                          , pktStatsConnLost  :: !Int
                          , pktStatsRoundtripTime :: !(Maybe NominalDiffTime)
                          } deriving Show
+
 data StatsEntity = StatsEntity { packetQ :: TVarL (IM.IntMap UTCTime)
                                , stats   :: TVar PktStats
+                               , pktInQLen      :: Int
+                               , pktInQTimeout  :: Float
                                }
 initPacketStats :: (MonadIO m)
-                => m StatsEntity
-initPacketStats = do
+                => Int
+                -> Float
+                -> m StatsEntity
+initPacketStats len to = do
     im <- liftIO $ newTVarIO IM.empty
     pQ <- liftIO $ newTVarIO (0,im)
     st <- liftIO $ newTVarIO (PktStats 0 0 0 0 Nothing)
-    return $ StatsEntity pQ st
+    return $ StatsEntity pQ st len to
 
 setStatsHandler :: StatsEntity
                 -> FakeSwitchM ()
@@ -65,7 +70,7 @@ setStatsHandler pS = setUserHandler $ statsHandler pS
 statsHandler :: StatsEntity 
              -> (OfpType, OfpMessage) 
              -> IO (OfpType, OfpMessage)
-statsHandler (StatsEntity q s) 
+statsHandler (StatsEntity q s _ _) 
              m@(_, (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid)))) = do
   now <- getCurrentTime
   pq  <- readTVarIO . snd =<< readTVarIO q
@@ -81,12 +86,11 @@ statsHandler (StatsEntity q s)
   where ibid = fromIntegral bid
 statsHandler _ m = return m
 
---FIXME: remove hardcoded parameters
 statsOnSend :: (MonadIO m) 
             => StatsEntity
             -> OfpMessage
             -> m ()
-statsOnSend (StatsEntity q s) 
+statsOnSend (StatsEntity q s len to) 
             ( OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = liftIO $ do
   now <- getCurrentTime
   atomically $ do
@@ -99,9 +103,9 @@ statsOnSend (StatsEntity q s)
   where
     sweepQ now = atomically $ do
       (l,g) <- readTVar q
-      when (l > 1024) $ do
+      when (l > len) $ do
         pq <- readTVar g
-        let rationalTimeout = toRational 1
+        let rationalTimeout = toRational to
         let (_lost, rest) = IM.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
         writeTVar g $! rest
         modifyTVar s (\st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st)
@@ -137,7 +141,7 @@ statsSendOFPPacketIn q pid pl = do
 getStats :: (MonadIO m)
          => StatsEntity
          -> m PktStats
-getStats (StatsEntity _ s) = 
+getStats (StatsEntity _ s _ _) = 
     liftIO $ readTVarIO s
 
 assembleStats :: (MonadIO m)
