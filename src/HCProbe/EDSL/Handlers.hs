@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns, GeneralizedNewtypeDeriving #-}
+
 module HCProbe.EDSL.Handlers
     ( OfpPredicate
     , predicateHandler
@@ -14,6 +16,9 @@ import qualified Data.IntMap as IM
 import Data.IORef
 import Data.Time.Clock
 import Data.Word
+import qualified Data.Vector as BV
+import qualified Data.Set as S
+import Data.Maybe
 
 import Network.Openflow.Types
 import Network.Openflow.Ethernet
@@ -26,6 +31,13 @@ import HCProbe.EDSL
 import Control.Concurrent.STM
 import Control.Monad.Trans
 import Control.Monad
+import Control.Concurrent.Async
+import Control.Concurrent
+import Control.Monad.State.Lazy
+
+import System.IO
+import Text.Printf
+import qualified Statistics.Sample as S
 
 type OfpPredicate = OfpType -> Bool
 
@@ -49,7 +61,7 @@ data PktStats = PktStats { pktStatsSentTotal :: !Int
                          } deriving Show
 
 data StatsEntity = StatsEntity { packetQ :: TVarL (IM.IntMap UTCTime)
-                               , stats   :: TVar PktStats
+                               , pktStats   :: TVar PktStats
                                , pktInQLen      :: Int
                                , pktInQTimeout  :: Float
                                }
@@ -149,12 +161,117 @@ assembleStats :: (MonadIO m)
               -> m PktStats
 assembleStats lSE = liftIO $ do
   lPS <- sequence $ map getStats lSE
-  let summ = foldl1 addStats lPS 
+  return $ sumStat lPS
+
+sumStat :: [PktStats] -> PktStats
+sumStat lPS = 
+  let summ = foldl1 addStats lPS
       len  = length lPS
-  return $ summ{ pktStatsRoundtripTime 
+  in summ{ pktStatsRoundtripTime 
         = (\a -> return $ a / (fromIntegral len) ) 
             =<< (pktStatsRoundtripTime summ)}
   where
     addStats (PktStats s r l cl rtt ) (PktStats as ar al acl artt) = 
       PktStats (s+as) (r+ar) (l+al) (cl+acl) (liftM2 (+) rtt artt)
- 
+
+type HCState = (Int,Int,UTCTime)
+newtype IOStat a = IOStat { runIOStat :: StateT HCState IO a
+                          } deriving(Monad, MonadIO, MonadState HCState)
+
+data LogEntry = LogEntry { logTimestamp     :: !NominalDiffTime
+                         , logSendPerSecond :: !Int
+                         , logRecvPerSecond :: !Int
+                         , logSent          :: !Int
+                         , logRecv          :: !Int
+                         , logMeanRtt       :: !Double
+                         , logErrors        :: !Int
+                         , logLost          :: !Int
+                         }
+
+runStatsLogging :: (MonadIO m)
+                => [StatsEntity]
+                -> Int
+                -> Maybe String
+                -> Bool
+                -> m ()
+runStatsLogging lSE sP logFile display = liftIO $ do
+  tChan <- newTChanIO 
+  let wl = case logFile of Nothing -> []
+                           Just file -> [writeLog sP file tChan]
+      ds = if display then (displayStats sP tChan):wl
+                      else wl
+  when (not $ null ds) $ do
+     mapM async $ (updateLog sP tChan lSE):ds
+     return ()
+
+updateLog :: Int -> TChan LogEntry -> [StatsEntity] -> IO ()
+updateLog samplingPeriod chan lSE = do
+  let tst = map pktStats lSE
+  initTime <- getCurrentTime
+  _ <- flip runStateT (0,0,initTime) $ runIOStat $ forever $ do
+      (psent, precv, ptime) <- get
+      now <- liftIO getCurrentTime
+      let !dt   = toRational (now `diffUTCTime` ptime)
+      when ( fromRational dt > (0::Double) ) $ do
+        stats <- liftIO $ mapM readTVarIO tst
+        let !st = sumStat stats
+        let !rtts = BV.fromList $ (map (fromRational.toRational).
+                mapMaybe pktStatsRoundtripTime) stats :: BV.Vector Double
+        let !mean = S.mean rtts * 1000 :: Double
+        let !sent' = pktStatsSentTotal st
+        let !recv' = pktStatsRecvTotal st
+        let !sps  = floor (toRational (sent' - psent) / dt) :: Int
+        let !rps  = floor (toRational (recv' - precv) / dt) :: Int
+        let !lost' = pktStatsLostTotal st
+        let !err  = pktStatsConnLost st
+        put (sent', recv', now)
+        liftIO $ atomically $ writeTChan 
+                    chan LogEntry { logTimestamp     = now `diffUTCTime` initTime
+                                    , logSendPerSecond = sps
+                                    , logRecvPerSecond = rps
+                                    , logSent          = sent'
+                                    , logRecv          = recv'
+                                    , logMeanRtt       = mean
+                                    , logErrors        = err
+                                    , logLost          = lost'
+                                    }
+        liftIO $ threadDelay samplingPeriod
+  return ()
+
+writeLog :: Int -> String -> TChan LogEntry -> IO ()
+writeLog samplingPeriod logFileName chan = 
+  withFile logFileName WriteMode $ \h ->
+    forever $ do
+      hSetBuffering h NoBuffering -- If buffering on, tail won't be pused to file
+      log' <- atomically $ readTChan chan
+      let !ts   = (fromRational.toRational.logTimestamp) log' :: Double
+          !sent = logSent log'
+          !recv = logRecv log'
+          !sps  = logSendPerSecond log'
+          !rps  = logRecvPerSecond log'
+          !lost = logLost log'
+          !err  = logErrors log'
+          !mean = logMeanRtt log'
+          !s = printf "%6.4f\t%6d\t%6d\t%6d\t%6d\t%6.4f\t%6d\t%6d" ts sent sps recv rps mean lost err
+      hPutStrLn h s
+      threadDelay $ samplingPeriod `div` 2
+
+displayStats :: Int -> TChan LogEntry -> IO ()
+displayStats sampligPeriod chan = do
+  hSetBuffering stdout NoBuffering
+  forever $ do
+    log' <- atomically $ let k = do x <- readTChan chan
+                                    l <- isEmptyTChan chan 
+                                    if l then return x
+                                         else k
+                        in k
+    let !ts   = (fromRational.toRational.logTimestamp) log' :: Double
+    let !sent = logSent log'
+    let !recv = logRecv log'
+    let !sps  = logSendPerSecond log'
+    let !rps  = logRecvPerSecond log'
+    let !lost = logLost log'
+    let !err  = logErrors log'
+    let !mean = logMeanRtt log'
+    putStr $ printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
+    threadDelay $ sampligPeriod

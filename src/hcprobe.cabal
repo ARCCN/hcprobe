@@ -54,7 +54,7 @@ library
                       conduit>=1.0, vector,
                       random, digest, statistics, binary-conduit >= 1.1.0,
                       transformers, mtl, containers,
-                      errors, MissingH, time,
+                      errors, MissingH, time,statistics,
                       cmdargs, ConfigFile, directory, bitset >= 1.4,
                       mersenne-random-pure64, mersenne-random,
                       nettle-openflow >= 0.2.0, ghc-prim, directory,
@@ -232,7 +232,7 @@ executable userProgramExample
   -- other-modules:    
   build-depends:       base, binary, bytestring,
                        conduit, network-conduit, binary-conduit >= 1.1,
-                       resourcet, async, cereal,time,
+                       resourcet, async, cereal,time,statistics,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default, 
