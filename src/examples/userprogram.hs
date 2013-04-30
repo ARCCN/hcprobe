@@ -36,11 +36,11 @@ main = do
         packSt <- initPacketStats
 
         xid <- nextXID
-        send $ putOFMessage $ do
-                    putOFHeader $ do
-                       putHdrVersion openflow_1_0
-                       putHdrType OFPT_HELLO
-                       putHdrXid xid
+        statsSend packSt $ putOFMessage $ do
+                             putOFHeader $ do
+                               putHdrVersion openflow_1_0
+                               putHdrType OFPT_HELLO
+                               putHdrXid xid
 
         -- wait for type examples: 
         lift $ putStr "waiting for barrier request.. "
@@ -86,8 +86,8 @@ main = do
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
-        bid <- sendOFPPacketIn port pl
+        bid <- statsSendOFPPacketIn packSt port pl
         waitForBID bid
-        n <- lift $  readIORef count
-        lift $ print n
+        stats <- getStats packSt
+        lift $ print stats
         lift $ putStrLn "done"

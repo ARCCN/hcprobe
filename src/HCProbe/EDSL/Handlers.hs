@@ -44,7 +44,7 @@ data PktStats = PktStats { pktStatsSentTotal :: !Int
                          , pktStatsLostTotal :: !Int
                          , pktStatsConnLost  :: !Int
                          , pktStatsRoundtripTime :: !(Maybe NominalDiffTime)
-                         }
+                         } deriving Show
 data PacketQueue = PacketQueue { packetQ :: TVarL (IM.IntMap UTCTime)
                                , stats   :: TVar PktStats
                                }
