@@ -38,6 +38,7 @@ import Data.Conduit.Network
 import Data.Conduit.TQueue
 import Data.Conduit.Serialization.Binary
 import qualified Data.Conduit.List as CL
+import Data.Default
 import Data.List
 import Data.Word
 import qualified Data.Vector.Unboxed as V
@@ -220,6 +221,7 @@ client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = run
         threads = [receiver, sender, 
                      do _ <- withTimeout pktSendTimeout (readTVar featureReplyMonitor >>= flip unless retry)
                         pktInGen fk]
+    liftIO $ sendReplyT (headReply def OFPT_HELLO)
     waitThreads <- liftIO $ mapM asyncBound threads
     mapM_ (flip allocate cancel) (map return waitThreads)
     liftIO $ do
@@ -230,6 +232,7 @@ client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = run
          Right _ -> return ()
   where
     sendReplyT msg = do
+
       --liftIO $ dump "OUT:" (ofp_header msg) 
       maybe (return ()) (\x -> (liftIO.x) msg) sH
       buf <- liftIO . atomically $ readTQueue pktStockQ
@@ -240,7 +243,7 @@ client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = run
     processMessage _ OFPT_PACKET_OUT m@(OfpMessage _hdr _msg) = do
         maybe (return ()) (\x -> (liftIO.x) m) rH
 
-    processMessage _ OFPT_HELLO (OfpMessage hdr _) = sendReplyT (headReply hdr OFPT_HELLO)
+    processMessage _ OFPT_HELLO (OfpMessage hdr _) = nothing
 
     processMessage _ OFPT_FEATURES_REQUEST (OfpMessage hdr _msg) = sendReplyT reply
               where reply = featuresReply openflow_1_0 sw (ofp_hdr_xid hdr)

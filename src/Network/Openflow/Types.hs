@@ -32,6 +32,7 @@ import Data.Binary.Get
 import Data.Default
 import Data.Word
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import Data.Bits
 
 openflow_1_0 :: Word8
@@ -50,10 +51,13 @@ data OfpHeader = OfpHeader { ofp_hdr_version :: !Word8
                            }
                            deriving (Show)
 
-instance Default OfpHeader where def = OfpHeader def def def def
+instance Default OfpHeader where def = OfpHeader openflow_1_0 def def def
 
 data OfpMessage = OfpMessage { ofp_header  :: !OfpHeader
-                             , ofp_data    :: !OfpMessageData
+                             , ofp_data    :: OfpMessageData 
+                             -- ofp_data field is not strict as it's
+                             -- possible not to parse it unless it's 
+                             -- needed so it's the real case for lazyness.
                              }
                              deriving (Show)
 
