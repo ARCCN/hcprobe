@@ -107,6 +107,15 @@ HCProbe программа для реализиции софтового OpenFl
 \lstinline!setUserHandler!
 
 \section{Приложения}
+\subsection{Шаблоны программирования}
+\subsubsection{Ожидание нескольких сообщений}
+
+\begin{lstlisting}
+import Control.Concurrent.Async
+
+race_ action1 action2
+\end{lstlisting}
+
 \subsection{Примеры программ}
 
 \end{document}
