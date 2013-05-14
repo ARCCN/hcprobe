@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE BangPatterns, GeneralizedNewtypeDeriving, CPP #-}
 
 module HCProbe.EDSL.Handlers
     ( OfpPredicate
@@ -275,3 +275,11 @@ displayStats sampligPeriod chan = do
     let !mean = logMeanRtt log'
     putStr $ printf "t: %4.3fs sent: %6d (%5d p/sec) recv: %6d (%5d p/sec) mean rtt: %4.2fms lost: %3d err: %3d  \r" ts sent sps recv rps mean lost err
     threadDelay $ sampligPeriod
+
+#if !MIN_VERSION_base(4,6,0)
+modifyIORef' :: IORef a -> (a -> a) -> IO ()
+modifyIORef' ref f = do
+    x <- readIORef ref
+    let x' = f x
+    x' `seq` writeIORef ref x'
+#endif
