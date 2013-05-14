@@ -186,6 +186,7 @@ onSend params q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
         writeTVar q (IntMap.size rest,g)
 
 onSend _ _ _ _ = return ()
+{-# INLINE onSend #-}
 
 onReceive :: TVarL PacketQ -> TVar PktStats -> OfpMessage -> IO ()
 onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = do
@@ -206,6 +207,7 @@ onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = do
 
 onReceive _ _ (OfpMessage _h _)  = 
   return ()
+{-# INLINE onReceive #-}
 
 
 type HCState = (Int,Int,UTCTime)    
@@ -341,7 +343,7 @@ toTryMain = do
   w <- forM fakeSw $ \fake' -> do
         pktQ <- newTVarIO . (,) 0 =<< newTVarIO empyPacketQ
         stat <- newTVarIO emptyStats
-        let fake = fake' { onSendMessage = Just (onSend params pktQ stat), onRecvMessage = Just (onReceive pktQ stat) }
+        let fake = fake' { onSendMessage = onSend params pktQ stat, onRecvMessage = onReceive pktQ stat }
         w <- async $ forever $ do
           
           bs <-  testTCPs params

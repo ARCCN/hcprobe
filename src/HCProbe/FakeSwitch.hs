@@ -106,8 +106,8 @@ data EFakeSwitch = EFakeSwitch
 data FakeSwitch = FakeSwitch {  switchFeatures :: OfpSwitchFeatures
                               , switchIP       :: IPv4Addr
                               , macSpace       :: M.IntMap (V.Vector MACAddr)
-                              , onSendMessage  :: Maybe (OfpMessage -> IO ())
-                              , onRecvMessage  :: Maybe (OfpMessage -> IO ())
+                              , onSendMessage  :: OfpMessage -> IO ()
+                              , onRecvMessage  :: OfpMessage -> IO ()
                               , bufferQueue    :: (TQueue Buffer,TQueue Buffer)
                              }
 
@@ -128,7 +128,7 @@ makeSwitch gen ports mpp cap act cfg st ff = do
         qOut <- atomically $ newTQueue
         bfs  <- replicateM queueSize $ mkBuffer 16384
         atomically $ mapM_ (writeTQueue qOut) bfs
-        return $ (FakeSwitch features (ipAddr gen) ms Nothing Nothing (qIn,qOut), gen')
+        return $ (FakeSwitch features (ipAddr gen) ms (const $ return ()) (const $ return ()) (qIn,qOut), gen')
   where features = OfpSwitchFeatures { ofp_datapath_id  = fromIntegral (dpid gen)
                                      , ofp_n_buffers    = maxBuffers 
                                      , ofp_n_tables     = 1
@@ -234,14 +234,13 @@ client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = run
     sendReplyT msg = do
 
       --liftIO $ dump "OUT:" (ofp_header msg) 
-      maybe (return ()) (\x -> (liftIO.x) msg) sH
+      liftIO $ sH msg
       buf <- liftIO . atomically $ readTQueue pktStockQ
       buf' <- runPutToBuffer buf (putMessage msg)
       liftIO . atomically $ writeTQueue pktInQ buf'
 
     -- TODO: implement the following messages
-    processMessage _ OFPT_PACKET_OUT m@(OfpMessage _hdr _msg) = do
-        maybe (return ()) (\x -> (liftIO.x) m) rH
+    processMessage _ OFPT_PACKET_OUT m@(OfpMessage _hdr _msg) = liftIO $ rH m
 
     processMessage _ OFPT_HELLO (OfpMessage hdr _) = nothing
 
@@ -272,8 +271,7 @@ client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = run
               sendReplyT reply
 
             -- TODO: implement the following messages
-    processMessage _ OFPT_FLOW_MOD m  = 
-        maybe (return ()) (\x -> (liftIO.x) m) rH
+    processMessage _ OFPT_FLOW_MOD m  = liftIO $ rH m
     processMessage _ OFPT_STATS_REQUEST _ = nothing
 
     processMessage _ _ _ = nothing
