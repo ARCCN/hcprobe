@@ -320,6 +320,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
                     (mutableSink userS)
         sender   = sourceTQueue sendQ $= CL.map extract' $$ appSink ad
         user     = runReaderT u (UserEnv sw ref ref userS userH sendQ None)
+    liftIO . atomically $ writeTQueue sendQ (headReply def OFPT_HELLO)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
     liftIO . void $ waitAnyCatchCancel waitThreads
