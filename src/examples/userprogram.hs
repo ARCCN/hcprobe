@@ -25,10 +25,10 @@ main = do
     let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
     fakeSw <- config $ do
                 switch ip $ do
+                    addMACs [1..450]
                     features $ do
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
-                    addMACs [1..450]
     print fakeSw
 
     lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..100]
@@ -76,8 +76,8 @@ main = do
         dstGenMac <- genLocalMAC
         srcGenMac <- genLocalMAC
         let pl = putEthernetFrame . (EthFrameP m1 m2) . putIPv4Pkt $
-                    TestPacketTCP { dstMAC = m1 -- dstGenMac
-                                  , srcMAC = m2 -- srcGenMac
+                    TestPacketTCP { dstMAC = dstGenMac
+                                  , srcMAC = srcGenMac
                                   , srcIP  = 99
                                   , dstIP  = 66
                                   , dstPort = 22
