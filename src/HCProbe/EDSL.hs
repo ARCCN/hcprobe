@@ -8,30 +8,41 @@ module HCProbe.EDSL
   , switch
   , config
     -- ** EDSL for features
+  , features 
+  , addPort
+  , PortNameGen(..)
+    -- ** MAC adddress management
   , addMACs
   , clearMACs
-  , features 
-  , PortNameGen(..)
-  , addPort
-    -- * 
+  , ensureUnique
+    -- * Runtime operations
+    -- * Types
+  , FakeSwitchM
   , withSwitch
+  , setUserHandler
+  , HCProbe.FakeSwitch.runSwitch
+    -- ** Block operations
   , hangOn
   , waitForType
   , waitForBID
-  , portLength
-  , genMassiveMACs
-  , genPerPortMACs
-  -- , portMACs
-  -- * packet sending
-  , nextBID
-  , nextXID
+  , delay
+    -- ** Packet sending
   , send
   , sendOFPPacketIn
   , arpGreeting
+    -- ** Helpers
+    -- *** Mac lists
+  , portLength
+  , genMassiveMACs
+  , genPerPortMACs
+    -- *** Counters
+  , nextBID
+  , nextXID
+    -- * Sending
+  -- , portMACs
   , genLocalMAC
   -- * reexports
   , MACGen
-  , HCProbe.FakeSwitch.runSwitch
   , module Data.Default
   , module Network.Openflow.Types
   , module HCProbe.FakeSwitch.Processing
@@ -39,10 +50,13 @@ module HCProbe.EDSL
   ) where
 
 import Control.Arrow
+import Control.Applicative
 import Control.Concurrent.MVar
-import qualified Control.Concurrent (yield)
+import qualified Control.Concurrent ( yield )
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import Control.Concurrent ( threadDelay )
+import Control.Exception ( bracket )
 import Control.Monad.Writer
 import Control.Monad.Trans.Resource
 import Control.Monad.Trans.Reader
@@ -95,17 +109,20 @@ switchOn :: (Monad m)
 switchOn s b = do en <- execWriterT b 
                   return (appEndo en s)
 
+-- | Create switch features
 features :: WriterT (Endo OfpSwitchFeatures) (StateT SwitchState IO) a 
          -> WriterT (Endo EFakeSwitch) (StateT SwitchState IO) ()
 features w = do
     ep <- lift $ execWriterT w
     tell $ Endo (\p -> p{eSwitchFeatures = appEndo ep (eSwitchFeatures p)})
 
+-- | Port name generator
 newtype PortNameGen = PortNameGen (Int -> ByteString)
 
 instance Default PortNameGen where
     def = PortNameGen (\i -> BS8.pack $ printf "eth%d" i)
 
+-- | Create new port on switch
 addPort :: (MonadIO m)
         => [OfpPortConfigFlags]                 -- ^ config flags
         -> [OfpPortStateFlags]                  -- ^ state flags
@@ -134,6 +151,8 @@ addPort confFlags stateFlags featureFlags (PortNameGen genname) = do
   where 
     fmac acc b = (acc `shiftL` 8) .|. (fromIntegral b::Word64)
 
+-- | Create unique MAC addr if mac is not unique in store then new mac will
+-- be created. Returns mac that is unique
 ensureUnique :: (MonadState SwitchState m) 
              => MACAddr
              -> WriterT (Endo EFakeSwitch) m MACAddr
@@ -141,7 +160,8 @@ ensureUnique a = do
     (SwitchState st) <- get
     return $ until (\m->not $ S.member m st) (\m->m+1) a
 
-addMACs :: (MonadState SwitchState m) 
+-- | Add MACs to switch, MACs will be divided between ports
+addMACs :: (MonadState SwitchState m)
         => [MACAddr]
         -> WriterT (Endo EFakeSwitch) m ()
 addMACs ms' = do
@@ -151,8 +171,9 @@ addMACs ms' = do
             nport  = length $! ofp_ports (eSwitchFeatures p)
             nmacpp = nmacs `div` nport
             macll  = take nport $ unfoldr (Just.(splitAt nmacpp)) ms
-            ms''    = IM.fromList $ zip [1..nport] (map V.fromList macll)
+            ms''   = IM.fromList $ zip [1..nport] (map V.fromList macll)
         in p{eMacSpace = IM.unionWith (V.++) ms'' (eMacSpace p)})
+
 
 -- | remove all MAC addresses connected to switch
 clearMACs :: (Monad m) => WriterT (Endo EFakeSwitch) m ()
@@ -171,59 +192,59 @@ instance Default OfpSwitchFeatures where
 data MACGen = None -- at begin
             | Massive Int Int -- running througth all mac in switch
             | PerPort (IM.IntMap Int) --  - || - in port
+
 -- | User environment
 data UserEnv = UserEnv 
         { switchConfig :: EFakeSwitch
         , currentBID   :: IORef Word32
         , currentXID   :: IORef Word32
         , userSink     :: TVar (Sink (OfpType,OfpMessage) IO ())
+        , userHandler  :: TVar ((OfpType, OfpMessage) -> IO (OfpType, OfpMessage))
         , queue        :: TQueue OfpMessage
         , macGen       :: MACGen
         }
 
 type FakeSwitchM a = ReaderT UserEnv IO a
 
+-- | Wait forever
 hangOn :: ReaderT UserEnv IO a
 hangOn = lift (forever Control.Concurrent.yield)
 
+-- | Wait for concrete message type
 waitForType :: OfpType -> FakeSwitchM (OfpMessage)
-waitForType t = do
-    box <- lift $ newEmptyMVar
-    s   <- asks userSink
-    let ns = CL.mapM (\x -> print (fst x) >> return x) 
-                =$= CL.filter ((t ==) . fst) 
-                =$= CL.head >>= lift . putMVar box
-    lift $ do
-      os <- readTVarIO s
-      atomically $ writeTVar s ns
-      let go = do mx <- takeMVar box
-                  case mx of
-                    Nothing -> go
-                    Just (_,b) -> do atomically $ writeTVar s os
-                                     return b
+waitForType t = fmap snd . withUserSink $ \box ->
+  CL.mapM (\x -> print (fst x) >> return x) 
+       =$= CL.filter ((t ==) . fst) 
+       =$= CL.head >>= lift . putMVar box
 
-      go
-
+-- | Wait for message with buffer id specified.
 waitForBID :: Word32 -> FakeSwitchM (OfpMessage)
-waitForBID b = do
-  box <- lift $ newEmptyMVar
-  s   <- asks userSink
-  let ns = do mx <- await
-              case mx of
-                  Nothing -> lift $ putMVar box Nothing
-                  Just (_,m@(OfpMessage _ (OfpPacketOut (OfpPacketOutData b' _)))) | b == b' -> do
-                      lift $ putMVar box (Just m)
-                      return ()
-                  _ -> ns
+waitForBID b = withUserSink $ \box -> 
+  let loop = do
+      mx <- await
+      case mx of
+        Nothing -> lift $ putMVar box Nothing
+        Just (_,m@(OfpMessage _ (OfpPacketOut (OfpPacketOutData b' _)))) 
+            | b == b' -> lift (putMVar box (Just m)) >> return ()
+        _ -> loop
+  in loop
+
+withUserSink :: (MVar (Maybe b) -> Sink (OfpType, OfpMessage) IO ()) -> FakeSwitchM b 
+withUserSink u = do
+  s <- asks userSink
   lift $ do
-      os <- readTVarIO s
-      atomically $ writeTVar s ns
-      let go = do mx <- takeMVar box
-                  case mx of
-                      Nothing -> go
-                      Just m  -> do atomically $ writeTVar s os
-                                    return m
-      go
+    box <- newEmptyMVar
+    bracket (atomically $ readTVar s >>= \x -> writeTVar s (u box) >> return x)
+            (\o -> atomically $ writeTVar s o)
+            (\_ -> let go = takeMVar box >>= maybe go return in go)
+
+setUserHandler :: ( (OfpType, OfpMessage) -> IO (OfpType, OfpMessage) )
+                -> FakeSwitchM ()
+setUserHandler h = do
+  tHandler <- asks userHandler
+  liftIO $ atomically $ writeTVar tHandler h
+  -- realy need next?
+  withReaderT (\s->s{userHandler = tHandler}) $ return ()
 
 -- | get next buffer id
 nextBID :: FakeSwitchM Word32
@@ -232,6 +253,7 @@ nextBID = do
     let nbuf = (ofp_n_buffers . eSwitchFeatures) cfg
     lift $ atomicModifyIORef' bbox (\c -> (if c+1>nbuf then 1 else c+1, c))
 
+-- | Get next transaction id
 nextXID :: FakeSwitchM Word32
 nextXID = do
     xid <- asks currentXID
@@ -240,6 +262,7 @@ nextXID = do
 portLength :: FakeSwitchM Int
 portLength = asks ( IM.size . eMacSpace . switchConfig)
 
+-- | Send openflow message
 send :: OfpMessage -> FakeSwitchM ()
 send m = do
   q <- asks queue
@@ -264,32 +287,50 @@ arpGreeting = do
     xid <- nextXID
     lift . atomically . writeTQueue q $ eArpGrat fk (-1 :: Word32) xid
 
+-- | Delay in nanoseconds
+delay :: Int -> FakeSwitchM ()
+delay = lift . threadDelay
+
+
 -- | Run configured switch with program inside
-withSwitch :: EFakeSwitch -> ByteString -> Int -> FakeSwitchM () -> IO ()
+withSwitch :: EFakeSwitch 
+           -> ByteString 
+           -> Int 
+--           -> Maybe (Conduit (OfpType, OfpMessage) IO (OfpType, OfpMessage) )
+           -> FakeSwitchM () 
+           -> IO ()
 withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
   sendQ <- atomically $ newTQueue
   ref   <- newIORef 0
   swCfg <- newTVarIO defaultSwitchConfig
   runResourceT $ do
-    userS <- liftIO $ newTVarIO (CL.sinkNull) 
+    userS <- liftIO $ newTVarIO (CL.sinkNull)
+    userH <- liftIO $ newTVarIO $ (\m->return m)
     let extract'  = runPutToByteString 32768 . putMessage
         listener =  appSource ad 
             $= conduitDecode
-            =$= CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m))
-            -- =$= printMessage
+            =$= ( CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m)) :: Conduit OfpMessage IO (OfpType, OfpMessage) )
+            =$= CL.mapM (\m -> do
+                            action <- readTVarIO userH
+                            action m
+                        )
+--            =$= printMessage
             $$ CU.zipSinks
-                    (CL.mapM (uncurry (defProcessMessage sw swCfg)) =$= CL.catMaybes =$ sinkTQueue sendQ)
+                    (CL.mapM (uncurry (defProcessMessage sw swCfg)) 
+                        =$= CL.catMaybes =$ sinkTQueue sendQ)
                     (mutableSink userS)
         sender   = sourceTQueue sendQ $= CL.map extract' $$ appSink ad
-        user     = runReaderT u (UserEnv sw ref ref userS sendQ None)
+        user     = runReaderT u (UserEnv sw ref ref userS userH sendQ None)
+    liftIO . atomically $ writeTQueue sendQ (headReply def OFPT_HELLO)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
-    liftIO . void $ waitAnyCatchCancel waitThreads
-      {-
-      print $ map fst $ filter (\(i,a) -> fst v == a) $ zip [1..] waitThreads
+    liftIO $ do
+      v <- waitAnyCatchCancel waitThreads
       case snd v of
-        Left e -> putStrLn (show e)
-        Right _ -> return () -}
+         Left e -> putStrLn (show e)
+         Right _ -> return ()
+  where takeUserHandler Nothing = CL.map (\m -> m)
+        takeUserHandler (Just h) = h
 
 genLocalMAC :: FakeSwitchM MACAddr
 genLocalMAC = do
@@ -306,6 +347,7 @@ checkMACGen f = do
     st <- asks macGen
     f st
 
+switchMACStateMass :: Monad m => MACGen -> ReaderT UserEnv m ()
 switchMACStateMass st = 
     case st of 
         None -> emptyMACState
@@ -314,6 +356,8 @@ switchMACStateMass st =
     where emptyMACState = withReaderT 
                 (\ue -> ue{macGen = Massive 0 0} ) 
                 $ return ()
+
+switchMACStatePort :: Monad m => MACGen -> ReaderT UserEnv m ()
 switchMACStatePort st =
     case st of
         None -> emptyMACState
@@ -328,9 +372,9 @@ genMassiveMACs = do
     checkMACGen switchMACStateMass
     sw <- asks switchConfig
     (Massive mi vi) <- asks macGen
-    evalState
+    _ <- evalState'
     return $ ((eMacSpace sw) IM.! mi) V.! vi
-    where evalState = do
+    where evalState' = do
             withReaderT nextStateElem $ ask
           nextStateElem ue =
             let (Massive mi vi) = macGen ue 
@@ -358,9 +402,9 @@ genPerPortMACs port = do
    let n = if IM.member port m
             then m IM.! port
             else 0
-   evalState
+   _ <- evalState'
    return $ ((eMacSpace sw) IM.! port) V.! n
-   where evalState = do
+   where evalState' = do
             withReaderT nextStateElem $ ask
          nextStateElem ue =
             let (PerPort mg) = macGen ue

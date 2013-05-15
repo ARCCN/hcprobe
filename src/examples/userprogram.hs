@@ -17,26 +17,35 @@ import Network.Openflow.Ethernet.IPv4
 import Network.Openflow.Ethernet.TCP
 import HCProbe.Ethernet
 import HCProbe.TCP
+import HCProbe.EDSL.Handlers
+import Data.IORef
 
 main :: IO ()
 main = do 
     let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
     fakeSw <- config $ do
                 switch ip $ do
+                    addMACs [1..450]
                     features $ do
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
-                    addMACs [1..450]
+
+    lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..100]
+
     print fakeSw
-
     withSwitch fakeSw "127.0.0.1" 6633 $ do
+       
+        let stEnt = head lSE
+        setStatsHandler stEnt
 
+{-
         xid <- nextXID
-        send $ putOFMessage $ do
-                    putOFHeader $ do
-                       putHdrVersion openflow_1_0
-                       putHdrType OFPT_HELLO
-                       putHdrXid xid
+        statsSend stEnt $ putOFMessage $ do
+                             putOFHeader $ do
+                               putHdrVersion openflow_1_0
+                               putHdrType OFPT_HELLO
+                               putHdrXid xid
+-}                            
 
         -- wait for type examples: 
         lift $ putStr "waiting for barrier request.. "
@@ -55,6 +64,9 @@ main = do
         replicateM_ 10 $ do
             x <- nextBID
             lift . putStrLn $ "next buffer id " ++ show x
+
+        count <- lift $ ( newIORef 0 :: IO (IORef Int))
+        -- setUserHandler $ predicateHandler (\_->True) count
 
         -- Sending primitives:
         -- send simple packet
@@ -79,6 +91,20 @@ main = do
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
-        bid <- sendOFPPacketIn port pl
+        bid <- statsSendOFPPacketIn stEnt port pl
         waitForBID bid
+
+        let msg = putOFMessage $ do
+                      putOFHeader $ do
+                          putHdrType OFPT_PACKET_IN
+                          putHdrLength 10 -- 9109
+                      putPacketIn $ do
+                          putPacketInData pl
+        lift $ print msg
+        send msg
+
+
         lift $ putStrLn "done"
+    
+    stats <- assembleStats lSE 
+    print stats

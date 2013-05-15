@@ -8,6 +8,7 @@ module HCProbe.EDSL.PacketGeneration
   , putHdrLength
   , putHdrXid
     -- * payload
+  , putOFData
   , putRaw
   , putPacketIn
   , putPacketInBufferId
@@ -51,6 +52,9 @@ putHdrXid x = tell . Endo $ \h -> h{ofp_hdr_xid = x}
 
 putRaw :: ByteString -> Writer (Endo OfpMessage) ()
 putRaw bs = tell . Endo $ \m -> m{ofp_data = OfpMessageRaw bs}
+
+putOFData :: OfpMessageData -> Writer (Endo OfpMessage) ()
+putOFData m = tell . Endo $ \x -> x {ofp_data = m}
 
 putPacketIn :: Writer (Endo OfpPacketIn) a -> Writer (Endo OfpMessage) ()
 putPacketIn w = tell . Endo $ \m -> m{ofp_data = OfpPacketInReply (appEndo (execWriter w) def)}

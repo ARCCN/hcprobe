@@ -54,7 +54,7 @@ library
                       conduit>=1.0, vector,
                       random, digest, statistics, binary-conduit >= 1.1.0,
                       transformers, mtl, containers,
-                      errors, MissingH, 
+                      errors, MissingH, time,statistics,
                       cmdargs, ConfigFile, directory, bitset >= 1.4,
                       mersenne-random-pure64, mersenne-random,
                       ghc-prim, directory,
@@ -103,7 +103,7 @@ executable hcprobe
       cpp-options:      -DRUNTIMETESTS
 
 executable ethertest 
-  main-is:           ethertest.hs
+  main-is:           bench/ethertest.hs
   buildable:         False
   if flag(TestProgs)
       buildable:     True
@@ -121,7 +121,7 @@ executable ethertest
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
 executable TestPkgGen 
-  main-is:             TestPkgGen.hs 
+  main-is:             bench/TestPkgGen.hs 
   buildable:         False
   if flag(TestProgs)
       buildable:     True
@@ -141,7 +141,7 @@ executable TestPkgGen
 
 
 executable TestARPGen 
-  main-is:             TestARPGen.hs 
+  main-is:             bench/TestARPGen.hs 
   buildable:         False
   if flag(TestProgs)
       buildable:     True
@@ -158,7 +158,7 @@ executable TestARPGen
   Ghc-options:         -Wall -threaded -O2 -fllvm -optlo-O3 -funbox-strict-fields
 
 executable TestTCPGen
-  main-is:             TestTCPGen.hs
+  main-is:             bench/TestTCPGen.hs
   buildable:         False
   if flag(TestProgs)
       buildable:     True
@@ -175,7 +175,7 @@ executable TestTCPGen
 
 
 executable TestMisc
-  main-is:             TestMisc.hs 
+  main-is:             test/TestMisc.hs 
   buildable:         False
   if flag(TestProgs)
       buildable:     True
@@ -194,7 +194,7 @@ executable TestMisc
 
 
 executable testclient 
-  main-is:           testClient.hs
+  main-is:           bench/testClient.hs
   buildable:         False
   if flag(TestProgs)
       buildable:     True
@@ -233,7 +233,7 @@ executable userProgramExample
   -- other-modules:    
   build-depends:       base, binary, bytestring,
                        conduit, network-conduit, binary-conduit >= 1.1,
-                       resourcet, async, cereal,time,
+                       resourcet, async, cereal,time,statistics,
                        random, digest, stm, stm-conduit, stm-chans,
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default, 
