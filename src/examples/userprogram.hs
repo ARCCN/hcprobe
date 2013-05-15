@@ -29,7 +29,6 @@ main = do
                     features $ do
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
-    print fakeSw
 
     lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..100]
 
@@ -38,12 +37,14 @@ main = do
         let stEnt = head lSE
         setStatsHandler stEnt
 
+{-
         xid <- nextXID
         statsSend stEnt $ putOFMessage $ do
                              putOFHeader $ do
                                putHdrVersion openflow_1_0
                                putHdrType OFPT_HELLO
                                putHdrXid xid
+-}                            
 
         -- wait for type examples: 
         lift $ putStr "waiting for barrier request.. "
