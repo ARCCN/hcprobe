@@ -9,9 +9,9 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , OfpErrorType(..), OfpHelloFailedCode(..), OfpBadActionCode(..)
                               , OfpBadRequestCode(..), OfpFlowModFailedCode(..), OfpPortModFailedCode(..)
                               , OfpQueueOpFailedCode(..), OfpPacketIn(..), OfpPacketInReason(..)
-                              , OfpPacketOutData(..), OfpStatsType(..), 
+                              , OfpPacketOutData(..), OfpStatsType(..), OfpPortStatusData(..)
                               -- * flow mod
-                              OfpFlowModData(..), OfpFlowModCommand(..), OfpMatch(..)
+                              , OfpFlowModData(..), OfpFlowModCommand(..), OfpMatch(..)
                               , OfpFlowModFlag(..), ofpf_SEND_FLOW_REM, ofpf_CHECK_OVERLAP, ofpf_EMERG
                               -- * other
                               , MACAddr
@@ -25,6 +25,7 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               ) where
 
 import Control.Applicative
+import Control.Monad (replicateM_)
 import Network.Openflow.Ethernet.Types (MACAddr, IPv4Addr)
 import Network.Openflow.StrictPut
 import Data.Binary
@@ -81,6 +82,7 @@ data OfpMessageData =   OfpMessageRaw       !BS.ByteString
                       | OfpStatsRequest     !OfpStatsType
                       | OfpStatsReply
                       | OfpFlowMod          !OfpFlowModData 
+                      | OfpPortStatus       !OfpPortStatusData
                       | OfpUnsupported      !BS.ByteString
                       deriving (Show)
 
@@ -186,6 +188,10 @@ data OfpPhyPort = OfpPhyPort { ofp_port_no         :: Word16
                              , ofp_port_supported  :: FlagSet --S.Set OfpPortFeatureFlags
                              , ofp_port_peer       :: FlagSet --S.Set OfpPortFeatureFlags
                              } deriving (Show)
+
+instance Binary OfpPhyPort where
+  put = error "not yet implemented"
+  get = error "not yet implemented" -- FIXME
 
 data OfpPortConfigFlags =   OFPPC_PORT_DOWN     -- Port is administratively down                        
                           | OFPPC_NO_STP        -- Disable 802.1D spanning tree on port
@@ -552,6 +558,35 @@ instance Enum OfpStatsType where
   toEnum 5      = OFPST_QUEUE
   toEnum 0xFFFF = OFPST_VENDOR
   toEnum _      = error "OfpStatsType is not supported"
+
+
+data OfpPortStatusData = OfpPortStatusData 
+      { opt_port_status_reason :: !OfpPortReason
+      , opt_post_status_desc   :: !OfpPhyPort
+      }
+      deriving (Show)
+
+data OfpPortReason = OFPR_ADD 
+                   | OFPR_DELETE
+                   | OFPR_MODIFY
+                   deriving (Show)
+
+instance Enum OfpPortReason where
+    toEnum 0 = OFPR_ADD
+    toEnum 1 = OFPR_DELETE
+    toEnum 2 = OFPR_MODIFY
+    fromEnum OFPR_ADD     = 0
+    fromEnum OFPR_DELETE  = 1
+    fromEnum OFPR_MODIFY  = 2
+
+
+instance Binary OfpPortStatusData where
+    put = error "not yet impemented"
+    get = do
+        reason <- toEnum . fromIntegral <$> getWord8
+        replicateM_ 7 getWord8
+        desc <- get
+        return $ OfpPortStatusData reason desc
 
 listToFlags :: (a -> Flag) -> [a] -> FlagSet
 listToFlags f = foldl (\acc val -> acc .|. (f val) ) 0
