@@ -43,6 +43,7 @@ module HCProbe.EDSL
   , genLocalMAC
   -- * reexports
   , MACGen
+  , EFakeSwitch(..)
   , module Data.Default
   , module Network.Openflow.Types
   , module HCProbe.FakeSwitch.Processing
