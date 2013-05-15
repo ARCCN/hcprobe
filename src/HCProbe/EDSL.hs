@@ -323,7 +323,11 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
     liftIO . atomically $ writeTQueue sendQ (headReply def OFPT_HELLO)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
-    liftIO . void $ waitAnyCatchCancel waitThreads
+    liftIO $ do
+      v <- waitAnyCatchCancel waitThreads
+      case snd v of
+         Left e -> putStrLn (show e)
+         Right _ -> return ()
   where takeUserHandler Nothing = CL.map (\m -> m)
         takeUserHandler (Just h) = h
 
