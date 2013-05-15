@@ -310,11 +310,11 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
         listener =  appSource ad 
             $= conduitDecode
             =$= ( CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m)) :: Conduit OfpMessage IO (OfpType, OfpMessage) )
-            =$= CL.mapM (\m -> do
+{-            =$= CL.mapM (\m -> do
                             action <- readTVarIO userH
                             action m
-                        )
-            -- =$= printMessage
+                        )-}
+            =$= printMessage
             $$ CU.zipSinks
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) 
                         =$= CL.catMaybes =$ sinkTQueue sendQ)
