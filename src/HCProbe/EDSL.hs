@@ -161,7 +161,7 @@ ensureUnique a = do
     return $ until (\m->not $ S.member m st) (\m->m+1) a
 
 -- | Add MACs to switch, MACs will be divided between ports
-addMACs :: (MonadState SwitchState m) 
+addMACs :: (MonadState SwitchState m)
         => [MACAddr]
         -> WriterT (Endo EFakeSwitch) m ()
 addMACs ms' = do
@@ -171,8 +171,9 @@ addMACs ms' = do
             nport  = length $! ofp_ports (eSwitchFeatures p)
             nmacpp = nmacs `div` nport
             macll  = take nport $ unfoldr (Just.(splitAt nmacpp)) ms
-            ms''    = IM.fromList $ zip [1..nport] (map V.fromList macll)
+            ms''   = IM.fromList $ zip [1..nport] (map V.fromList macll)
         in p{eMacSpace = IM.unionWith (V.++) ms'' (eMacSpace p)})
+
 
 -- | remove all MAC addresses connected to switch
 clearMACs :: (Monad m) => WriterT (Endo EFakeSwitch) m ()
