@@ -91,6 +91,17 @@ main = do
                                   }
         bid <- statsSendOFPPacketIn stEnt port pl
         waitForBID bid
+
+        let msg = putOFMessage $ do
+                      putOFHeader $ do
+                          putHdrType OFPT_PACKET_IN
+                          putHdrLength 10 -- 9109
+                      putPacketIn $ do
+                          putPacketInData pl
+        lift $ print msg
+        send msg
+
+
         lift $ putStrLn "done"
     
     stats <- assembleStats lSE 
