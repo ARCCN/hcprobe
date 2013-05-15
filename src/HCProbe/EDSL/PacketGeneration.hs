@@ -8,6 +8,7 @@ module HCProbe.EDSL.PacketGeneration
   , putHdrLength
   , putHdrXid
     -- * payload
+  , putOFData
   , putRaw
   , putPacketIn
   , putPacketInBufferId
