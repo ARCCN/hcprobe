@@ -38,8 +38,7 @@ defProcessMessage _ swCfg OFPT_GET_CONFIG_REQUEST (OfpMessage hdr _msg) = do
           return (Just (getConfigReply hdr x))
 defProcessMessage _ _ OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = 
           return $ Just (statsReply hdr)
-defProcessMessage _ _ OFPT_BARRIER_REQUEST msg = do
-          liftIO $ putStrLn "wtf?!"
+defProcessMessage _ _ OFPT_BARRIER_REQUEST msg = 
           return $ Just (headReply (ofp_header msg) OFPT_BARRIER_REPLY)
 defProcessMessage _ _ OFPT_VENDOR msg = 
           let errT = OfpError (OFPET_BAD_REQUEST OFPBRC_BAD_VENDOR) BS.empty
