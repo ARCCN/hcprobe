@@ -261,8 +261,12 @@ putMessageData (OfpStatsReply) = do
     putASCIIZ 32  "none"    -- Serial number
     putASCIIZ 256 "none"    -- Human readable description of datapath
 
+putMessageData (OfpPortStatus (OfpPortStatusData reason data_)) = do
+    putWord8 . fromIntegral . fromEnum $ reason
+    putZeros 7
+    putOfpPort data_
 -- FIXME: typed error handling
-putMessageData _        = error "Unsupported message: "
+--putMessageData _        = error "Unsupported message: "
 
 buildMessage :: OfpMessage -> Builder
 buildMessage (OfpMessage h d) = 

@@ -314,7 +314,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
                             action <- readTVarIO userH
                             action m
                         )
-            =$= printMessage
+--            =$= printMessage
             $$ CU.zipSinks
                     (CL.mapM (uncurry (defProcessMessage sw swCfg)) 
                         =$= CL.catMaybes =$ sinkTQueue sendQ)

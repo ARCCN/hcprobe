@@ -32,6 +32,7 @@ main = do
 
     lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..100]
 
+    print fakeSw
     withSwitch fakeSw "127.0.0.1" 6633 $ do
        
         let stEnt = head lSE
