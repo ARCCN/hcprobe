@@ -123,7 +123,8 @@ statsOnSend (StatsEntity q s len to)
         modifyTVar s (\st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st)
                                   })
         writeTVar q (IM.size rest,g)
- 
+statsOnSend _ _ = return ()
+
 whenJustM :: (Monad m) => (Maybe a) -> (a -> m b) -> m ()
 whenJustM Nothing _ = return ()
 whenJustM (Just a) m = do 
