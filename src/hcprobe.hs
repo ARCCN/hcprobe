@@ -109,35 +109,40 @@ empyPacketQ = IntMap.empty
 pktGenTest :: (MACAddr -> MACAddr -> IPv4Addr -> IPv4Addr -> TestPacketTCP) -> Parameters -> TVarL PacketQ -> (OfpMessage -> IO ()) -> FakeSwitch -> IO ()
 pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
     ls <- MR.randoms =<< MR.getStdGen
-    let go (l1:l2:l3:l4:l5:l6:l7:l8:lss) (bid:bs) = do
+    let go (l1:l2:l3:l4:l5:l6:l7:l8:lss) (bid:bs) n mBuffer = do
             let pid = l1 `mod` (nports-1) + 2
                 pidDst = l2 `mod` (nports-1) + 2
             if (pid == pidDst)
-                then go lss (bid:bs)
+                then go lss (bid:bs) n mBuffer
                 else do
                     pq  <- readTVarIO . snd =<< readTVarIO q
                     if IntMap.member (fromIntegral bid) pq
-                         then go lss bs
+                         then go lss bs n mBuffer
                          else do
                               let dct = macSpace fk
                               let !srcMac' = choice l3 =<< IntMap.lookup pid dct
                               let !dstMac' = choice l4 =<< IntMap.lookup pidDst dct
-                              case (srcMac', dstMac') of
+                              buf <- case mBuffer of
+                                Just b -> return b
+                                _      -> atomically $ readTQueue qIn
+                              buf' <- case (srcMac', dstMac') of
                                 (Just srcMac, Just dstMac) -> 
                                     let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
                                         msg= (tcpTestPkt (fromIntegral l5) bid (fromIntegral pid) pl)
                                     in do stat msg
-                                          buf <- atomically $ readTQueue qIn
-                                          buf' <- SP.runPutToBuffer buf (putMessage msg)
-                                          atomically $ writeTQueue qOut buf'
-                                _                          -> return ()
+                                          SP.runPutToBuffer buf (putMessage msg)
+                                _                          -> return buf
 
-            
-                              let delay = ((+ ((maxTimeout params) `div` 2)).(`mod` (maxTimeout params `div` 2))) l6
-                              threadDelay delay
-                              go lss bs
-        go _ _ = error "impossible"
-    go ls (cycle [1..maxBuffers-1])
+                              if n >= bucketSize params
+                                then do
+                                  let delay = ((+ ((maxTimeout params) `div` 2)).(`mod` (maxTimeout params `div` 2))) l6
+                                  atomically $ writeTQueue qOut buf'
+                                  threadDelay delay
+                                  go lss bs 0 Nothing
+                                else
+                                  go lss bs (n+1) (Just buf')
+        go _ _ _ _ = error "impossible"
+    go ls (cycle [1..maxBuffers-1]) 0 Nothing
   where -- nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
         choice n l | V.null l  = Nothing

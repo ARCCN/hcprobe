@@ -32,8 +32,10 @@ data Parameters = Parameters { config           :: Maybe String -- If user don't
                              , pktInQLen        :: Int
                              , pktInQTimeout    :: Float
                              
-                             , host     :: String
-                             , port     :: String
+                             , host             :: String
+                             , port             :: String
+
+                             , bucketSize       :: Int
                              } deriving (Show, Data, Typeable)
   
 configDEF :: String
@@ -54,6 +56,7 @@ instance Default Parameters where
                    0.5                   -- pktInQTimeout
                    "127.0.0.1"           -- host
                    "6633"                -- port
+                   32                    -- bucket size
 
 -- Setting Parameters struture to use with cmdArgs
 -- TODO make fine help
@@ -73,8 +76,9 @@ parametersDef = Parameters
     , pktInQLen      = pktInQLen def       &= help "In packet Q length (1000)"        &= typ "NUM"
     , pktInQTimeout  = pktInQTimeout def   &= help "In packet Q timeout (0.5)"        &= typ "RATIONAL"
                         
-    , host = host def         &= help "Controller's host (127.0.0.1)"    &= typ "ADDRES"
-    , port = port def         &= help "Controller's port (6633)"         &= typ "NUM"
+    , host           = host def            &= help "Controller's host (127.0.0.1)"    &= typ "ADDRES"
+    , port           = port def            &= help "Controller's port (6633)"         &= typ "NUM"
+    , bucketSize     = bucketSize def      &= help "Bucket size for sending packets"  &= typ "NUM"
     } &=
       help "HCProbe"
 
@@ -115,8 +119,9 @@ parametersConf params = do
           applyConf p ("pktinqlen",val)        = p { pktInQLen = read val}
           applyConf p ("pktinqtimeout",val)    = p { pktInQTimeout = read val}
         
-          applyConf p ("host",val)     = p { host = val}
-          applyConf p ("port",val)     = p { port = val}
+          applyConf p ("host",val)             = p { host = val}
+          applyConf p ("port",val)             = p { port = val}
+          applyConf p ("bucketSize",val)       = p { bucketSize = read val}
           applyConf p (_,_)    = p
                            
 getParameters :: IO Parameters
