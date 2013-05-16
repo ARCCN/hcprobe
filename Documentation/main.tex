@@ -41,13 +41,80 @@
 \tableofcontents
 
 \pagebreak
-\section{Общее описание}
-HCProbe программа для реализиции софтового OpenFlow свича и простой
-генерации разбору OpenFlow сообщений.
 
-\section{EDSL}
-\subsection{Структура программы}
-\subsection{Создание свича}
+\section{Общее описание}
+
+\textbf{HCProbe} является реализацией библиотеки для работы с протоколом
+OpenFlow на языке Haskell и предоставляет референсную реализацию софтового
+openflow свича и язык для создания новых свичей, который можно использовать
+для тестирования OpenFlow контроллеров.
+
+\subsection{Перечень обозначений}
+
+\pagebreak
+
+\section{Подсистемы}
+
+В библиотеке HCProbe можно выделить сделующие подсистемы:
+\begin{description}
+    \item[Open Flow library]  -- реализация openflow протокола
+    \item[Open Flow/Ethernet] -- реализация генерации пакетов Ethernet стека
+    \item[HCProbe]            -- реализация различных сетевых пакетов и референсного софтварного свича
+    \item[HCProbe/EDSL]       -- доменноспецифичный язык для создания контроллеров
+    \item[тесты]              -- тесты создаиня и генерации пакетов
+\end{description}
+
+\subsection{Open Flow library}
+
+Подсистема \texttt{OpenFlow library} представляет собой поддержку протокола 
+Openflow описываемого стандартом OpenFlow spec 
+v1.0\footnote{http://www.openflow.org/documents/openflow-spec-v1.0.0.pdf}
+для \texttt{Haskell}. Основные модули подсистемы:
+
+\begin{description}
+    \item[Network.Openflow.Types] -- реализация структур данных соотвествующая
+        стуктурам данных OpenFlow протокола.
+        \begin{itemize}
+            \item инстансы \textbf{Binary.Read} для разбора структур;
+            \item инстансы \textbf{Enum} для всех перечислений.
+        \end{itemize}
+    \item[Network.Openflow.Misc] -- дополнительные функции использующиеся в библиотеке
+        \begin{itemize}
+            \item функции подсчета CRC
+            \item функции сериализации специльных типов данных
+            \item функции работы с IP и MAC адресами
+        \end{itemize}
+    \item[Network.Openflow.Messages] -- функции серилизации и разобора сообщений OpenFlow.
+\end{description}
+
+{\emph{Реализация протокола не является полной, так реализованы не все структуры
+однако расширение поддерживаемого протокола может выполняться по аналогии с
+уже созданными системами}}
+
+\subsection{OpenFlow/Ethernet}
+
+Данная подсистема предоставляет интерфейс для создания своих типов пакетов, 
+которые могут быть преобразованы в сетевые пакеты. Таким образом можно создавать
+специальные тестовые пакеты с определенным заданным поведением. Основные модули:
+
+\begin{description}
+  \item[Network.Openflow.Ethernet] -- реэксопортирование всех модулей, достаточно использовать только его
+  \item[Network.Openflow.ARP] -- ARP пакет
+  \item[Network.Openflow.Frame] -- сетевой фрейм
+  \item[Network.Openflow.IPv4]  -- IPv4 пакет
+  \item[Network.Openflow.TCP]   -- TCP пакет
+  \item[Network.Openflow.Types] -- внутренние типы данных
+\end{description}
+
+\subsection{HCProbe}
+
+Исполняемый файл реализующий софтовый набор свичей, данный файл может быть использован как референсная реализация свича.
+
+TBD опции и как работает
+
+\subsection{EDSL}
+\subsubsection{Структура программы}
+\subsubsection{Создание свича}
 Свич создается командами \lstinline!switch! или \lstinline!switchOn! в первом случае
 в качестве образца будет использован свич с конфигурацией по умолчанию, во-втором 
 переданный свич. Таким образом командой \lstinline!switchOn! можно скопировать свич.
