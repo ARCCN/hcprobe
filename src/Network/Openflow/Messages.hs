@@ -265,6 +265,7 @@ putMessageData (OfpPortStatus (OfpPortStatusData reason data_)) = do
     putWord8 . fromIntegral . fromEnum $ reason
     putZeros 7
     putOfpPort data_
+putMessageData (OfpMessageRaw x) = putByteString x
 -- FIXME: typed error handling
 --putMessageData _        = error "Unsupported message: "
 
