@@ -65,7 +65,7 @@ main = do
                 let msg = putOFMessage $ do
                             putOFHeader $ do
                               putHdrType OFPT_PACKET_IN
-                              putHdrLength 42
+                              putPacketLength 4
                             putPacketIn $ do
                               putPacketInData pl
                 send msg

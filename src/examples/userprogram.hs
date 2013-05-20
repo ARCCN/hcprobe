@@ -97,7 +97,7 @@ main = do
         let msg = putOFMessage $ do
                       putOFHeader $ do
                           putHdrType OFPT_PACKET_IN
-                          putHdrLength 10 -- 9109
+                          putPacketLength 9109
                       putPacketIn $ do
                           putPacketInData pl
         lift $ print msg

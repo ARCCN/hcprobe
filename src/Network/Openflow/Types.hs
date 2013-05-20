@@ -45,10 +45,10 @@ openflow_1_0 = 0x01
 type FlagSet = Word32
 type Flag = Word32
 
-data OfpHeader = OfpHeader { ofp_hdr_version :: !Word8
-                           , ofp_hdr_type    :: !OfpType 
-                           , ofp_hdr_length  :: !Word16
-                           , ofp_hdr_xid     :: !Word32
+data OfpHeader = OfpHeader { ofp_hdr_version   :: !Word8
+                           , ofp_hdr_type      :: !OfpType 
+                           , ofp_packet_length :: !(Maybe Word16)
+                           , ofp_hdr_xid       :: !Word32
                            }
                            deriving (Show)
 

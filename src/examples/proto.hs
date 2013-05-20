@@ -86,7 +86,6 @@ main = do
             let msg = putOFMessage $ do
                   putOFHeader $ do
                     putHdrType OFPT_PACKET_IN
-                    putHdrLength 8
                   putPacketIn $ do
                     putPacketInBufferId x 
                     putPacketInData pl

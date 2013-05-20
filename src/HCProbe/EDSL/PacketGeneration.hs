@@ -5,7 +5,7 @@ module HCProbe.EDSL.PacketGeneration
   , putOFHeader
   , putHdrVersion
   , putHdrType
-  , putHdrLength
+  , putPacketLength
   , putHdrXid
     -- * payload
   , putOFData
@@ -43,8 +43,8 @@ putHdrType :: OfpType -> Writer (Endo OfpHeader) ()
 putHdrType t = tell . Endo $ \h -> h{ofp_hdr_type = t}
 
 -- | FIXEME maybe we need to add default length
-putHdrLength :: Word16 -> Writer (Endo OfpHeader) ()
-putHdrLength l = tell . Endo $ \h -> h{ofp_hdr_length = l}
+putPacketLength :: Word16 -> Writer (Endo OfpHeader) ()
+putPacketLength l = tell . Endo $ \h -> h{ofp_packet_length = Just l}
 
 -- | Add xid
 putHdrXid :: Word32 -> Writer (Endo OfpHeader) ()

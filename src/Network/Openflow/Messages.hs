@@ -40,14 +40,14 @@ ofpHeaderLen = (8 + 8 + 16 + 32) `div` 8
 
 ofpHelloRequest :: Word8 -> Word32 -> PutM ()
 ofpHelloRequest v xid = putMessageHeader h >> return ()
-  where h = OfpHeader { ofp_hdr_version = v
-                      , ofp_hdr_type    = OFPT_HELLO
-                      , ofp_hdr_length  = fromIntegral ofpHeaderLen
-                      , ofp_hdr_xid     = xid
+  where h = OfpHeader { ofp_hdr_version   = v
+                      , ofp_hdr_type      = OFPT_HELLO
+                      , ofp_packet_length = Nothing
+                      , ofp_hdr_xid       = xid
                       }
 
 header :: Word8 -> Word32 -> OfpType -> OfpHeader
-header v x t = OfpHeader v t (fromIntegral ofpHeaderLen) x
+header v x t = OfpHeader v t Nothing x
 
 featuresReply :: Word8 -> OfpSwitchFeatures -> Word32 -> OfpMessage
 featuresReply ov sw xid = OfpMessage hdr feature_repl
@@ -60,11 +60,11 @@ echoReply ov payload xid = OfpMessage hdr (OfpEchoReply payload)
 
 headReply :: OfpHeader -> OfpType -> OfpMessage
 headReply h t = OfpMessage newHead OfpEmptyReply
-  where newHead = h {ofp_hdr_type = t, ofp_hdr_length = fromIntegral ofpHeaderLen}
+  where newHead = h {ofp_hdr_type = t, ofp_packet_length = Nothing}
 
 errorReply :: OfpHeader -> OfpError -> OfpMessage
 errorReply h tp = OfpMessage newHead (OfpErrorReply tp)
-  where newHead = h { ofp_hdr_type = OFPT_ERROR, ofp_hdr_length = fromIntegral ofpHeaderLen}
+  where newHead = h { ofp_hdr_type = OFPT_ERROR, ofp_packet_length = Nothing}
 
 getConfigReply :: OfpHeader -> OfpSwitchConfig -> OfpMessage
 getConfigReply hdr cfg = OfpMessage newHead (OfpGetConfigReply cfg)
@@ -74,7 +74,7 @@ getConfigReply hdr cfg = OfpMessage newHead (OfpGetConfigReply cfg)
 statsReply :: OfpHeader -> OfpMessage
 statsReply h = OfpMessage sHead sData
   where sHead = h { ofp_hdr_type = OFPT_STATS_REPLY
-                  , ofp_hdr_length = fromIntegral ofpHeaderLen
+                  , ofp_packet_length = Nothing
                   }
         sData = OfpStatsReply
 
@@ -95,15 +95,18 @@ instance Binary OfpHeader where
   put _ = error "put message is not implemented" -- FIXME support method?
   get = OfpHeader <$> getWord8 
                   <*> (toEnum . fromIntegral <$> getWord8)
-                  <*> getWord16be
+                  <*> (Just . fromIntegral <$> getWord16be)
                   <*> getWord32be
 
 instance Binary OfpMessage where
   put _ = error "put message is not supported" -- FIXME support method ?
   get = do hdr <- get 
-           s <- getLazyByteString (fromIntegral (ofp_hdr_length hdr) - fromIntegral ofpHeaderLen)
-           let body = runGet (getMessage (ofp_hdr_type hdr)) s
-           return (OfpMessage hdr body)
+           case ofp_packet_length hdr of
+             Just l -> do
+               s <- getLazyByteString (fromIntegral l)
+               let body = runGet (getMessage (ofp_hdr_type hdr)) s
+               return (OfpMessage hdr body)
+             Nothing -> error "unspecified OF packet length"
 
 getMessage :: OfpType -> Get OfpMessageData
 getMessage x = case x of
@@ -182,10 +185,12 @@ getStatsRequest  = do
 
 putMessage :: OfpMessage -> PutM ()
 putMessage (OfpMessage h d) = do
+    ds <- marker  -- запомнили где старт сообщения
     alen <- putMessageHeader h
-    ds  <- marker
     putMessageData d
-    undelay alen . Word16be . (ofp_hdr_length h + ) . fromIntegral =<< distance ds
+    case ofp_packet_length h of
+      Nothing -> undelay alen . Word16be . fromIntegral =<< distance ds
+      Just x -> undelay alen (Word16be x)
 
 putMessageHeader :: OfpHeader -> PutM (DelayedPut Word16be)
 putMessageHeader h = do
@@ -278,7 +283,7 @@ buildMessage (OfpMessage h d) =
 buildMessageHeader :: OfpHeader -> Int -> Builder
 buildMessageHeader h l = fromWord8 (ofp_hdr_version h) 
           <> fromWord8 (fromIntegral.fromEnum.ofp_hdr_type $! h) 
-          <> fromWord16be (ofp_hdr_length h + fromIntegral l)
+          <> fromWord16be (fromIntegral ofpHeaderLen + fromIntegral l)
           <> fromWord32be (ofp_hdr_xid h)
 
 buildMessageData :: OfpMessageData -> Builder
