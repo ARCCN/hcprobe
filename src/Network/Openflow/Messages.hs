@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, BangPatterns #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns, RecordWildCards #-}
 module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  -- , ofpParsePacket  -- FIXME <- not needed
                                  -- , parseMessageData
@@ -266,10 +266,24 @@ putMessageData (OfpStatsReply) = do
     putASCIIZ 32  "none"    -- Serial number
     putASCIIZ 256 "none"    -- Human readable description of datapath
 
+putMessageData (OfpFlowRemoved OfpFlowRemovedData{..}) = do
+    putWord64be ofp_flow_removed_cookie
+    putWord16be ofp_flow_removed_priority
+    putWord8 (fromIntegral $ fromEnum ofp_flow_removed_reason)
+    putWord8 ofp_flow_removed_table_id
+    putWord32be ofp_flow_removed_duration_sec
+    putWord32be ofp_flow_removed_duration_nsec
+    putWord16be ofp_flow_removed_idle_timeout
+    putWord16be ofp_flow_removed_hard_timeout
+    putWord64be ofp_flow_removed_packet_count
+    putWord64be ofp_flow_removed_byte_count
+    putOfpMatch ofp_flow_removed_match
+
 putMessageData (OfpPortStatus (OfpPortStatusData reason data_)) = do
     putWord8 . fromIntegral . fromEnum $ reason
     putZeros 7
     putOfpPort data_
+
 putMessageData (OfpMessageRaw x) = putByteString x
 -- FIXME: typed error handling
 --putMessageData _        = error "Unsupported message: "
@@ -363,3 +377,18 @@ buildOfpPacketIn pktIn =
       dat = toLazyByteString $! fromByteString (runPutToByteString 32768 (ofp_pkt_in_data pktIn))
       len = LBS.length dat
 
+putOfpMatch :: OfpMatch -> PutM ()
+putOfpMatch OfpMatch{..} = do
+    putWord32be ofp_match_wildcards
+    putWord16be ofp_match_in_ports
+    putWord64be ofp_match_dl_src
+    putWord64be ofp_match_dl_dst
+    putWord16be ofp_match_dl_vlan
+    putWord8 ofp_match_dl_vlan_pcp
+    putWord16be ofp_match_dl_type
+    putWord8 ofp_match_nw_tos
+    putWord8 ofp_match_nw_proto
+    putWord32be ofp_match_nw_src
+    putWord32be ofp_match_nw_dst
+    putWord16be ofp_match_tp_src
+    putWord16be ofp_match_tp_dst
