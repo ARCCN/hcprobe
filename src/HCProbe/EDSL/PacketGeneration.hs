@@ -11,17 +11,23 @@ module HCProbe.EDSL.PacketGeneration
     -- * payload
   , putOFData
   , putRaw
+  -- * OfpPacketIn
   , putPacketIn
   , putPacketInBufferId
   , putPacketInPort
   , putPacketInReason
   , putPacketInData
+  -- * OfpPortStatusData
   , putPortStatus
   , putPortStatusReason
   , putPortStatusPortDirect
   , putPortStatusPort
+<<<<<<< HEAD
   , putFlowRemoved
     -- * OfpPhyPort
+=======
+  -- * OfpPhyPort
+>>>>>>> 4395d02413b7f548b9ee1fb4bdfe183752832d1a
   , putPortNo
   , putPortHwAddr
   , putPortName
@@ -57,6 +63,7 @@ module HCProbe.EDSL.PacketGeneration
   , putFlowRemovedPacketCount
   , putFlowRemovedByteCount
   , putFlowRemovedMatch
+  , putFlowRemovedMatchDirect
   -- * OfpErrorMessage
   , putErrorMessage
   , putErrorType

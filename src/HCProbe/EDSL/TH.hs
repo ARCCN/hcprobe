@@ -17,27 +17,25 @@ generatePutters name =
     withType name $ \cons -> fmap concat $ mapM recPut cons
   where
      recPut :: Con -> Q [Dec]
-     recPut (RecC conName fields) = catMaybes <$> mapM fieldPut fields
+     recPut (RecC conName fields) = mapM fieldPut fields
      recPut x = error $ "HCProbe.EDSL.TH.generatePutters: Invalid constructor in type." ++ (show x)
      fieldPut (fName,_,_) = do
        let putName = "put" ++ of2hs (nameBase fName)
        mPut <- lookupValueName putName
-       case mPut of
-         Just _ -> return Nothing
-         Nothing -> Just <$>
-           (funD (mkName putName) $ [ do
-             value  <- newName "value"
-             clause [varP value]
-               (normalB (infixE (Just [e| tell . Endo |]) [| ($) |]
-                                (Just $ do
-                                   record  <- newName "record"
-                                   lam1E (varP record) $ recUpdE (varE record) [fieldExp fName (varE value)]
-                                )
-                        )
-               )
-               []
-                                    
-                                    ] )
+       let putName' = maybe putName (\_ -> putName ++ "Direct") mPut
+       funD (mkName putName') $ [ do
+         value  <- newName "value"
+         clause [varP value]
+           (normalB (infixE (Just [e| tell . Endo |]) [| ($) |]
+                            (Just $ do
+                               record  <- newName "record"
+                               lam1E (varP record) $ recUpdE (varE record) [fieldExp fName (varE value)]
+                            )
+                    )
+           )
+           []
+
+                                ]
 
 of2hs :: String -> String
 of2hs s = concat $ map upFirst $ dropOfp  $ splitOn "_" s
