@@ -46,6 +46,7 @@ library
                       HCProbe.ARP
                       HCProbe.FakeSwitch
                       HCProbe.EDSL
+                      HCProbe.EDSL.TH
                       HCProbe.EDSL.PacketGeneration
     build-depends:    base, binary >= 0.7.0.0, bytestring,
                       network-conduit>=1.0, cereal,
@@ -58,8 +59,8 @@ library
                       cmdargs, ConfigFile, directory, bitset >= 1.4,
                       mersenne-random-pure64, mersenne-random,
                       ghc-prim, directory,
-                      data-flags, blaze-builder, data-default
-
+                      data-flags, blaze-builder, data-default,
+                      template-haskell, split
 
   Ghc-options:        -Wall 
                       -threaded 
@@ -238,7 +239,8 @@ executable userProgramExample
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default, 
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset, ghc-prim
+                       cmdargs, ConfigFile, directory, bitset, ghc-prim,
+                       template-haskell, split
   c-sources:           cbits/crc16-prim.cmm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
   
@@ -254,7 +256,8 @@ executable malformedLength
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default, 
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset, ghc-prim
+                       cmdargs, ConfigFile, directory, bitset, ghc-prim,
+                       template-haskell, split
   c-sources:           cbits/crc16-prim.cmm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
@@ -270,7 +273,8 @@ executable malformedType
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default,
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset, ghc-prim
+                       cmdargs, ConfigFile, directory, bitset, ghc-prim,
+                       template-haskell, split
   c-sources:           cbits/crc16-prim.cmm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
@@ -286,7 +290,8 @@ executable malformedVersion
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default,
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset, ghc-prim
+                       cmdargs, ConfigFile, directory, bitset, ghc-prim,
+                       template-haskell, split
   c-sources:           cbits/crc16-prim.cmm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
@@ -302,7 +307,8 @@ executable malformedProto
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default,
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset, ghc-prim
+                       cmdargs, ConfigFile, directory, bitset, ghc-prim,
+                       template-haskell, split
   c-sources:           cbits/crc16-prim.cmm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
@@ -318,7 +324,8 @@ executable malformedASCII
                        transformers, mtl, containers, vector,
                        errors, MissingH, blaze-builder, data-default,
                        mersenne-random-pure64,  mersenne-random,
-                       cmdargs, ConfigFile, directory, bitset, ghc-prim
+                       cmdargs, ConfigFile, directory, bitset, ghc-prim,
+                       template-haskell, split
   c-sources:           cbits/crc16-prim.cmm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 

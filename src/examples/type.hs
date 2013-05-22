@@ -75,7 +75,9 @@ main = do
             let msg = putOFMessage $ do
                   putOFHeader $ do
                     putHdrType OFPT_PACKET_IN
-                  putOFData $ OfpPortStatus (OfpPortStatusData OFPR_ADD (head.ofp_ports.eSwitchFeatures $ fakeSw))
+                  putPortStatus $ do
+                    putPortStatusReason OFPR_ADD
+                    putPortStatusPortDirect (head.ofp_ports.eSwitchFeatures $ fakeSw)
             send msg
             lift $ threadDelay 10000
 	
