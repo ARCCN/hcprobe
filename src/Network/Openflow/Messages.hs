@@ -103,7 +103,7 @@ instance Binary OfpMessage where
   get = do hdr <- get 
            case ofp_packet_length hdr of
              Just l -> do
-               s <- getLazyByteString (fromIntegral l)
+               s <- getLazyByteString (fromIntegral l - fromIntegral ofpHeaderLen)
                let body = runGet (getMessage (ofp_hdr_type hdr)) s
                return (OfpMessage hdr body)
              Nothing -> error "unspecified OF packet length"
