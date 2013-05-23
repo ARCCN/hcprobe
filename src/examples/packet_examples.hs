@@ -92,7 +92,7 @@ main = do
                       putHdrType OFPT_PORT_STATUS
                     putPortStatus $ do
                       putPortStatusReason OFPR_ADD
-                      putPortStatusPortDirect (head.ofp_ports.eSwitchFeatures $ fakeSw)
+                      putPortStatusPortDirect (head . ofp_switch_features_ports . eSwitchFeatures $ fakeSw)
         send msg
         lift $ threadDelay 10000
         
@@ -103,8 +103,8 @@ main = do
                     putOFHeader $ do
                       putHdrType OFPT_ERROR
                     putErrorMessage $ do
-                      putErrorType (OFPET_HELLO_FAILED OFPHFC_INCOMPATIBLE)
-                      putErrorData $ BS.pack [42,42]
+                      putErrorType (OFPET_BAD_ACTION OFPBAC_BAD_TYPE)
+                      putErrorData $ BS.pack $ replicate 64 42
         send msg
         lift $ threadDelay 10000
         
@@ -125,6 +125,37 @@ main = do
                       putFlowRemovedHardTimeout  1000
                       putFlowRemovedPacketCount  42
                       putFlowRemovedByteCount    241241
+        send msg
+        lift $ threadDelay 10000
+        
+        -- features reply
+        x <- nextBID
+        lift . putStrLn $ "next buffer id " ++ show x
+        let msg = putOFMessage $ do
+                    putOFHeader $ do
+                      putHdrType OFPT_FEATURES_REPLY
+                      putHdrXid 241241
+                    putFeaturesReply $ do
+                      putSwitchFeaturesDatapathId   1
+                      putSwitchFeaturesNBuffers     10000
+                      putSwitchFeaturesNTables      1
+                      putSwitchFeaturesCapabilities (ofp_switch_features_capabilities . eSwitchFeatures $ fakeSw)
+                      putSwitchFeaturesActions      (ofp_switch_features_actions . eSwitchFeatures $ fakeSw)
+                      putSwitchFeaturesPorts        (ofp_switch_features_ports . eSwitchFeatures $ fakeSw)
+        send msg
+        lift $ threadDelay 10000
+        
+        -- get config reply
+        x <- nextBID
+        cfg <- currentSwitchConfig
+        lift . putStrLn $ "next buffer id " ++ show x
+        let msg = putOFMessage $ do
+                    putOFHeader $ do
+                      putHdrType OFPT_GET_CONFIG_REPLY
+                      putHdrXid 2414242
+                    putGetConfigReply $ do
+                      putSwitchCfgFlags   (ofp_switch_cfg_flags cfg)
+                      putSwitchCfgMissSendLen     128
         send msg
         lift $ threadDelay 10000
 	
