@@ -71,7 +71,7 @@ data OfpMessageData =   OfpMessageRaw       !BS.ByteString
                       | OfpEchoRequest      !BS.ByteString
                       | OfpEchoReply        !BS.ByteString
                       | OfpFeaturesRequest
-                      | OfpFeatureReply     !OfpSwitchFeatures
+                      | OfpFeaturesReply    !OfpSwitchFeatures
                       | OfpSetConfig        !OfpSwitchConfig
                       | OfpGetConfigRequest
                       | OfpGetConfigReply   !OfpSwitchConfig
@@ -134,13 +134,15 @@ data OfpType  =
 
 instance Default OfpType where def = OFPT_HELLO
 
-data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: !Word64
-                                           , ofp_n_buffers    :: !Word32
-                                           , ofp_n_tables     :: !Word8
-                                           , ofp_capabilities :: !FlagSet
-                                           , ofp_actions      :: !FlagSet
-                                           , ofp_ports        :: ![OfpPhyPort]
+data OfpSwitchFeatures = OfpSwitchFeatures { ofp_switch_features_datapath_id  :: !Word64
+                                           , ofp_switch_features_n_buffers    :: !Word32
+                                           , ofp_switch_features_n_tables     :: !Word8
+                                           , ofp_switch_features_capabilities :: !FlagSet
+                                           , ofp_switch_features_actions      :: !FlagSet
+                                           , ofp_switch_features_ports        :: ![OfpPhyPort]
                                            } deriving (Show)
+
+instance Default OfpSwitchFeatures where def = OfpSwitchFeatures def def def def def def
 
 data OfpCapabilities =   OFPC_FLOW_STATS             --  Flow statistics
                        | OFPC_TABLE_STATS            --  Table statistics

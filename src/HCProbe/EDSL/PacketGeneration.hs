@@ -63,6 +63,14 @@ module HCProbe.EDSL.PacketGeneration
   , putErrorMessage
   , putErrorType
   , putErrorData
+  -- * OfpFeaturesReply
+  , putFeaturesReply
+  , putSwitchFeaturesDatapathId
+  , putSwitchFeaturesNBuffers
+  , putSwitchFeaturesNTables
+  , putSwitchFeaturesCapabilities
+  , putSwitchFeaturesActions
+  , putSwitchFeaturesPorts
   ) where
 
 import Control.Monad.Writer
@@ -153,3 +161,8 @@ putErrorType t = tell . Endo $ \p -> p{ofp_error_type = t}
 
 putErrorData :: ByteString -> Writer (Endo OfpError) ()
 putErrorData d = tell . Endo $ \p -> p{ofp_error_data = d}
+
+putFeaturesReply :: Writer (Endo OfpSwitchFeatures) a -> Writer (Endo OfpMessage) ()
+putFeaturesReply w = tell . Endo $ \m -> m{ofp_data = OfpFeaturesReply (appEndo (execWriter w) def)}
+
+$(generatePutters ''OfpSwitchFeatures)
