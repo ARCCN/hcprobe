@@ -10,7 +10,7 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , OfpBadRequestCode(..), OfpFlowModFailedCode(..), OfpPortModFailedCode(..)
                               , OfpQueueOpFailedCode(..), OfpPacketIn(..), OfpPacketInReason(..)
                               , OfpPacketOutData(..), OfpStatsType(..), OfpFlowRemovedData(..)
-                              , OfpPortStatusData(..), OfpPortReason(..)
+                              , OfpFlowRemovedReason(..), OfpPortStatusData(..), OfpPortReason(..)
                               -- * flow mod
                               , OfpFlowModData(..), OfpFlowModCommand(..), OfpMatch(..)
                               , OfpFlowModFlag(..), ofpf_SEND_FLOW_REM, ofpf_CHECK_OVERLAP, ofpf_EMERG

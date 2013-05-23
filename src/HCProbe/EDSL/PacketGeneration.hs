@@ -22,12 +22,8 @@ module HCProbe.EDSL.PacketGeneration
   , putPortStatusReason
   , putPortStatusPortDirect
   , putPortStatusPort
-<<<<<<< HEAD
   , putFlowRemoved
     -- * OfpPhyPort
-=======
-  -- * OfpPhyPort
->>>>>>> 4395d02413b7f548b9ee1fb4bdfe183752832d1a
   , putPortNo
   , putPortHwAddr
   , putPortName
