@@ -68,7 +68,7 @@ errorReply h tp = OfpMessage newHead (OfpErrorReply tp)
 
 getConfigReply :: OfpHeader -> OfpSwitchConfig -> OfpMessage
 getConfigReply hdr cfg = OfpMessage newHead (OfpGetConfigReply cfg)
-  where newHead = hdr { ofp_hdr_type = OFPT_GET_CONFIG_REPLY }
+  where newHead = hdr { ofp_hdr_type = OFPT_GET_CONFIG_REPLY, ofp_packet_length = Nothing }
 
 
 statsReply :: OfpHeader -> OfpMessage
