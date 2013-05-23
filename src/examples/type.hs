@@ -77,7 +77,7 @@ main = do
                     putHdrType OFPT_PACKET_IN
                   putPortStatus $ do
                     putPortStatusReason OFPR_ADD
-                    putPortStatusPortDirect (head.ofp_ports.eSwitchFeatures $ fakeSw)
+                    putPortStatusPortDirect (head.ofp_switch_features_ports.eSwitchFeatures $ fakeSw)
             send msg
             lift $ threadDelay 10000
 	

@@ -79,7 +79,7 @@ main = do
             let msg = putOFMessage $ do
                   putOFHeader $ do
                     putHdrType OFPT_PORT_STATUS
-                  putRaw $ SP.runPutToByteString 4096 $ putData (OfpPortStatus (OfpPortStatusData OFPR_ADD (head.ofp_ports.eSwitchFeatures $ fakeSw)))
+                  putRaw $ SP.runPutToByteString 4096 $ putData (OfpPortStatus (OfpPortStatusData OFPR_ADD (head.ofp_switch_features_ports.eSwitchFeatures $ fakeSw)))
             send msg
             lift $ threadDelay 10000
 	

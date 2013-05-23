@@ -139,7 +139,7 @@ pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
         go _ _ = error "impossible"
     go ls (cycle [1..maxBuffers-1])
   where -- nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
-        nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
+        nports = (fromIntegral.length.ofp_switch_features_ports.switchFeatures) fk
         choice n l | V.null l  = Nothing
                    | otherwise = Just $ l `V.unsafeIndex` (n `mod` V.length l)
 

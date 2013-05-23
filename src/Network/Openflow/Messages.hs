@@ -52,7 +52,7 @@ header v x t = OfpHeader v t Nothing x
 featuresReply :: Word8 -> OfpSwitchFeatures -> Word32 -> OfpMessage
 featuresReply ov sw xid = OfpMessage hdr feature_repl
   where hdr = header ov xid OFPT_FEATURES_REPLY
-        feature_repl = OfpFeatureReply sw
+        feature_repl = OfpFeaturesReply sw
 
 echoReply :: Word8 -> ByteString -> Word32 -> OfpMessage
 echoReply ov payload xid = OfpMessage hdr (OfpEchoReply payload)
@@ -211,16 +211,14 @@ putMessageHeader h = do
 putMessageData :: OfpMessageData -> PutM ()
 putMessageData OfpHello = return ()
 
-putMessageData (OfpFeatureReply f) = do
-  putWord64be (ofp_datapath_id f)
-  putWord32be (ofp_n_buffers f)
-  putWord8    (ofp_n_tables f)
+putMessageData (OfpFeaturesReply f) = do
+  putWord64be (ofp_switch_features_datapath_id f)
+  putWord32be (ofp_switch_features_n_buffers f)
+  putWord8    (ofp_switch_features_n_tables f)
   replicateM_ 3 (putWord8 0)
---  putWord32be (bitFlags ofCapabilities (ofp_capabilities f))
-  putWord32be (ofp_capabilities f)
---  putWord32be (bitFlags ofActionType   (ofp_actions f))
-  putWord32be (ofp_actions f)
-  mapM_ putOfpPort (ofp_ports f)
+  putWord32be (ofp_switch_features_capabilities f)
+  putWord32be (ofp_switch_features_actions f)
+  mapM_ putOfpPort (ofp_switch_features_ports f)
 
 putMessageData (OfpEchoReply bs) = putByteString bs
 
@@ -302,14 +300,14 @@ buildMessageHeader h l = fromWord8 (ofp_hdr_version h)
 
 buildMessageData :: OfpMessageData -> Builder
 buildMessageData OfpHello = mempty
-buildMessageData (OfpFeatureReply f) =
-        fromWord64be (ofp_datapath_id f)  <>
-        fromWord32be (ofp_n_buffers   f)  <>
-        fromWord8    (ofp_n_tables    f)  <>
+buildMessageData (OfpFeaturesReply f) =
+        fromWord64be (ofp_switch_features_datapath_id f)  <>
+        fromWord32be (ofp_switch_features_n_buffers   f)  <>
+        fromWord8    (ofp_switch_features_n_tables    f)  <>
         fromWord8 0 <> fromWord8 0 <> fromWord8 0 <>
-        fromWord32be (ofp_capabilities f) <>
-        fromWord32be (ofp_actions f)      <>
-        foldl (\x y -> x <> buildOfpPort y) mempty (ofp_ports f)
+        fromWord32be (ofp_switch_features_capabilities f) <>
+        fromWord32be (ofp_switch_features_actions f)      <>
+        foldl (\x y -> x <> buildOfpPort y) mempty (ofp_switch_features_ports f)
 buildMessageData (OfpEchoReply bs) = fromByteString bs
 buildMessageData (OfpGetConfigReply cfg) = 
         fromWord16be (fromIntegral (fromEnum (ofp_switch_cfg_flags cfg)))

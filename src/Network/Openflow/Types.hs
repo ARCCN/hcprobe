@@ -71,7 +71,7 @@ data OfpMessageData =   OfpMessageRaw       !BS.ByteString
                       | OfpEchoRequest      !BS.ByteString
                       | OfpEchoReply        !BS.ByteString
                       | OfpFeaturesRequest
-                      | OfpFeatureReply     !OfpSwitchFeatures
+                      | OfpFeaturesReply    !OfpSwitchFeatures
                       | OfpSetConfig        !OfpSwitchConfig
                       | OfpGetConfigRequest
                       | OfpGetConfigReply   !OfpSwitchConfig
@@ -134,13 +134,15 @@ data OfpType  =
 
 instance Default OfpType where def = OFPT_HELLO
 
-data OfpSwitchFeatures = OfpSwitchFeatures { ofp_datapath_id  :: !Word64
-                                           , ofp_n_buffers    :: !Word32
-                                           , ofp_n_tables     :: !Word8
-                                           , ofp_capabilities :: !FlagSet
-                                           , ofp_actions      :: !FlagSet
-                                           , ofp_ports        :: ![OfpPhyPort]
+data OfpSwitchFeatures = OfpSwitchFeatures { ofp_switch_features_datapath_id  :: !Word64
+                                           , ofp_switch_features_n_buffers    :: !Word32
+                                           , ofp_switch_features_n_tables     :: !Word8
+                                           , ofp_switch_features_capabilities :: !FlagSet
+                                           , ofp_switch_features_actions      :: !FlagSet
+                                           , ofp_switch_features_ports        :: ![OfpPhyPort]
                                            } deriving (Show)
+
+instance Default OfpSwitchFeatures where def = OfpSwitchFeatures def def def def def def
 
 data OfpCapabilities =   OFPC_FLOW_STATS             --  Flow statistics
                        | OFPC_TABLE_STATS            --  Table statistics
@@ -172,11 +174,15 @@ data OfpSwitchConfig = OfpSwitchConfig { ofp_switch_cfg_flags         :: !OfpSwi
                                        }
                                        deriving (Show)
 
+instance Default OfpSwitchConfig where def = OfpSwitchConfig def def
+
 data OfpSwitchCfgFlags = OFPC_FRAG_NORMAL -- No special handling for fragments 
                        | OFPC_FRAG_DROP   -- Drop fragments
                        | OFPC_FRAG_REASM  -- Reassemble (only if OFPC_IP_REASM set)
                        | OFPC_FRAG_MASK
                        deriving (Eq, Ord, Enum, Show)
+
+instance Default OfpSwitchCfgFlags where def = OFPC_FRAG_NORMAL
 
 defaultSwitchConfig :: OfpSwitchConfig
 defaultSwitchConfig = OfpSwitchConfig OFPC_FRAG_NORMAL 128
