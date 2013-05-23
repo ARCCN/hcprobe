@@ -71,6 +71,10 @@ module HCProbe.EDSL.PacketGeneration
   , putSwitchFeaturesCapabilities
   , putSwitchFeaturesActions
   , putSwitchFeaturesPorts
+  -- * OfpGetConfigReply
+  , putGetConfigReply
+  , putSwitchCfgFlags
+  , putSwitchCfgMissSendLen
   ) where
 
 import Control.Monad.Writer
@@ -166,3 +170,8 @@ putFeaturesReply :: Writer (Endo OfpSwitchFeatures) a -> Writer (Endo OfpMessage
 putFeaturesReply w = tell . Endo $ \m -> m{ofp_data = OfpFeaturesReply (appEndo (execWriter w) def)}
 
 $(generatePutters ''OfpSwitchFeatures)
+
+putGetConfigReply :: Writer (Endo OfpSwitchConfig) a -> Writer (Endo OfpMessage) ()
+putGetConfigReply w = tell . Endo $ \m -> m{ofp_data = OfpGetConfigReply (appEndo (execWriter w) def)}
+
+$(generatePutters ''OfpSwitchConfig)

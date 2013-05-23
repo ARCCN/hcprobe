@@ -174,11 +174,15 @@ data OfpSwitchConfig = OfpSwitchConfig { ofp_switch_cfg_flags         :: !OfpSwi
                                        }
                                        deriving (Show)
 
+instance Default OfpSwitchConfig where def = OfpSwitchConfig def def
+
 data OfpSwitchCfgFlags = OFPC_FRAG_NORMAL -- No special handling for fragments 
                        | OFPC_FRAG_DROP   -- Drop fragments
                        | OFPC_FRAG_REASM  -- Reassemble (only if OFPC_IP_REASM set)
                        | OFPC_FRAG_MASK
                        deriving (Eq, Ord, Enum, Show)
+
+instance Default OfpSwitchCfgFlags where def = OFPC_FRAG_NORMAL
 
 defaultSwitchConfig :: OfpSwitchConfig
 defaultSwitchConfig = OfpSwitchConfig OFPC_FRAG_NORMAL 128
