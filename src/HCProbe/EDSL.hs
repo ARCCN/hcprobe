@@ -33,6 +33,7 @@ module HCProbe.EDSL
     -- ** Helpers
     -- *** Mac lists
   , portLength
+  , currentSwitchConfig
   , genMassiveMACs
   , genPerPortMACs
     -- *** Counters
@@ -196,13 +197,14 @@ data MACGen = None -- at begin
 
 -- | User environment
 data UserEnv = UserEnv
-        { switchConfig :: EFakeSwitch
-        , currentBID   :: IORef Word32
-        , currentXID   :: IORef Word32
-        , userSink     :: TVar (Sink (OfpType,OfpMessage) IO ())
-        , userHandler  :: TVar ((OfpType, OfpMessage) -> IO (OfpType, OfpMessage))
-        , queue        :: TQueue OfpMessage
-        , macGen       :: MACGen
+        { switchConfig  :: EFakeSwitch
+        , runtimeConfig :: TVar OfpSwitchConfig
+        , currentBID    :: IORef Word32
+        , currentXID    :: IORef Word32
+        , userSink      :: TVar (Sink (OfpType,OfpMessage) IO ())
+        , userHandler   :: TVar ((OfpType, OfpMessage) -> IO (OfpType, OfpMessage))
+        , queue         :: TQueue OfpMessage
+        , macGen        :: MACGen
         }
 
 type FakeSwitchM a = ReaderT UserEnv IO a
@@ -263,6 +265,10 @@ nextXID = do
 portLength :: FakeSwitchM Int
 portLength = asks ( IM.size . eMacSpace . switchConfig)
 
+-- | Get actual switch configuration (could be changed by controller)
+currentSwitchConfig :: FakeSwitchM OfpSwitchConfig
+currentSwitchConfig = asks runtimeConfig >>= lift . readTVarIO
+
 -- | Send openflow message
 send :: OfpMessage -> FakeSwitchM ()
 send m = do
@@ -321,7 +327,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
                         =$= CL.catMaybes =$ sinkTQueue sendQ)
                     (mutableSink userS)
         sender   = sourceTQueue sendQ $= CL.map extract' $$ appSink ad
-        user     = runReaderT u (UserEnv sw ref ref userS userH sendQ None)
+        user     = runReaderT u (UserEnv sw swCfg ref ref userS userH sendQ None)
     liftIO . atomically $ writeTQueue sendQ (headReply def OFPT_HELLO)
     waitThreads <- liftIO $ mapM async [void listener, sender, user]
     mapM_ (flip allocate cancel) (map return waitThreads)
