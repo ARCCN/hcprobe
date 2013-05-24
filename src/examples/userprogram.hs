@@ -19,6 +19,7 @@ import HCProbe.Ethernet
 import HCProbe.TCP
 import HCProbe.EDSL.Handlers
 import Data.IORef
+import Text.Printf
 
 main :: IO ()
 main = do 
@@ -36,7 +37,8 @@ main = do
     withSwitch fakeSw "127.0.0.1" 6633 $ do
        
         let stEnt = head lSE
-        setStatsHandler stEnt
+        setStatsHandler stEnt $ \StatEntry{statBid=bid,statRoundtripTime=rtt} ->
+            putStr $ printf "bid: %6d rtt: %4.2fms\n" bid (realToFrac rtt * 1000 :: Double)
 
 {-
         xid <- nextXID
@@ -93,6 +95,9 @@ main = do
                                   }
         bid <- statsSendOFPPacketIn stEnt port pl
         waitForBID bid
+
+        bid' <- statsSendOFPPacketIn stEnt port pl
+        waitForBID bid'
 
         let msg = putOFMessage $ do
                       putOFHeader $ do

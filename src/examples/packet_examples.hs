@@ -42,7 +42,7 @@ main = do
 	lift $ putStrLn "start"
 
         let stEnt = head lSE
-        setStatsHandler stEnt
+        setStatsHandler stEnt $ print
         
         -- thread delay
         lift $ putStr "waiting for 1 second.. "
