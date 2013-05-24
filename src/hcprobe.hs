@@ -201,7 +201,8 @@ receivePacket q s bid = do
   whenJustM (IntMap.lookup ibid pq) $ \dt -> do
     atomically $ 
       modifyTVar s (\st -> st { pktStatsRecvTotal = succ (pktStatsRecvTotal st)
-                              , pktStatsRoundtripTime = Just( now `diffUTCTime` dt )
+                              , pktStatsRoundtripTime = Just $ fromMaybe 0 (pktStatsRoundtripTime st) +
+                                                        ( now `diffUTCTime` dt )
                               })
     atomically $ do
       (l,pq') <- readTVar q
@@ -236,7 +237,10 @@ updateLog params chan tst = do
       when ( fromRational dt > (0::Double) ) $ do
         stats <- liftIO $ mapM readTVarIO tst
         let !st = sumStat stats
-        let !rtts = BV.fromList $ (map (fromRational.toRational).mapMaybe pktStatsRoundtripTime) stats :: BV.Vector Double
+        let meanRtt s@PktStats{pktStatsRoundtripTime=Just rtt} =
+                Just (rtt / (fromRational . toRational . pktStatsRecvTotal $ s))
+            meanRtt _ = Nothing
+        let !rtts = BV.fromList $ (map (fromRational.toRational).mapMaybe meanRtt) stats :: BV.Vector Double
         let !mean = S.mean rtts * 1000 :: Double
         let !sent' = pktStatsSentTotal st
         let !recv' = pktStatsRecvTotal st
