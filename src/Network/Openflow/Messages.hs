@@ -122,6 +122,7 @@ getMessage x = case x of
                                                 alen <- getWord16be
                                                 skip (fromIntegral alen)
                                                 return (OfpPacketOut (OfpPacketOutData bid pid))
+                 !OFPT_FLOW_MOD           -> OfpFlowMod <$> get
                  !OFPT_VENDOR             -> OfpVendor . bsStrict <$> getRemainingLazyByteString
                  !OFPT_STATS_REQUEST      -> do s <- getWord16be
                                                 case s of

@@ -188,13 +188,19 @@ onSend _ _ _ _ = return ()
 {-# INLINE onSend #-}
 
 onReceive :: TVarL PacketQ -> TVar PktStats -> OfpMessage -> IO ()
-onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = do
+onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = receivePacket q s bid
+onReceive q s (OfpMessage _ (OfpFlowMod OfpFlowModData{ofp_flow_mod_buffer_id=bid})) = receivePacket q s bid
+onReceive _ _ (OfpMessage _h _) = return ()
+{-# INLINE onReceive #-}
+
+receivePacket :: TVarL PacketQ -> TVar PktStats -> Word32 -> IO ()
+receivePacket q s bid = do
   now <- getCurrentTime
   pq  <- readTVarIO . snd =<< readTVarIO q
 
   whenJustM (IntMap.lookup ibid pq) $ \dt -> do
     atomically $ 
-      modifyTVar s (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st)
+      modifyTVar s (\st -> st { pktStatsRecvTotal = succ (pktStatsRecvTotal st)
                               , pktStatsRoundtripTime = Just( now `diffUTCTime` dt )
                               })
     atomically $ do
@@ -203,10 +209,7 @@ onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = do
       writeTVar q (l-1,pq')
 
   where ibid = fromIntegral bid
-
-onReceive _ _ (OfpMessage _h _)  = 
-  return ()
-{-# INLINE onReceive #-}
+{-# INLINE receivePacket #-}
 
 
 type HCState = (Int,Int,UTCTime)    
@@ -258,7 +261,7 @@ updateLog params chan tst = do
   where
     sumStat = foldr sumStep emptyStats
     sumStep s st' = st' { pktStatsSentTotal = sent s + sent st'
-                        , pktStatsRecvTotal = recv s + sent st'
+                        , pktStatsRecvTotal = recv s + recv st'
                         , pktStatsLostTotal = lost s + lost st'
                         , pktStatsConnLost  = clost s + clost st'
                         }
