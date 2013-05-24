@@ -38,6 +38,9 @@ main = do
     withSwitch fakeSw "127.0.0.1" 6633 $ do
        
 	lift $ putStrLn "start"
+
+        let stEnt = head lSE
+        setSilentStatsHandler stEnt
         
         -- thread delay
         lift $ putStr "waiting for 1 second.. "
