@@ -6,6 +6,7 @@ module HCProbe.EDSL.Handlers
     , PktStats(..)
     , StatEntry(..)
     , initPacketStats
+    , setSilentStatsHandler
     , setStatsHandler
     , statsSend
     , statsSendOFPPacketIn
@@ -83,17 +84,27 @@ initPacketStats len to = do
     st <- liftIO $ newTVarIO (PktStats 0 0 0 0 [])
     return $ StatsEntity pQ st len to
 
+setSilentStatsHandler :: StatsEntity
+                      -> FakeSwitchM ()
+setSilentStatsHandler pS = setStatsHandler pS $ \_ -> return ()
+
+
 setStatsHandler :: StatsEntity
                 -> (StatEntry -> IO ())
                 -> FakeSwitchM ()
-setStatsHandler pS eH = setUserHandler $ statsHandler pS eH
+setStatsHandler pS eH = setUserHandler $ onReceive pS eH
 
-statsHandler :: StatsEntity
-             -> (StatEntry -> IO ())
-             -> (OfpType, OfpMessage)
-             -> IO (OfpType, OfpMessage)
-statsHandler (StatsEntity q s _ _) entryHandler
-             m@(_, (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid)))) = do
+onReceive :: StatsEntity
+          -> (StatEntry -> IO ())
+          -> (OfpType, OfpMessage)
+          -> IO (OfpType, OfpMessage)
+onReceive sE eH m@(_, (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))))
+    = receiveHandler sE eH bid m
+onReceive sE eH m@(_, OfpMessage _ (OfpFlowMod OfpFlowModData{ofp_flow_mod_buffer_id=bid}))
+    = receiveHandler sE eH bid m
+onReceive _ _ m = return m
+
+receiveHandler (StatsEntity q s _ _) entryHandler  bid m = do
   now <- getCurrentTime
   pq  <- readTVarIO . snd =<< readTVarIO q
   whenJustM (IM.lookup ibid pq) $ \dt -> do
@@ -114,7 +125,6 @@ statsHandler (StatsEntity q s _ _) entryHandler
     entryHandler entry
   return m
   where ibid = fromIntegral bid
-statsHandler _ _ m = return m
 
 statsOnSend :: (MonadIO m)
             => StatsEntity
