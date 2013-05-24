@@ -31,14 +31,9 @@ main = do
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
     print fakeSw
 
-    lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..100]
-
     withSwitch fakeSw "127.0.0.1" 6633 $ do
        
 	lift $ putStrLn "start"
-
-        let stEnt = head lSE
-        setStatsHandler stEnt
         
         -- thread delay
         lift $ putStr "waiting for 1 second.. "
@@ -84,6 +79,3 @@ main = do
 	lift $ threadDelay 1000000
 
 	lift $ putStrLn "done"
-    
-    stats <- assembleStats lSE 
-    print stats
