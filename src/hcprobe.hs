@@ -124,7 +124,7 @@ pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
                               let !dstMac' = choice l4 =<< IntMap.lookup pidDst dct
                               case (srcMac', dstMac') of
                                 (Just srcMac, Just dstMac) -> 
-                                    let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
+                                    let pl = putEthernetFrame (EthFrame dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
                                         msg= (tcpTestPkt (fromIntegral l5) bid (fromIntegral pid) pl)
                                     in do stat msg
                                           buf <- atomically $ readTQueue qIn
