@@ -1,26 +1,32 @@
-module HCProbe.Ethernet (EthFrame(..), EthFrameP(..)) where
+module HCProbe.Ethernet (EthFrame(..), TestEthFrame(..)) where
 
+import Data.Word
 import Network.Openflow.Types
 import Network.Openflow.Ethernet
 import Network.Openflow.StrictPut
 
 data EthFrame = EthFrame { destMAC    :: !MACAddr
-                         , sourcMAC   :: !MACAddr
+                         , sourceMAC  :: !MACAddr
                          , payLoadEth :: Put
                          }
 
 instance EthernetFrame EthFrame where
   dstMacAddress    = destMAC
-  srcMacAddress    = sourcMAC
+  srcMacAddress    = sourceMAC
   vlanID         _ = Nothing
   typeCode       _ = 0x0800
   putPayload       = payLoadEth
 
-data EthFrameP = EthFrameP (MACAddr) (MACAddr)  (Put)
+data TestEthFrame = TestEthFrame{ teDestMAC   :: !MACAddr
+                                , teSourceMAC :: !MACAddr
+                                , teVlanID    :: Maybe VLANID
+                                , teTypeCode  :: !Word16
+                                , tePayLoad   :: Put
+                                }
 
-instance EthernetFrame EthFrameP where
-  dstMacAddress (EthFrameP a _ _)   = a
-  srcMacAddress (EthFrameP _ b _)   = b
-  vlanID         _ = Nothing
-  typeCode       _ = 0x0800
-  putPayload    (EthFrameP _ _ p)   = p
+instance EthernetFrame TestEthFrame where
+  dstMacAddress = teDestMAC
+  srcMacAddress = teSourceMAC
+  vlanID        = teVlanID
+  typeCode      = teTypeCode
+  putPayload    = tePayLoad

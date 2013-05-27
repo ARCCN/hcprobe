@@ -79,7 +79,7 @@ main = do
             m2   = 29
         dstGenMac <- genLocalMAC
         srcGenMac <- genLocalMAC
-        let pl = putEthernetFrame . (EthFrameP m1 m2) . putIPv4Pkt $
+        let pl = putEthernetFrame . (EthFrame m1 m2) . putIPv4Pkt $
                     TestPacketTCP { dstMAC = dstGenMac
                                   , srcMAC = srcGenMac
                                   , srcIP  = 99

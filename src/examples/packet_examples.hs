@@ -52,7 +52,7 @@ main = do
         let port = 1
         dstGenMac <- genLocalMAC
         srcGenMac <- genLocalMAC
-        let pl = putEthernetFrame . (EthFrameP dstGenMac srcGenMac) . putIPv4Pkt $
+        let pl = putEthernetFrame . (EthFrame dstGenMac srcGenMac) . putIPv4Pkt $
                     TestPacketTCP { dstMAC = dstGenMac
                                   , srcMAC = srcGenMac
                                   , srcIP  = 99
