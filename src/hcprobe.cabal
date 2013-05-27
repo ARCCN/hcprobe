@@ -346,6 +346,40 @@ executable packetExamples
   c-sources:           cbits/crc16-prim.cmm
   Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
 
+executable switchConcurrent
+  main-is:           examples/switch_concurrent.hs
+  buildable:     True
+
+  -- other-modules:    
+  build-depends:       base, binary, bytestring,
+                       conduit, network-conduit, binary-conduit >= 1.1,
+                       resourcet, async, cereal,time,statistics,
+                       random, digest, stm, stm-conduit, stm-chans,
+                       transformers, mtl, containers, vector,
+                       errors, MissingH, blaze-builder, data-default,
+                       mersenne-random-pure64,  mersenne-random,
+                       cmdargs, ConfigFile, directory, bitset, ghc-prim,
+                       template-haskell, split
+  c-sources:           cbits/crc16-prim.cmm
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
+
+executable switchAsync
+  main-is:           examples/switch_async.hs
+  buildable:     True
+
+  -- other-modules:    
+  build-depends:       base, binary, bytestring,
+                       conduit, network-conduit, binary-conduit >= 1.1,
+                       resourcet, async, cereal,time,statistics,
+                       random, digest, stm, stm-conduit, stm-chans,
+                       transformers, mtl, containers, vector,
+                       errors, MissingH, blaze-builder, data-default,
+                       mersenne-random-pure64,  mersenne-random,
+                       cmdargs, ConfigFile, directory, bitset, ghc-prim,
+                       template-haskell, split
+  c-sources:           cbits/crc16-prim.cmm
+  Ghc-options:         -Wall -H32m -threaded -rtsopts -O2 -auto-all -caf-all
+
 benchmark bench-strictput-all
   type:               exitcode-stdio-1.0
   hs-source-dirs:     bench

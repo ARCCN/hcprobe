@@ -22,15 +22,6 @@ import HCProbe.TCP
 import HCProbe.EDSL.Handlers
 import Data.IORef
 
-data BadEthFrameP = BadEthFrameP (MACAddr) (MACAddr) (Put)
-
-instance EthernetFrame BadEthFrameP where
-  dstMacAddress (BadEthFrameP a _ _)   = a
-  srcMacAddress (BadEthFrameP _ b _)   = b
-  vlanID         _ = Nothing
-  typeCode       _ = 0x0806
-  putPayload    (BadEthFrameP _ _ p)   = p
-
 main :: IO ()
 main = do 
     let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
@@ -56,20 +47,26 @@ main = do
         let port = 1
         dstGenMac <- genLocalMAC
         srcGenMac <- genLocalMAC
-        let pl = putEthernetFrame . (BadEthFrameP dstGenMac srcGenMac) . putIPv4Pkt $
-                    TestPacketTCP { dstMAC = dstGenMac
-                                  , srcMAC = srcGenMac
-                                  , srcIP  = 99
-                                  , dstIP  = 66
-                                  , dstPort = 80
-                                  , srcPort = 12342
-                                  , testWSS = Just 3
-                                  , testFlags = tcpFlagsOf [ACK]
-                                  , testPayloadLen = 32
-                                  , testAckNo = Nothing
-                                  , testSeqNo = Nothing
-                                  , testIpID = Nothing
-                                  }
+        let putIP = putIPv4Pkt $ TestPacketTCP { dstMAC = dstGenMac
+                                               , srcMAC = srcGenMac
+                                               , srcIP  = 99
+                                               , dstIP  = 66
+                                               , dstPort = 80
+                                               , srcPort = 12342
+                                               , testWSS = Just 3
+                                               , testFlags = tcpFlagsOf [ACK]
+                                               , testPayloadLen = 32
+                                               , testAckNo = Nothing
+                                               , testSeqNo = Nothing
+                                               , testIpID = Nothing
+                                               }
+        let pl = putEthernetFrame $ TestEthFrame { teDestMAC   = dstGenMac
+                                                 , teSourceMAC = srcGenMac
+                                                 , teVlanID    = Nothing
+                                                 , teTypeCode  = 0x0806
+                                                 , tePayLoad   = putIP
+                                                 }
+                
         --bid <- statsSendOFPPacketIn stEnt port pl
         --waitForBID bid
         lift $ putStrLn "done"
