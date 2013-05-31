@@ -283,6 +283,28 @@ putMessageData (OfpPortStatus (OfpPortStatusData reason data_)) = do
     putZeros 7
     putOfpPort data_
 
+putMessageData (OfpQueueGetConfigReply OfpQueueConfig{..}) = do
+    putWord16be ofp_queue_config_port
+    putZeros 6 -- padding
+    forM_ ofp_queue_config_queues $ \OfpPacketQueue{..} -> do
+        x <- marker
+        putWord32be opq_queue_id
+        qlen <- delayedWord16be
+        putZeros 2
+        forM_ opq_properties $ \prop ->
+            case prop of
+                OfpQueuePropertyNone -> do
+                    putWord16be 0 -- OFPQT_NONE
+                    putWord16be 8
+                    putZeros 4    -- padding
+                OfpQueuePropertyMinRate{..} -> do
+                    putWord16be 1 -- OFPQT_MIN_RATE
+                    putWord16be 16
+                    putZeros 4    -- padding
+                    putWord16be oqp_rate
+                    putZeros 6   -- padding
+        undelay qlen . Word16be . fromIntegral =<< distance x
+
 putMessageData (OfpMessageRaw x) = putByteString x
 -- FIXME: typed error handling
 --putMessageData _        = error "Unsupported message: "

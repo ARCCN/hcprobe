@@ -15,6 +15,7 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , OfpFlowModData(..), OfpFlowModCommand(..), OfpMatch(..)
                               , OfpFlowModFlag(..), ofpf_SEND_FLOW_REM, ofpf_CHECK_OVERLAP, ofpf_EMERG
                               -- * other
+                              , OfpQueueConfig(..), OfpPacketQueue(..), OfpQueueProperty(..)
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags, ofErrorType
                               , ofCapabilitiesUnflag, ofStateUnflag, ofConfigUnflag, ofFeatureUnflag
@@ -48,7 +49,7 @@ type FlagSet = Word32
 type Flag = Word32
 
 data OfpHeader = OfpHeader { ofp_hdr_version   :: !Word8
-                           , ofp_hdr_type      :: !OfpType 
+                           , ofp_hdr_type      :: !OfpType
                            , ofp_packet_length :: !(Maybe Word16)
                            , ofp_hdr_xid       :: !Word32
                            }
@@ -57,9 +58,9 @@ data OfpHeader = OfpHeader { ofp_hdr_version   :: !Word8
 instance Default OfpHeader where def = OfpHeader openflow_1_0 def def def
 
 data OfpMessage = OfpMessage { ofp_header  :: !OfpHeader
-                             , ofp_data    :: OfpMessageData 
+                             , ofp_data    :: OfpMessageData
                              -- ofp_data field is not strict as it's
-                             -- possible not to parse it unless it's 
+                             -- possible not to parse it unless it's
                              -- needed so it's the real case for lazyness.
                              }
                              deriving (Show)
@@ -67,33 +68,35 @@ data OfpMessage = OfpMessage { ofp_header  :: !OfpHeader
 instance Default OfpMessage where
   def = OfpMessage def def
 
-data OfpMessageData =   OfpMessageRaw       !BS.ByteString
-                      | OfpEchoRequest      !BS.ByteString
-                      | OfpEchoReply        !BS.ByteString
+data OfpMessageData =   OfpMessageRaw            !BS.ByteString
+                      | OfpEchoRequest           !BS.ByteString
+                      | OfpEchoReply             !BS.ByteString
                       | OfpFeaturesRequest
-                      | OfpFeaturesReply    !OfpSwitchFeatures
-                      | OfpSetConfig        !OfpSwitchConfig
+                      | OfpFeaturesReply         !OfpSwitchFeatures
+                      | OfpSetConfig             !OfpSwitchConfig
                       | OfpGetConfigRequest
-                      | OfpGetConfigReply   !OfpSwitchConfig
-                      | OfpHello 
+                      | OfpGetConfigReply        !OfpSwitchConfig
+                      | OfpHello
                       | OfpEmptyReply
-                      | OfpPacketOut        !OfpPacketOutData  -- FIXME: implement real data type
-                      | OfpVendor           !BS.ByteString    -- WTF?
-                      | OfpErrorReply       !OfpError
-                      | OfpPacketInReply    !OfpPacketIn
-                      | OfpStatsRequest     !OfpStatsType
+                      | OfpPacketOut             !OfpPacketOutData  -- FIXME: implement real data type
+                      | OfpVendor                !BS.ByteString    -- WTF?
+                      | OfpErrorReply            !OfpError
+                      | OfpPacketInReply         !OfpPacketIn
+                      | OfpStatsRequest          !OfpStatsType
                       | OfpStatsReply
-                      | OfpFlowMod          !OfpFlowModData 
-                      | OfpFlowRemoved      !OfpFlowRemovedData
-                      | OfpPortStatus       !OfpPortStatusData
-                      | OfpUnsupported      !BS.ByteString
+                      | OfpFlowMod               !OfpFlowModData
+                      | OfpFlowRemoved           !OfpFlowRemovedData
+                      | OfpPortStatus            !OfpPortStatusData
+                      | OfpQueueGetConfigRequest !Word16
+                      | OfpQueueGetConfigReply   !OfpQueueConfig
+                      | OfpUnsupported           !BS.ByteString
                       deriving (Show)
 
 
 instance Default OfpMessageData where
   def = OfpEmptyReply
 
-data OfpType  = 
+data OfpType  =
     -- Immutable messages
       OFPT_HELLO               -- Symmetric message
     | OFPT_ERROR               -- Symmetric message
@@ -176,7 +179,7 @@ data OfpSwitchConfig = OfpSwitchConfig { ofp_switch_cfg_flags         :: !OfpSwi
 
 instance Default OfpSwitchConfig where def = OfpSwitchConfig def def
 
-data OfpSwitchCfgFlags = OFPC_FRAG_NORMAL -- No special handling for fragments 
+data OfpSwitchCfgFlags = OFPC_FRAG_NORMAL -- No special handling for fragments
                        | OFPC_FRAG_DROP   -- Drop fragments
                        | OFPC_FRAG_REASM  -- Reassemble (only if OFPC_IP_REASM set)
                        | OFPC_FRAG_MASK
@@ -204,7 +207,7 @@ instance Binary OfpPhyPort where
   put = error "not yet implemented"
   get = error "not yet implemented" -- FIXME
 
-data OfpPortConfigFlags =   OFPPC_PORT_DOWN     -- Port is administratively down                        
+data OfpPortConfigFlags =   OFPPC_PORT_DOWN     -- Port is administratively down
                           | OFPPC_NO_STP        -- Disable 802.1D spanning tree on port
                           | OFPPC_NO_RECV       -- Drop all packets except 802.1D spanning tree packets
                           | OFPPC_NO_RECV_STP   -- Drop received 802.1D STP packets
@@ -448,10 +451,10 @@ data OfpPacketInReason = OFPR_NO_MATCH | OFPR_ACTION
 instance Default OfpPacketInReason where def = OFPR_NO_MATCH
 
 
-data OfpFlowModData = OfpFlowModData 
+data OfpFlowModData = OfpFlowModData
       { ofp_flow_mod_match         :: !OfpMatch             -- ^ fields to match
       , ofp_flow_mod_cookie        :: !Word64               -- ^ opaque controller-issued identifier
-      , ofp_flow_mod_command       :: !OfpFlowModCommand    
+      , ofp_flow_mod_command       :: !OfpFlowModCommand
       , ofp_flow_mod_idle_timeout  :: !Word16               -- ^ idle time before discarding (seconds)
       , ofp_flow_mod_hard_timeout  :: !Word16               -- ^ max time before discarding  (seconds)
       , ofp_flow_mod_priority      :: !Word16               -- ^ proprity level of flow entry
@@ -463,7 +466,7 @@ data OfpFlowModData = OfpFlowModData
       deriving (Show)
 
 instance Binary OfpFlowModData where
-  put x = error "not yet implemented" -- TODO: implement? 
+  put x = error "not yet implemented" -- TODO: implement?
   get = OfpFlowModData <$> get            -- match
                        <*> getWord64be    -- cookie
                        <*> get            -- command
@@ -500,7 +503,7 @@ instance Binary OfpFlowModFlag where
   put = error "not yet impemented"
   get = OfpFlowModFlag <$> getWord16be
 
-data OfpMatch = OfpMatch 
+data OfpMatch = OfpMatch
       { ofp_match_wildcards   :: !Word32    -- ^ wildcard fields
       , ofp_match_in_ports    :: !Word16    -- ^ input switch port
       , ofp_match_dl_src      :: !MACAddr   -- ^ ethernet source address
@@ -521,7 +524,7 @@ instance Default OfpMatch where def = OfpMatch def def def def def def def def d
 
 instance Binary OfpMatch where
   put = error "not yet implemented" -- TODO implement
-  get = OfpMatch <$> getWord32be 
+  get = OfpMatch <$> getWord32be
                  <*> getWord16be
                  <*> (unBMac <$> get)
                  <*> (unBMac <$> get)
@@ -561,7 +564,7 @@ data OfpStatsType =   OFPST_DESC
                     deriving (Eq, Ord, Show)
 
 instance Enum OfpStatsType where
-  fromEnum OFPST_DESC       = 0 
+  fromEnum OFPST_DESC       = 0
   fromEnum OFPST_FLOW       = 1
   fromEnum OFPST_AGGREGATE  = 2
   fromEnum OFPST_TABLE      = 3
@@ -582,7 +585,7 @@ data OfpFlowRemovedData = OfpFlowRemovedData
       { ofp_flow_removed_cookie        :: !Word64              -- ^ opaque controller-issued identifier
       , ofp_flow_removed_priority      :: !Word16              -- ^ priority level of flow entry
       , ofp_flow_removed_reason        :: !OfpFlowRemovedReason
-      , ofp_flow_removed_table_id      :: !Word8               -- ^ ID of the table 
+      , ofp_flow_removed_table_id      :: !Word8               -- ^ ID of the table
       , ofp_flow_removed_duration_sec  :: !Word32              -- ^ time flow was alive in seconds
       , ofp_flow_removed_duration_nsec :: !Word32              -- ^ time flow was alive in nanoseconds beyond duration_sec
       , ofp_flow_removed_idle_timeout  :: !Word16              -- ^ idle timeout from original flow mod
@@ -604,7 +607,7 @@ data OfpFlowRemovedReason = OFPRR_IDLE_TIMEOUT
 instance Default OfpFlowRemovedReason where def = OFPRR_IDLE_TIMEOUT
 
 
-data OfpPortStatusData = OfpPortStatusData 
+data OfpPortStatusData = OfpPortStatusData
       { opt_port_status_reason :: !OfpPortReason
       , opt_port_status_desc   :: !OfpPhyPort
       }
@@ -612,7 +615,7 @@ data OfpPortStatusData = OfpPortStatusData
 
 instance Default OfpPortStatusData where def = OfpPortStatusData def def
 
-data OfpPortReason = OFPR_ADD 
+data OfpPortReason = OFPR_ADD
                    | OFPR_DELETE
                    | OFPR_MODIFY
                    deriving (Show)
@@ -636,17 +639,34 @@ instance Binary OfpPortStatusData where
         desc <- get
         return $ OfpPortStatusData reason desc
 
+data OfpQueueConfig = OfpQueueConfig
+    { ofp_queue_config_port   :: !Word16
+    , ofp_queue_config_queues :: ![OfpPacketQueue]
+    } deriving (Show)
+
+instance Default OfpQueueConfig where def = OfpQueueConfig def def
+
+data OfpPacketQueue = OfpPacketQueue
+    { opq_queue_id   :: !Word32
+    , opq_properties :: ![OfpQueueProperty]
+    } deriving (Show)
+
+data OfpQueueProperty = OfpQueuePropertyNone
+                      | OfpQueuePropertyMinRate
+                        { oqp_rate :: !Word16
+                        } deriving (Show)
+
 listToFlags :: (a -> Flag) -> [a] -> FlagSet
 listToFlags f = foldl (\acc val -> acc .|. (f val) ) 0
 
 flagsToList :: (Flag -> a) -> FlagSet -> [a]
 flagsToList f set = testFlag set 1 []
     where --TODO try without recursion (find fold/map functions for bitsets)
-        testFlag set' bitn list = 
+        testFlag set' bitn list =
           let mask = bit bitn in
-          if testBit set' bitn 
+          if testBit set' bitn
             then testFlag (clearBit set' bitn) (bitn+1) ( (f mask):list )
-            else 
+            else
               if set == 0
                 then list
                 else testFlag set' (bitn+1) list
