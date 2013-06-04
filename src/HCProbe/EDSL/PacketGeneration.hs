@@ -80,10 +80,44 @@ module HCProbe.EDSL.PacketGeneration
   , putQueueGetConfigReply
   , putQueueConfigPort
   , putQueueConfigQueues
+  -- * OfpStatsReply
+  , putDescriptionStatsReply
+  , putDescStatsRepMfr
+  , putDescStatsRepHw
+  , putDescStatsRepSw
+  , putDescStatsRepSerialNum
+  , putDescStatsRepDp
+  , putAggregateStatsReply
+  , putAggregateStatsRepPacketCount
+  , putAggregateStatsRepByteCount
+  , putAggregateStatsRepFlowCount
+  , putPortStatsReply
+  , putPortStatsRepAppend
+  , putPortStatsPortNo
+  , putPortStatsRxPackets
+  , putPortStatsTxPackets
+  , putPortStatsRxBytes
+  , putPortStatsTxBytes
+  , putPortStatsRxDropped
+  , putPortStatsTxDropped
+  , putPortStatsRxErrors
+  , putPortStatsTxErrors
+  , putPortStatsRxFrameErr
+  , putPortStatsRxOverErr
+  , putPortStatsRxCrcErr
+  , putPortStatsCollisions
+  , putQueueStatsReply
+  , putQueueStatsRepPortNo
+  , putQueueStatsRepQueueId
+  , putQueueStatsRepTxBytes
+  , putQueueStatsRepTxPackets
+  , putQueueStatsRepTxErrors
+  , putVendorStatsReply
   ) where
 
 import Control.Monad.Writer
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.Default
 import Data.Word
 
@@ -185,3 +219,31 @@ putQueueGetConfigReply :: Writer (Endo OfpQueueConfig) a -> Writer (Endo OfpMess
 putQueueGetConfigReply w = tell . Endo $ \m -> m{ofp_data = OfpQueueGetConfigReply (appEndo (execWriter w) def)}
 
 $(generatePutters ''OfpQueueConfig)
+
+putDescriptionStatsReply :: Writer (Endo OfpStatsReplyData) a -> Writer (Endo OfpMessage) ()
+putDescriptionStatsReply w =
+    tell . Endo $ \m -> m{ofp_data = OfpStatsReply (appEndo (execWriter w) (OfpDescriptionStatsReply BS.empty BS.empty BS.empty BS.empty BS.empty))}
+
+putAggregateStatsReply :: Writer (Endo OfpStatsReplyData) a -> Writer (Endo OfpMessage) ()
+putAggregateStatsReply w =
+    tell . Endo $ \m -> m{ofp_data = OfpStatsReply (appEndo (execWriter w) (OfpAggregateStatsReply def def def))}
+
+putPortStatsReply :: Writer (Endo OfpStatsReplyData) a -> Writer (Endo OfpMessage) ()
+putPortStatsReply w =
+    tell . Endo $ \m -> m{ofp_data = OfpStatsReply (appEndo (execWriter w) (OfpPortStatsReply []))}
+
+putPortStatsRepAppend :: Writer (Endo OfpPortStats) a -> Writer (Endo OfpStatsReplyData) ()
+putPortStatsRepAppend w =
+    -- doing prepend because Endo monoid does operations in reverse order
+    tell . Endo $ \(OfpPortStatsReply ports) -> OfpPortStatsReply ((appEndo (execWriter w) def) : ports)
+
+$(generatePutters ''OfpPortStats)
+
+putQueueStatsReply :: Writer (Endo OfpStatsReplyData) a -> Writer (Endo OfpMessage) ()
+putQueueStatsReply w =
+    tell . Endo $ \m -> m{ofp_data = OfpStatsReply (appEndo (execWriter w) (OfpQueueStatsReply def def def def def))}
+
+putVendorStatsReply :: ByteString -> Writer (Endo OfpMessage) ()
+putVendorStatsReply bs = tell . Endo $ \m -> m{ofp_data = OfpStatsReply (OfpVendorStatsReply bs)}
+
+$(generatePutters ''OfpStatsReplyData)

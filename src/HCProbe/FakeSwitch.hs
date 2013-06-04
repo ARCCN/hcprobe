@@ -256,7 +256,7 @@ client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = run
     processMessage c OFPT_GET_CONFIG_REQUEST (OfpMessage hdr _msg) =
               (liftIO $ atomically $ readTVar (switchCfg c)) >>= \x -> sendReplyT (getConfigReply hdr x)
 
-    processMessage _ OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = sendReplyT (statsReply hdr)
+    processMessage _ OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OfpDescriptionStatsRequest)) = sendReplyT (descStatsReply hdr)
         --      (liftIO $ atomically $ readTVar (switchCfg c)) >>= sendReply.getConfigReply hdr
 
             -- FIXME: possible problems with other controllers rather than NOX
@@ -369,7 +369,7 @@ client' fk ad =
             processMessage OFPT_GET_CONFIG_REQUEST (OfpMessage hdr _msg) =
                       (liftIO $ atomically $ readTVar swCfg) >>= return . Just . getConfigReply hdr
 
-            processMessage OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OFPST_DESC)) = return $ Just (statsReply hdr)
+            processMessage OFPT_STATS_REQUEST (OfpMessage hdr (OfpStatsRequest OfpDescriptionStatsRequest)) = return $ Just (descStatsReply hdr)
 
                     -- FIXME: possible problems with other controllers rather than NOX
             processMessage OFPT_BARRIER_REQUEST msg = return $

@@ -1,5 +1,6 @@
 {-# Language BangPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpMessageData(..)
                               , OfpCapabilities(..), OfpSwitchFeatures(..), OfpPhyPort(..)
@@ -16,6 +17,8 @@ module Network.Openflow.Types ( OfpHeader(..), OfpType(..), OfpMessage(..), OfpM
                               , OfpFlowModFlag(..), ofpf_SEND_FLOW_REM, ofpf_CHECK_OVERLAP, ofpf_EMERG
                               -- * other
                               , OfpQueueConfig(..), OfpPacketQueue(..), OfpQueueProperty(..)
+                              , OfpStatsRequestData(..), OfpStatsReplyData(..), OfpPortStats(..)
+                              , statsRequestToType, statsReplyToType
                               , MACAddr
                               , ofCapabilities, ofStateFlags, ofConfigFlags, ofFeatureFlags, ofErrorType
                               , ofCapabilitiesUnflag, ofStateUnflag, ofConfigUnflag, ofFeatureUnflag
@@ -82,8 +85,8 @@ data OfpMessageData =   OfpMessageRaw            !BS.ByteString
                       | OfpVendor                !BS.ByteString    -- WTF?
                       | OfpErrorReply            !OfpError
                       | OfpPacketInReply         !OfpPacketIn
-                      | OfpStatsRequest          !OfpStatsType
-                      | OfpStatsReply
+                      | OfpStatsRequest          !OfpStatsRequestData
+                      | OfpStatsReply            !OfpStatsReplyData
                       | OfpFlowMod               !OfpFlowModData
                       | OfpFlowRemoved           !OfpFlowRemovedData
                       | OfpPortStatus            !OfpPortStatusData
@@ -461,7 +464,7 @@ data OfpFlowModData = OfpFlowModData
       , ofp_flow_mod_buffer_id     :: !Word32               -- ^ buffered packet to apply to (or -1)
       , ofp_flow_mod_out_port      :: !Word16
       , ofp_flow_mod_flags         :: !OfpFlowModFlag
-      , ofp_flow_mod_action_header :: !BS.ByteString
+      , ofp_flow_mod_action_header :: !BS.ByteString        -- TOFIX
       }
       deriving (Show)
 
@@ -580,6 +583,114 @@ instance Enum OfpStatsType where
   toEnum 5      = OFPST_QUEUE
   toEnum 0xFFFF = OFPST_VENDOR
   toEnum _      = error "OfpStatsType is not supported"
+
+data OfpStatsRequestData = OfpDescriptionStatsRequest
+                         | OfpFlowStatsRequest
+                           { ofp_flow_stats_req_match    :: !OfpMatch
+                           , ofp_flow_stats_req_table_id :: !Word8
+                           , ofp_flow_stats_req_out_port :: !Word16
+                           }
+                         | OfpAggregateStatsRequest
+                           { ofp_aggregate_stats_req_match    :: !OfpMatch
+                           , ofp_aggregate_stats_req_table_id :: !Word8
+                           , ofp_aggregate_stats_req_out_port :: !Word16
+                           }
+                         | OfpTableStatsRequest
+                         | OfpPortStatsRequest !Word16
+                         | OfpQueueuStatsRequest
+                           { ofp_queue_stats_req_port_no  :: !Word16
+                           , ofp_queue_stats_req_queue_id :: !Word32
+                           }
+                         | OfpVendorStatsRequest !BS.ByteString
+                         deriving (Show)
+
+statsRequestToType :: OfpStatsRequestData -> OfpStatsType
+statsRequestToType OfpDescriptionStatsRequest       = OFPST_DESC
+statsRequestToType (OfpFlowStatsRequest _ _ _)      = OFPST_FLOW
+statsRequestToType (OfpAggregateStatsRequest _ _ _) = OFPST_AGGREGATE
+statsRequestToType OfpTableStatsRequest             = OFPST_TABLE
+statsRequestToType (OfpPortStatsRequest _)          = OFPST_PORT
+statsRequestToType (OfpQueueuStatsRequest _ _)      = OFPST_QUEUE
+statsRequestToType (OfpVendorStatsRequest _)        = OFPST_VENDOR
+
+data OfpStatsReplyData = OfpDescriptionStatsReply
+                         { ofp_desc_stats_rep_mfr        :: !BS.ByteString
+                         , ofp_desc_stats_rep_hw         :: !BS.ByteString
+                         , ofp_desc_stats_rep_sw         :: !BS.ByteString
+                         , ofp_desc_stats_rep_serial_num :: !BS.ByteString
+                         , ofp_desc_stats_rep_dp         :: !BS.ByteString
+                         }
+                       | OfpFlowStatsReply
+                         { ofp_flow_stats_rep_table_id      :: !Word8         -- ^ ID of table flow came from
+                         , ofp_flow_stats_rep_match         :: !OfpMatch      -- ^ Description of fields
+                         , ofp_flow_stats_rep_duration_sec  :: !Word32        -- ^ Time flow has been alive in seconds. */
+                         , ofp_flow_stats_rep_duration_nsec :: !Word32        -- ^ Time flow has been alive in nanoseconds beyond duration_sec
+                         , ofp_flow_stats_rep_priority      :: !Word16        -- ^ Priority of the entry. Only meaningful when this is not an exact-match entry
+                         , ofp_flow_stats_rep_idle_timeout  :: !Word16        -- ^ Number of seconds idle before expiration
+                         , ofp_flow_stats_rep_hard_timeout  :: !Word16        -- ^ Number of seconds before expiration
+                         , ofp_flow_stats_rep_cookie        :: !Word64        -- ^ Opaque controller-issued identifier
+                         , ofp_flow_stats_rep_packet_count  :: !Word64        -- ^ Number of packets in flow
+                         , ofp_flow_stats_rep_byte_count    :: !Word64        -- ^ Number of bytes in flow
+                         , ofp_flow_stats_rep_actions       :: !BS.ByteString -- ^ TOFIX
+                         }
+                       | OfpAggregateStatsReply
+                         { ofp_aggregate_stats_rep_packet_count :: !Word64    -- ^ Number of packets in flows
+                         , ofp_aggregate_stats_rep_byte_count   :: !Word64    -- ^ Number of bytes in flows
+                         , ofp_aggregate_stats_rep_flow_count   :: !Word32    -- ^ Number of flows
+                         }
+                       | OfpTableStatsReply
+                         { ofp_table_stats_rep_table_id      :: !Word8  -- ^ Identifier of table. Lower numbered tables are consulted first
+                         , ofp_table_stats_rep_name          :: !BS.ByteString
+                         , ofp_table_stats_rep_wildcards     :: !Word32 -- ^ Bitmap of OFPFW_* wildcards that are supported by the table
+                         , ofp_table_stats_rep_max_entries   :: !Word32 -- ^ Max number of entries supported
+                         , ofp_table_stats_rep_active_count  :: !Word32 -- ^ Number of active entries
+                         , ofp_table_stats_rep_lookup_count  :: !Word64 -- ^ Number of packets looked up in table
+                         , ofp_table_stats_rep_matched_count :: !Word64 -- ^ Number of packets that hit table
+                         }
+                       | OfpPortStatsReply ![OfpPortStats]
+                       | OfpQueueStatsReply
+                         { ofp_queue_stats_rep_port_no    :: !Word16
+                         , ofp_queue_stats_rep_queue_id   :: !Word32
+                         , ofp_queue_stats_rep_tx_bytes   :: !Word64
+                         , ofp_queue_stats_rep_tx_packets :: !Word64
+                         , ofp_queue_stats_rep_tx_errors  :: !Word64
+                         }
+                       | OfpVendorStatsReply !BS.ByteString
+                       deriving (Show)
+
+statsReplyToType :: OfpStatsReplyData -> OfpStatsType
+statsReplyToType OfpDescriptionStatsReply{..} = OFPST_DESC
+statsReplyToType OfpFlowStatsReply{..}        = OFPST_FLOW
+statsReplyToType OfpAggregateStatsReply{..}   = OFPST_AGGREGATE
+statsReplyToType OfpTableStatsReply{..}       = OFPST_TABLE
+statsReplyToType OfpPortStatsReply{..}        = OFPST_PORT
+statsReplyToType OfpQueueStatsReply{..}       = OFPST_QUEUE
+statsReplyToType (OfpVendorStatsReply _)      = OFPST_VENDOR
+
+data OfpPortStats = OfpPortStats
+    { ofp_port_stats_port_no      :: !Word16
+    , ofp_port_stats_rx_packets   :: !Word64 -- ^ Number of received packets
+    , ofp_port_stats_tx_packets   :: !Word64 -- ^ Number of transmitted packets
+    , ofp_port_stats_rx_bytes     :: !Word64 -- ^ Number of received bytes
+    , ofp_port_stats_tx_bytes     :: !Word64 -- ^ Number of transmitted bytes
+    , ofp_port_stats_rx_dropped   :: !Word64 -- ^ Number of packets dropped by RX
+    , ofp_port_stats_tx_dropped   :: !Word64 -- ^ Number of packets dropped by TX
+    , ofp_port_stats_rx_errors    :: !Word64 -- ^ Number of receive errors. This is a super-set
+                                             -- of more specific receive errors and should be
+                                             -- greater than or equal to the sum of all
+                                             -- rx_*_err values
+    , ofp_port_stats_tx_errors    :: !Word64 -- ^ Number of transmit errors. This is a super-set
+                                             -- of more specific transmit errors and should be
+                                             -- greater than or equal to the sum of all
+                                             -- tx_*_err values (none currently defined.)
+    , ofp_port_stats_rx_frame_err :: !Word64 -- ^ Number of frame alignment errors
+    , ofp_port_stats_rx_over_err  :: !Word64 -- ^ Number of packets with RX overrun
+    , ofp_port_stats_rx_crc_err   :: !Word64 -- ^ Number of CRC errors
+    , ofp_port_stats_collisions   :: !Word64 -- ^ Number of collisions
+    } deriving (Show)
+
+instance Default OfpPortStats where def = OfpPortStats def def def def def def def def def def def def def
+
 
 data OfpFlowRemovedData = OfpFlowRemovedData
       { ofp_flow_removed_cookie        :: !Word64              -- ^ opaque controller-issued identifier

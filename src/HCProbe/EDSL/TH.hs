@@ -18,6 +18,7 @@ generatePutters name =
   where
      recPut :: Con -> Q [Dec]
      recPut (RecC conName fields) = mapM fieldPut fields
+     recPut (NormalC _ _) = return [] -- TOFIX right now just skipping
      recPut x = error $ "HCProbe.EDSL.TH.generatePutters: Invalid constructor in type." ++ (show x)
      fieldPut (fName,_,_) = do
        let putName = "put" ++ of2hs (nameBase fName)
