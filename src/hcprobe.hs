@@ -127,7 +127,7 @@ pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
                                 _      -> atomically $ readTQueue qIn
                               buf' <- case (srcMac', dstMac') of
                                 (Just srcMac, Just dstMac) -> 
-                                    let pl = putEthernetFrame (EthFrameP dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
+                                    let pl = putEthernetFrame (EthFrame dstMac srcMac (putIPv4Pkt (s dstMac srcMac (fromIntegral l7) (fromIntegral l8))))
                                         msg= (tcpTestPkt (fromIntegral l5) bid (fromIntegral pid) pl)
                                     in do stat msg
                                           SP.runPutToBuffer buf (putMessage msg)
@@ -144,7 +144,7 @@ pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
         go _ _ _ _ = error "impossible"
     go ls (cycle [1..maxBuffers-1]) 0 Nothing
   where -- nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
-        nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
+        nports = (fromIntegral.length.ofp_switch_features_ports.switchFeatures) fk
         choice n l | V.null l  = Nothing
                    | otherwise = Just $ l `V.unsafeIndex` (n `mod` V.length l)
 
@@ -193,14 +193,21 @@ onSend _ _ _ _ = return ()
 {-# INLINE onSend #-}
 
 onReceive :: TVarL PacketQ -> TVar PktStats -> OfpMessage -> IO ()
-onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = do
+onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = receivePacket q s bid
+onReceive q s (OfpMessage _ (OfpFlowMod OfpFlowModData{ofp_flow_mod_buffer_id=bid})) = receivePacket q s bid
+onReceive _ _ (OfpMessage _h _) = return ()
+{-# INLINE onReceive #-}
+
+receivePacket :: TVarL PacketQ -> TVar PktStats -> Word32 -> IO ()
+receivePacket q s bid = do
   now <- getCurrentTime
   pq  <- readTVarIO . snd =<< readTVarIO q
 
   whenJustM (IntMap.lookup ibid pq) $ \dt -> do
     atomically $ 
-      modifyTVar s (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st)
-                              , pktStatsRoundtripTime = Just( now `diffUTCTime` dt )
+      modifyTVar s (\st -> st { pktStatsRecvTotal = succ (pktStatsRecvTotal st)
+                              , pktStatsRoundtripTime = Just $ fromMaybe 0 (pktStatsRoundtripTime st) +
+                                                        ( now `diffUTCTime` dt )
                               })
     atomically $ do
       (l,pq') <- readTVar q
@@ -208,10 +215,7 @@ onReceive q s (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))) = do
       writeTVar q (l-1,pq')
 
   where ibid = fromIntegral bid
-
-onReceive _ _ (OfpMessage _h _)  = 
-  return ()
-{-# INLINE onReceive #-}
+{-# INLINE receivePacket #-}
 
 
 type HCState = (Int,Int,UTCTime)    
@@ -238,7 +242,10 @@ updateLog params chan tst = do
       when ( fromRational dt > (0::Double) ) $ do
         stats <- liftIO $ mapM readTVarIO tst
         let !st = sumStat stats
-        let !rtts = BV.fromList $ (map (fromRational.toRational).mapMaybe pktStatsRoundtripTime) stats :: BV.Vector Double
+        let meanRtt s@PktStats{pktStatsRoundtripTime=Just rtt} =
+                Just (rtt / (fromRational . toRational . pktStatsRecvTotal $ s))
+            meanRtt _ = Nothing
+        let !rtts = BV.fromList $ (map (fromRational.toRational).mapMaybe meanRtt) stats :: BV.Vector Double
         let !mean = S.mean rtts * 1000 :: Double
         let !sent' = pktStatsSentTotal st
         let !recv' = pktStatsRecvTotal st
@@ -263,7 +270,7 @@ updateLog params chan tst = do
   where
     sumStat = foldr sumStep emptyStats
     sumStep s st' = st' { pktStatsSentTotal = sent s + sent st'
-                        , pktStatsRecvTotal = recv s + sent st'
+                        , pktStatsRecvTotal = recv s + recv st'
                         , pktStatsLostTotal = lost s + lost st'
                         , pktStatsConnLost  = clost s + clost st'
                         }

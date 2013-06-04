@@ -7,10 +7,12 @@ module Main
   where
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (replicateM_)
+import Control.Concurrent.Async
+--import Control.Monad (replicateM_)
 import Control.Monad.Trans (lift)
 import Data.Bits                -- for IP creation [ TODO: remove ]
 import HCProbe.EDSL
+import Control.Monad
 -- low level message generation
 import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Ethernet.IPv4
@@ -24,19 +26,23 @@ import Text.Printf
 main :: IO ()
 main = do 
     let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
-    fakeSw <- config $ do
+    
+    fakeSwList <- forM [1..10] $ \i -> do
+          config $ do
                 switch ip $ do
-                    addMACs [1..450]
+                    addMACs [(i*400)+1..(i+1)*400]
                     features $ do
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
 
-    lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..100]
+    lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..10]
 
-    print fakeSw
-    withSwitch fakeSw "127.0.0.1" 6633 $ do
+    let swsWithSes = zip fakeSwList lSE
+    
+    flip mapConcurrently swsWithSes $ \(fs, stE)-> do 
+      withSwitch fs "127.0.0.1" 6633 $ do
        
-        let stEnt = head lSE
+        let stEnt = stE
         setStatsHandler stEnt $ \StatEntry{statBid=bid,statRoundtripTime=rtt} ->
             putStr $ printf "bid: %6d rtt: %4.2fms\n" bid (realToFrac rtt * 1000 :: Double)
 
@@ -48,24 +54,9 @@ main = do
                                putHdrType OFPT_HELLO
                                putHdrXid xid
 -}                            
-
-        -- wait for type examples: 
-        lift $ putStr "waiting for barrier request.. "
-        waitForType OFPT_BARRIER_REQUEST
-        lift $ putStrLn  "[done]"
-        lift $ putStr "waiting for echo request.. "
-        --waitForType OFPT_ECHO_REQUEST
-        lift $ putStrLn "[done]"
         
         -- thread delay example
-        lift $ putStr "waiting for 1 second.. "
         lift $ threadDelay 1000000 -- wait for a second
-        lift $ putStrLn "[done]"
-        
-        -- next buffer id example
-        replicateM_ 10 $ do
-            x <- nextBID
-            lift . putStrLn $ "next buffer id " ++ show x
 
         count <- lift $ ( newIORef 0 :: IO (IORef Int))
         -- setUserHandler $ predicateHandler (\_->True) count
@@ -73,7 +64,6 @@ main = do
         -- Sending primitives:
         -- send simple packet
         -- tcp <- randomTCP
-        lift $ putStrLn "sending packet. and waiting for responce."
         let port = 1
             m1   = 37
             m2   = 29
@@ -93,22 +83,12 @@ main = do
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
-        bid <- statsSendOFPPacketIn stEnt port pl
-        waitForBID bid
 
-        bid' <- statsSendOFPPacketIn stEnt port pl
-        waitForBID bid'
+        replicateM_ 100 $ do
+            bid <- statsSendOFPPacketIn stEnt port pl
+            return()         
 
-        let msg = putOFMessage $ do
-                      putOFHeader $ do
-                          putHdrType OFPT_PACKET_IN
-                          putPacketLength 9109
-                      putPacketIn $ do
-                          putPacketInData pl
-        lift $ print msg
-        send msg
-
-
+        lift $ threadDelay 3000000
         lift $ putStrLn "done"
     
     stats <- assembleStats lSE 

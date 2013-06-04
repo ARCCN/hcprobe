@@ -172,7 +172,7 @@ pktGenTest params q fk chan  = forM_ [1..64] $ \i -> forM_ [1..10000] $ \j -> do
     threadDelay delay
 
   where nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
-        nports = (fromIntegral.length.ofp_ports.switchFeatures) fk
+        nports = (fromIntegral.length.ofp_switch_features_ports.switchFeatures) fk
         inports = fromIntegral nports :: Int
         choice n l | V.null l  = Nothing
                    | otherwise = Just $ l `V.unsafeIndex` (n `mod` V.length l)

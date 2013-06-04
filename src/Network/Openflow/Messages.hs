@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, BangPatterns #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns, RecordWildCards #-}
 module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  -- , ofpParsePacket  -- FIXME <- not needed
                                  -- , parseMessageData
@@ -9,7 +9,7 @@ module Network.Openflow.Messages ( ofpHelloRequest -- FIXME <- not needed
                                  , echoReply
                                  , headReply
                                  , errorReply
-                                 , statsReply
+                                 , descStatsReply
                                  , getConfigReply
                                  , putOfpPort
                                  , putOfpPacketIn
@@ -40,43 +40,49 @@ ofpHeaderLen = (8 + 8 + 16 + 32) `div` 8
 
 ofpHelloRequest :: Word8 -> Word32 -> PutM ()
 ofpHelloRequest v xid = putMessageHeader h >> return ()
-  where h = OfpHeader { ofp_hdr_version = v
-                      , ofp_hdr_type    = OFPT_HELLO
-                      , ofp_hdr_length  = fromIntegral ofpHeaderLen
-                      , ofp_hdr_xid     = xid
+  where h = OfpHeader { ofp_hdr_version   = v
+                      , ofp_hdr_type      = OFPT_HELLO
+                      , ofp_packet_length = Nothing
+                      , ofp_hdr_xid       = xid
                       }
 
 header :: Word8 -> Word32 -> OfpType -> OfpHeader
-header v x t = OfpHeader v t (fromIntegral ofpHeaderLen) x
+header v x t = OfpHeader v t Nothing x
 
 featuresReply :: Word8 -> OfpSwitchFeatures -> Word32 -> OfpMessage
 featuresReply ov sw xid = OfpMessage hdr feature_repl
   where hdr = header ov xid OFPT_FEATURES_REPLY
-        feature_repl = OfpFeatureReply sw
+        feature_repl = OfpFeaturesReply sw
 
 echoReply :: Word8 -> ByteString -> Word32 -> OfpMessage
 echoReply ov payload xid = OfpMessage hdr (OfpEchoReply payload)
-  where hdr = header ov xid OFPT_ECHO_REPLY       
+  where hdr = header ov xid OFPT_ECHO_REPLY
 
 headReply :: OfpHeader -> OfpType -> OfpMessage
 headReply h t = OfpMessage newHead OfpEmptyReply
-  where newHead = h {ofp_hdr_type = t, ofp_hdr_length = fromIntegral ofpHeaderLen}
+  where newHead = h {ofp_hdr_type = t, ofp_packet_length = Nothing}
 
 errorReply :: OfpHeader -> OfpError -> OfpMessage
 errorReply h tp = OfpMessage newHead (OfpErrorReply tp)
-  where newHead = h { ofp_hdr_type = OFPT_ERROR, ofp_hdr_length = fromIntegral ofpHeaderLen}
+  where newHead = h { ofp_hdr_type = OFPT_ERROR, ofp_packet_length = Nothing}
 
 getConfigReply :: OfpHeader -> OfpSwitchConfig -> OfpMessage
 getConfigReply hdr cfg = OfpMessage newHead (OfpGetConfigReply cfg)
-  where newHead = hdr { ofp_hdr_type = OFPT_GET_CONFIG_REPLY }
+  where newHead = hdr { ofp_hdr_type = OFPT_GET_CONFIG_REPLY, ofp_packet_length = Nothing }
 
 
-statsReply :: OfpHeader -> OfpMessage
-statsReply h = OfpMessage sHead sData
+descStatsReply :: OfpHeader -> OfpMessage
+descStatsReply h = OfpMessage sHead sData
   where sHead = h { ofp_hdr_type = OFPT_STATS_REPLY
-                  , ofp_hdr_length = fromIntegral ofpHeaderLen
+                  , ofp_packet_length = Nothing
                   }
-        sData = OfpStatsReply
+        sData = OfpStatsReply (OfpDescriptionStatsReply
+                               "ARCCN"   -- Manufacturer description
+                               "hcprobe" -- Hardware description
+                               "hcprobe" -- Software description
+                               "none"    -- Serial number
+                               "none"    -- Human readable description of datapath
+                              )
 
 
 {-
@@ -93,17 +99,20 @@ ofpParseHeader = do
 
 instance Binary OfpHeader where
   put _ = error "put message is not implemented" -- FIXME support method?
-  get = OfpHeader <$> getWord8 
+  get = OfpHeader <$> getWord8
                   <*> (toEnum . fromIntegral <$> getWord8)
-                  <*> getWord16be
+                  <*> (Just . fromIntegral <$> getWord16be)
                   <*> getWord32be
 
 instance Binary OfpMessage where
   put _ = error "put message is not supported" -- FIXME support method ?
-  get = do hdr <- get 
-           s <- getLazyByteString (fromIntegral (ofp_hdr_length hdr) - fromIntegral ofpHeaderLen)
-           let body = runGet (getMessage (ofp_hdr_type hdr)) s
-           return (OfpMessage hdr body)
+  get = do hdr <- get
+           case ofp_packet_length hdr of
+             Just l -> do
+               s <- getLazyByteString (fromIntegral l - fromIntegral ofpHeaderLen)
+               let body = runGet (getMessage (ofp_hdr_type hdr)) s
+               return (OfpMessage hdr body)
+             Nothing -> error "unspecified OF packet length"
 
 getMessage :: OfpType -> Get OfpMessageData
 getMessage x = case x of
@@ -119,10 +128,11 @@ getMessage x = case x of
                                                 alen <- getWord16be
                                                 skip (fromIntegral alen)
                                                 return (OfpPacketOut (OfpPacketOutData bid pid))
+                 !OFPT_FLOW_MOD           -> OfpFlowMod <$> get
                  !OFPT_VENDOR             -> OfpVendor . bsStrict <$> getRemainingLazyByteString
                  !OFPT_STATS_REQUEST      -> do s <- getWord16be
-                                                case s of
-                                                   0 -> return (OfpStatsRequest OFPST_DESC)
+                                                case toEnum (fromEnum s) of
+                                                   OFPST_DESC -> return (OfpStatsRequest OfpDescriptionStatsRequest)
                                                    _ -> return (OfpUnsupported BS.empty)
                  x                        -> OfpUnsupported .bsStrict <$> getRemainingLazyByteString
 -- getMessage !OFPT_FLOW_MOD           = OfpFlowMod . bsStrict <$> getRemainingLazyByteString
@@ -131,7 +141,7 @@ getMessage x = case x of
 {-
 parseMessageData :: OfpMessage -> Maybe OfpMessage
 parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
-  where 
+  where
     parse OFPT_HELLO            = runParse (return OfpHello)
     parse OFPT_FEATURES_REQUEST = runParse (return OfpFeaturesRequest)
     parse OFPT_ECHO_REQUEST     = runParse (return (OfpEchoRequest bs))
@@ -139,7 +149,7 @@ parseMessageData (OfpMessage hdr (OfpMessageRaw bs)) = parse (ofp_hdr_type hdr)
     parse OFPT_GET_CONFIG_REQUEST = runParse (return OfpGetConfigRequest)
     parse OFPT_PACKET_OUT       = runParse getPacketOut
     parse OFPT_VENDOR           = runParse (return (OfpVendor bs))
-    parse OFPT_STATS_REQUEST    = runParse getStatsRequest 
+    parse OFPT_STATS_REQUEST    = runParse getStatsRequest
     parse _                     = runParse (return (OfpUnsupported bs))
 
     runParse fGet =
@@ -152,7 +162,7 @@ parseMessageData x@(OfpMessage _ _) = Just x -- already parsed
 
 {-
 getOfpSetConfig :: Get OfpMessageData
-getOfpSetConfig = do 
+getOfpSetConfig = do
   wFlags <- getWord16be
   wSendL <- getWord16be
                              -- FIXME: possible enum overflow
@@ -182,10 +192,12 @@ getStatsRequest  = do
 
 putMessage :: OfpMessage -> PutM ()
 putMessage (OfpMessage h d) = do
+    ds <- marker  -- запомнили где старт сообщения
     alen <- putMessageHeader h
-    ds  <- marker
     putMessageData d
-    undelay alen . Word16be . (ofp_hdr_length h + ) . fromIntegral =<< distance ds
+    case ofp_packet_length h of
+      Nothing -> undelay alen . Word16be . fromIntegral =<< distance ds
+      Just x -> undelay alen (Word16be x)
 
 putMessageHeader :: OfpHeader -> PutM (DelayedPut Word16be)
 putMessageHeader h = do
@@ -206,16 +218,14 @@ putMessageHeader h = do
 putMessageData :: OfpMessageData -> PutM ()
 putMessageData OfpHello = return ()
 
-putMessageData (OfpFeatureReply f) = do
-  putWord64be (ofp_datapath_id f)
-  putWord32be (ofp_n_buffers f)
-  putWord8    (ofp_n_tables f)
+putMessageData (OfpFeaturesReply f) = do
+  putWord64be (ofp_switch_features_datapath_id f)
+  putWord32be (ofp_switch_features_n_buffers f)
+  putWord8    (ofp_switch_features_n_tables f)
   replicateM_ 3 (putWord8 0)
---  putWord32be (bitFlags ofCapabilities (ofp_capabilities f))
-  putWord32be (ofp_capabilities f)
---  putWord32be (bitFlags ofActionType   (ofp_actions f))
-  putWord32be (ofp_actions f)
-  mapM_ putOfpPort (ofp_ports f)
+  putWord32be (ofp_switch_features_capabilities f)
+  putWord32be (ofp_switch_features_actions f)
+  mapM_ putOfpPort (ofp_switch_features_ports f)
 
 putMessageData (OfpEchoReply bs) = putByteString bs
 
@@ -252,47 +262,135 @@ putMessageData (OfpPacketInReply p) = putOfpPacketIn p
 --    char dp_desc[DESC_STR_LEN];        /* Human readable description of datapath. */
 --};
 --OFP_ASSERT(sizeof(struct ofp_desc_stats) == 1056);
-putMessageData (OfpStatsReply) = do
-    putWord16be ((fromIntegral.fromEnum) OFPST_DESC)
+putMessageData (OfpStatsReply rep) = do
+    putWord16be (fromIntegral . fromEnum . statsReplyToType $ rep)
     putWord16be 0
-    putASCIIZ 256 "ARCCN"   -- Manufacturer description
-    putASCIIZ 256 "hcprobe" -- Hardware description
-    putASCIIZ 256 "hcprobe" -- Software description
-    putASCIIZ 32  "none"    -- Serial number
-    putASCIIZ 256 "none"    -- Human readable description of datapath
+    case rep of
+      OfpDescriptionStatsReply{..} -> do
+          putASCIIZ 256 ofp_desc_stats_rep_mfr
+          putASCIIZ 256 ofp_desc_stats_rep_hw
+          putASCIIZ 256 ofp_desc_stats_rep_sw
+          putASCIIZ 32  ofp_desc_stats_rep_serial_num
+          putASCIIZ 256 ofp_desc_stats_rep_dp
+      OfpFlowStatsReply{..} -> do
+          putWord8 ofp_flow_stats_rep_table_id
+          putOfpMatch ofp_flow_stats_rep_match
+          putWord32be ofp_flow_stats_rep_duration_sec
+          putWord32be ofp_flow_stats_rep_duration_nsec
+          putWord16be ofp_flow_stats_rep_priority
+          putWord16be ofp_flow_stats_rep_idle_timeout
+          putWord16be ofp_flow_stats_rep_hard_timeout
+          putWord64be ofp_flow_stats_rep_cookie
+          putWord64be ofp_flow_stats_rep_packet_count
+          putWord64be ofp_flow_stats_rep_byte_count
+          putByteString ofp_flow_stats_rep_actions -- ^ TOFIX
+      OfpAggregateStatsReply{..} -> do
+          putWord64be ofp_aggregate_stats_rep_packet_count
+          putWord64be ofp_aggregate_stats_rep_byte_count
+          putWord32be ofp_aggregate_stats_rep_flow_count
+          putZeros 4
+      OfpTableStatsReply{..} -> do
+          putWord8 ofp_table_stats_rep_table_id
+          putZeros 3
+          putASCIIZ 32 ofp_table_stats_rep_name
+          putWord32be ofp_table_stats_rep_wildcards
+          putWord32be ofp_table_stats_rep_max_entries
+          putWord32be ofp_table_stats_rep_active_count
+          putWord64be ofp_table_stats_rep_lookup_count
+          putWord64be ofp_table_stats_rep_matched_count
+      OfpPortStatsReply portStats -> forM_ portStats $ \OfpPortStats{..} -> do
+          putWord16be ofp_port_stats_port_no
+          putZeros 6
+          putWord64be ofp_port_stats_rx_packets
+          putWord64be ofp_port_stats_tx_packets
+          putWord64be ofp_port_stats_rx_bytes
+          putWord64be ofp_port_stats_tx_bytes
+          putWord64be ofp_port_stats_rx_dropped
+          putWord64be ofp_port_stats_tx_dropped
+          putWord64be ofp_port_stats_rx_errors
+          putWord64be ofp_port_stats_tx_errors
+          putWord64be ofp_port_stats_rx_frame_err
+          putWord64be ofp_port_stats_rx_over_err
+          putWord64be ofp_port_stats_rx_crc_err
+          putWord64be ofp_port_stats_collisions
+      OfpQueueStatsReply{..} -> do
+          putWord16be ofp_queue_stats_rep_port_no
+          putZeros 2
+          putWord32be ofp_queue_stats_rep_queue_id
+          putWord64be ofp_queue_stats_rep_tx_bytes
+          putWord64be ofp_queue_stats_rep_tx_packets
+          putWord64be ofp_queue_stats_rep_tx_errors
+      OfpVendorStatsReply bs ->
+          putByteString bs
+
+putMessageData (OfpFlowRemoved OfpFlowRemovedData{..}) = do
+    putWord64be ofp_flow_removed_cookie
+    putWord16be ofp_flow_removed_priority
+    putWord8 (fromIntegral $ fromEnum ofp_flow_removed_reason)
+    putWord8 ofp_flow_removed_table_id
+    putWord32be ofp_flow_removed_duration_sec
+    putWord32be ofp_flow_removed_duration_nsec
+    putWord16be ofp_flow_removed_idle_timeout
+    putWord16be ofp_flow_removed_hard_timeout
+    putWord64be ofp_flow_removed_packet_count
+    putWord64be ofp_flow_removed_byte_count
+    putOfpMatch ofp_flow_removed_match
 
 putMessageData (OfpPortStatus (OfpPortStatusData reason data_)) = do
     putWord8 . fromIntegral . fromEnum $ reason
     putZeros 7
     putOfpPort data_
+
+putMessageData (OfpQueueGetConfigReply OfpQueueConfig{..}) = do
+    putWord16be ofp_queue_config_port
+    putZeros 6 -- padding
+    forM_ ofp_queue_config_queues $ \OfpPacketQueue{..} -> do
+        x <- marker
+        putWord32be opq_queue_id
+        qlen <- delayedWord16be
+        putZeros 2
+        forM_ opq_properties $ \prop ->
+            case prop of
+                OfpQueuePropertyNone -> do
+                    putWord16be 0 -- OFPQT_NONE
+                    putWord16be 8
+                    putZeros 4    -- padding
+                OfpQueuePropertyMinRate{..} -> do
+                    putWord16be 1 -- OFPQT_MIN_RATE
+                    putWord16be 16
+                    putZeros 4    -- padding
+                    putWord16be oqp_rate
+                    putZeros 6   -- padding
+        undelay qlen . Word16be . fromIntegral =<< distance x
+
 putMessageData (OfpMessageRaw x) = putByteString x
 -- FIXME: typed error handling
 --putMessageData _        = error "Unsupported message: "
 
 buildMessage :: OfpMessage -> Builder
-buildMessage (OfpMessage h d) = 
+buildMessage (OfpMessage h d) =
         buildMessageHeader h dsize <> fromLazyByteString dat
       where dat   = toLazyByteString (buildMessageData d)
             dsize = fromIntegral $! LBS.length dat
 
 buildMessageHeader :: OfpHeader -> Int -> Builder
-buildMessageHeader h l = fromWord8 (ofp_hdr_version h) 
-          <> fromWord8 (fromIntegral.fromEnum.ofp_hdr_type $! h) 
-          <> fromWord16be (ofp_hdr_length h + fromIntegral l)
+buildMessageHeader h l = fromWord8 (ofp_hdr_version h)
+          <> fromWord8 (fromIntegral.fromEnum.ofp_hdr_type $! h)
+          <> fromWord16be (fromIntegral ofpHeaderLen + fromIntegral l)
           <> fromWord32be (ofp_hdr_xid h)
 
 buildMessageData :: OfpMessageData -> Builder
 buildMessageData OfpHello = mempty
-buildMessageData (OfpFeatureReply f) =
-        fromWord64be (ofp_datapath_id f)  <>
-        fromWord32be (ofp_n_buffers   f)  <>
-        fromWord8    (ofp_n_tables    f)  <>
+buildMessageData (OfpFeaturesReply f) =
+        fromWord64be (ofp_switch_features_datapath_id f)  <>
+        fromWord32be (ofp_switch_features_n_buffers   f)  <>
+        fromWord8    (ofp_switch_features_n_tables    f)  <>
         fromWord8 0 <> fromWord8 0 <> fromWord8 0 <>
-        fromWord32be (ofp_capabilities f) <>
-        fromWord32be (ofp_actions f)      <>
-        foldl (\x y -> x <> buildOfpPort y) mempty (ofp_ports f)
+        fromWord32be (ofp_switch_features_capabilities f) <>
+        fromWord32be (ofp_switch_features_actions f)      <>
+        foldl (\x y -> x <> buildOfpPort y) mempty (ofp_switch_features_ports f)
 buildMessageData (OfpEchoReply bs) = fromByteString bs
-buildMessageData (OfpGetConfigReply cfg) = 
+buildMessageData (OfpGetConfigReply cfg) =
         fromWord16be (fromIntegral (fromEnum (ofp_switch_cfg_flags cfg)))
         <> fromWord16be (ofp_switch_cfg_miss_send_len cfg)
 buildMessageData (OfpErrorReply et) =
@@ -301,14 +399,16 @@ buildMessageData (OfpErrorReply et) =
         <> fromByteString (BS.take 64 (ofp_error_data et))
 buildMessageData OfpEmptyReply = mempty
 buildMessageData (OfpPacketInReply p) = buildOfpPacketIn p
-buildMessageData OfpStatsReply =
-     fromWord16be ((fromIntegral.fromEnum) OFPST_DESC) 
-  <> fromWord16be 0
-  <> buildASCIIZ 256 "ARCCN"   -- Manufacturer description
-  <> buildASCIIZ 256 "hcprobe" -- Hardware description
-  <> buildASCIIZ 256 "hcprobe" -- Software description
-  <> buildASCIIZ 32  "none"    -- Serial number
-  <> buildASCIIZ 256 "none"    -- Human readable description of datapath
+buildMessageData (OfpStatsReply rep) =
+     fromWord16be (fromIntegral . fromEnum . statsReplyToType $ rep)
+     <> fromWord16be 0
+     <> case rep of
+          OfpDescriptionStatsReply{..} ->
+              buildASCIIZ 256 ofp_desc_stats_rep_mfr
+              <> buildASCIIZ 256 ofp_desc_stats_rep_hw
+              <> buildASCIIZ 256 ofp_desc_stats_rep_sw
+              <> buildASCIIZ 32  ofp_desc_stats_rep_serial_num
+              <> buildASCIIZ 256 ofp_desc_stats_rep_dp
 
 putOfpPort :: OfpPhyPort -> PutM ()
 putOfpPort port = do
@@ -346,7 +446,7 @@ putOfpPacketIn pktIn = do
   undelay al . fromIntegral =<< distance x
 
 buildOfpPacketIn :: OfpPacketIn -> Builder
-buildOfpPacketIn pktIn = 
+buildOfpPacketIn pktIn =
       fromWord32be (ofp_pkt_in_buffer_id pktIn)
       <> fromWord16be (fromIntegral len)
       <> fromWord16be (ofp_pkt_in_in_port pktIn)
@@ -358,3 +458,18 @@ buildOfpPacketIn pktIn =
       dat = toLazyByteString $! fromByteString (runPutToByteString 32768 (ofp_pkt_in_data pktIn))
       len = LBS.length dat
 
+putOfpMatch :: OfpMatch -> PutM ()
+putOfpMatch OfpMatch{..} = do
+    putWord32be ofp_match_wildcards
+    putWord16be ofp_match_in_ports
+    putWord64be ofp_match_dl_src
+    putWord64be ofp_match_dl_dst
+    putWord16be ofp_match_dl_vlan
+    putWord8 ofp_match_dl_vlan_pcp
+    putWord16be ofp_match_dl_type
+    putWord8 ofp_match_nw_tos
+    putWord8 ofp_match_nw_proto
+    putWord32be ofp_match_nw_src
+    putWord32be ofp_match_nw_dst
+    putWord16be ofp_match_tp_src
+    putWord16be ofp_match_tp_dst

@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module HCProbe.EDSL.PacketGeneration
   ( -- * openflow functions
     putOFMessage
@@ -5,25 +6,125 @@ module HCProbe.EDSL.PacketGeneration
   , putOFHeader
   , putHdrVersion
   , putHdrType
-  , putHdrLength
+  , putPacketLength
   , putHdrXid
     -- * payload
   , putOFData
   , putRaw
+  -- * OfpPacketIn
   , putPacketIn
   , putPacketInBufferId
   , putPacketInPort
   , putPacketInReason
   , putPacketInData
+  -- * OfpPortStatusData
+  , putPortStatus
+  , putPortStatusReason
+  , putPortStatusPortDirect
+  , putPortStatusPort
+  , putFlowRemoved
+    -- * OfpPhyPort
+  , putPortNo
+  , putPortHwAddr
+  , putPortName
+  , putPortConfig
+  , putPortState
+  , putPortCurrent
+  , putPortAdvertised
+  , putPortSupported
+  , putPortPeer
+    -- * OfpMatch
+  , putMatchWildcards
+  , putMatchInPorts
+  , putMatchDlSrc
+  , putMatchDlDst
+  , putMatchDlVlan
+  , putMatchDlVlanPcp
+  , putMatchDlType
+  , putMatchNwTos
+  , putMatchNwProto
+  , putMatchNwSrc
+  , putMatchNwDst
+  , putMatchTpSrc
+  , putMatchTpDst
+    -- * OfpFlowRemovedData
+  , putFlowRemovedCookie
+  , putFlowRemovedPriority
+  , putFlowRemovedReason
+  , putFlowRemovedTableId
+  , putFlowRemovedDurationSec
+  , putFlowRemovedDurationNsec
+  , putFlowRemovedIdleTimeout
+  , putFlowRemovedHardTimeout
+  , putFlowRemovedPacketCount
+  , putFlowRemovedByteCount
+  , putFlowRemovedMatch
+  , putFlowRemovedMatchDirect
+  -- * OfpErrorMessage
+  , putErrorMessage
+  , putErrorType
+  , putErrorData
+  -- * OfpFeaturesReply
+  , putFeaturesReply
+  , putSwitchFeaturesDatapathId
+  , putSwitchFeaturesNBuffers
+  , putSwitchFeaturesNTables
+  , putSwitchFeaturesCapabilities
+  , putSwitchFeaturesActions
+  , putSwitchFeaturesPorts
+  -- * OfpGetConfigReply
+  , putGetConfigReply
+  , putSwitchCfgFlags
+  , putSwitchCfgMissSendLen
+  -- * OfpQueueGetConfigReply
+  , putQueueGetConfigReply
+  , putQueueConfigPort
+  , putQueueConfigQueues
+  -- * OfpStatsReply
+  , putDescriptionStatsReply
+  , putDescStatsRepMfr
+  , putDescStatsRepHw
+  , putDescStatsRepSw
+  , putDescStatsRepSerialNum
+  , putDescStatsRepDp
+  , putAggregateStatsReply
+  , putAggregateStatsRepPacketCount
+  , putAggregateStatsRepByteCount
+  , putAggregateStatsRepFlowCount
+  , putPortStatsReply
+  , putPortStatsRepAppend
+  , putPortStatsPortNo
+  , putPortStatsRxPackets
+  , putPortStatsTxPackets
+  , putPortStatsRxBytes
+  , putPortStatsTxBytes
+  , putPortStatsRxDropped
+  , putPortStatsTxDropped
+  , putPortStatsRxErrors
+  , putPortStatsTxErrors
+  , putPortStatsRxFrameErr
+  , putPortStatsRxOverErr
+  , putPortStatsRxCrcErr
+  , putPortStatsCollisions
+  , putQueueStatsReply
+  , putQueueStatsRepPortNo
+  , putQueueStatsRepQueueId
+  , putQueueStatsRepTxBytes
+  , putQueueStatsRepTxPackets
+  , putQueueStatsRepTxErrors
+  , putVendorStatsReply
   ) where
 
 import Control.Monad.Writer
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.Default
 import Data.Word
 
 import Network.Openflow.Types
 import Network.Openflow.StrictPut
+
+import HCProbe.EDSL.TH
 
 
 -- FIXME use buffer or such stuff
@@ -43,8 +144,8 @@ putHdrType :: OfpType -> Writer (Endo OfpHeader) ()
 putHdrType t = tell . Endo $ \h -> h{ofp_hdr_type = t}
 
 -- | FIXEME maybe we need to add default length
-putHdrLength :: Word16 -> Writer (Endo OfpHeader) ()
-putHdrLength l = tell . Endo $ \h -> h{ofp_hdr_length = l}
+putPacketLength :: Word16 -> Writer (Endo OfpHeader) ()
+putPacketLength l = tell . Endo $ \h -> h{ofp_packet_length = Just l}
 
 -- | Add xid
 putHdrXid :: Word32 -> Writer (Endo OfpHeader) ()
@@ -71,3 +172,78 @@ putPacketInBufferId i = tell . Endo $ \m -> m{ofp_pkt_in_buffer_id = i}
 putPacketInData :: Put -> Writer (Endo OfpPacketIn) ()
 putPacketInData p = tell . Endo $ \m -> m{ofp_pkt_in_data = p}
 
+putPortStatus :: Writer (Endo OfpPortStatusData) a -> Writer (Endo OfpMessage) ()
+putPortStatus w = tell . Endo $ \m -> m{ofp_data = OfpPortStatus (appEndo (execWriter w) def)}
+
+putPortStatusReason :: OfpPortReason -> Writer (Endo OfpPortStatusData) ()
+putPortStatusReason r = tell . Endo $ \m -> m{opt_port_status_reason = r}
+
+putPortStatusPortDirect :: OfpPhyPort -> Writer (Endo OfpPortStatusData) ()
+putPortStatusPortDirect p = tell . Endo $ \m -> m{opt_port_status_desc = p}
+
+putPortStatusPort :: Writer (Endo OfpPhyPort) a -> Writer (Endo OfpPortStatusData) ()
+putPortStatusPort w = tell . Endo $ \m -> m{opt_port_status_desc = appEndo (execWriter w) def}
+
+$(generatePutters ''OfpPhyPort)
+
+$(generatePutters ''OfpMatch)
+
+putFlowRemoved :: Writer (Endo OfpFlowRemovedData) a -> Writer (Endo OfpMessage) ()
+putFlowRemoved w = tell . Endo $ \m -> m{ofp_data = OfpFlowRemoved (appEndo (execWriter w) def)}
+
+putFlowRemovedMatch :: Writer (Endo OfpMatch) a -> Writer (Endo OfpFlowRemovedData) ()
+putFlowRemovedMatch w = tell . Endo $ \m -> m{ofp_flow_removed_match = appEndo (execWriter w) def}
+
+$(generatePutters ''OfpFlowRemovedData)
+
+putErrorMessage :: Writer (Endo OfpError) a -> Writer (Endo OfpMessage) ()
+putErrorMessage w = tell . Endo $ \m -> m{ofp_data = OfpErrorReply (appEndo (execWriter w) def)}
+
+putErrorType :: OfpErrorType -> Writer (Endo OfpError) ()
+putErrorType t = tell . Endo $ \p -> p{ofp_error_type = t}
+
+putErrorData :: ByteString -> Writer (Endo OfpError) ()
+putErrorData d = tell . Endo $ \p -> p{ofp_error_data = d}
+
+putFeaturesReply :: Writer (Endo OfpSwitchFeatures) a -> Writer (Endo OfpMessage) ()
+putFeaturesReply w = tell . Endo $ \m -> m{ofp_data = OfpFeaturesReply (appEndo (execWriter w) def)}
+
+$(generatePutters ''OfpSwitchFeatures)
+
+putGetConfigReply :: Writer (Endo OfpSwitchConfig) a -> Writer (Endo OfpMessage) ()
+putGetConfigReply w = tell . Endo $ \m -> m{ofp_data = OfpGetConfigReply (appEndo (execWriter w) def)}
+
+$(generatePutters ''OfpSwitchConfig)
+
+putQueueGetConfigReply :: Writer (Endo OfpQueueConfig) a -> Writer (Endo OfpMessage) ()
+putQueueGetConfigReply w = tell . Endo $ \m -> m{ofp_data = OfpQueueGetConfigReply (appEndo (execWriter w) def)}
+
+$(generatePutters ''OfpQueueConfig)
+
+putDescriptionStatsReply :: Writer (Endo OfpStatsReplyData) a -> Writer (Endo OfpMessage) ()
+putDescriptionStatsReply w =
+    tell . Endo $ \m -> m{ofp_data = OfpStatsReply (appEndo (execWriter w) (OfpDescriptionStatsReply BS.empty BS.empty BS.empty BS.empty BS.empty))}
+
+putAggregateStatsReply :: Writer (Endo OfpStatsReplyData) a -> Writer (Endo OfpMessage) ()
+putAggregateStatsReply w =
+    tell . Endo $ \m -> m{ofp_data = OfpStatsReply (appEndo (execWriter w) (OfpAggregateStatsReply def def def))}
+
+putPortStatsReply :: Writer (Endo OfpStatsReplyData) a -> Writer (Endo OfpMessage) ()
+putPortStatsReply w =
+    tell . Endo $ \m -> m{ofp_data = OfpStatsReply (appEndo (execWriter w) (OfpPortStatsReply []))}
+
+putPortStatsRepAppend :: Writer (Endo OfpPortStats) a -> Writer (Endo OfpStatsReplyData) ()
+putPortStatsRepAppend w =
+    -- doing prepend because Endo monoid does operations in reverse order
+    tell . Endo $ \(OfpPortStatsReply ports) -> OfpPortStatsReply ((appEndo (execWriter w) def) : ports)
+
+$(generatePutters ''OfpPortStats)
+
+putQueueStatsReply :: Writer (Endo OfpStatsReplyData) a -> Writer (Endo OfpMessage) ()
+putQueueStatsReply w =
+    tell . Endo $ \m -> m{ofp_data = OfpStatsReply (appEndo (execWriter w) (OfpQueueStatsReply def def def def def))}
+
+putVendorStatsReply :: ByteString -> Writer (Endo OfpMessage) ()
+putVendorStatsReply bs = tell . Endo $ \m -> m{ofp_data = OfpStatsReply (OfpVendorStatsReply bs)}
+
+$(generatePutters ''OfpStatsReplyData)

@@ -4,7 +4,9 @@ module HCProbe.EDSL.Handlers
     ( OfpPredicate
     , predicateHandler
     , PktStats(..)
+    , StatEntry(..)
     , initPacketStats
+    , setSilentStatsHandler
     , setStatsHandler
     , statsSend
     , statsSendOFPPacketIn
@@ -41,7 +43,7 @@ import qualified Statistics.Sample as S
 
 type OfpPredicate = OfpType -> Bool
 
-predicateHandler :: Num a 
+predicateHandler :: Num a
                 => OfpPredicate
                 -> IORef a
                 -> (OfpType, OfpMessage)
@@ -57,8 +59,15 @@ data PktStats = PktStats { pktStatsSentTotal :: !Int
                          , pktStatsRecvTotal :: !Int
                          , pktStatsLostTotal :: !Int
                          , pktStatsConnLost  :: !Int
-                         , pktStatsRoundtripTime :: !(Maybe NominalDiffTime)
+                         , pktStatsRoundtripTimes :: ![NominalDiffTime]
                          } deriving Show
+
+data StatEntry = StatEntry { statSentTotal     :: !Int
+                           , statRecvTotal     :: !Int
+                           , statLostTotal     :: !Int
+                           , statBid           :: !Word32
+                           , statRoundtripTime :: !NominalDiffTime
+                           } deriving Show
 
 data StatsEntity = StatsEntity { packetQ :: TVarL (IM.IntMap UTCTime)
                                , pktStats   :: TVar PktStats
@@ -72,37 +81,56 @@ initPacketStats :: (MonadIO m)
 initPacketStats len to = do
     im <- liftIO $ newTVarIO IM.empty
     pQ <- liftIO $ newTVarIO (0,im)
-    st <- liftIO $ newTVarIO (PktStats 0 0 0 0 Nothing)
+    st <- liftIO $ newTVarIO (PktStats 0 0 0 0 [])
     return $ StatsEntity pQ st len to
 
-setStatsHandler :: StatsEntity
-                -> FakeSwitchM ()
-setStatsHandler pS = setUserHandler $ statsHandler pS
+setSilentStatsHandler :: StatsEntity
+                      -> FakeSwitchM ()
+setSilentStatsHandler pS = setStatsHandler pS $ \_ -> return ()
 
-statsHandler :: StatsEntity 
-             -> (OfpType, OfpMessage) 
-             -> IO (OfpType, OfpMessage)
-statsHandler (StatsEntity q s _ _) 
-             m@(_, (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid)))) = do
+
+setStatsHandler :: StatsEntity
+                -> (StatEntry -> IO ())
+                -> FakeSwitchM ()
+setStatsHandler pS eH = setUserHandler $ onReceive pS eH
+
+onReceive :: StatsEntity
+          -> (StatEntry -> IO ())
+          -> (OfpType, OfpMessage)
+          -> IO (OfpType, OfpMessage)
+onReceive sE eH m@(_, (OfpMessage _ (OfpPacketOut (OfpPacketOutData bid _pid))))
+    = receiveHandler sE eH bid m
+onReceive sE eH m@(_, OfpMessage _ (OfpFlowMod OfpFlowModData{ofp_flow_mod_buffer_id=bid}))
+    = receiveHandler sE eH bid m
+onReceive _ _ m = return m
+
+receiveHandler (StatsEntity q s _ _) entryHandler  bid m = do
   now <- getCurrentTime
   pq  <- readTVarIO . snd =<< readTVarIO q
   whenJustM (IM.lookup ibid pq) $ \dt -> do
-    atomically $ do
-      modifyTVar s (\st -> st { pktStatsSentTotal = succ (pktStatsSentTotal st)
-                                , pktStatsRoundtripTime = Just( now `diffUTCTime` dt )
-                                })
+    entry <- atomically $ do
+      st <- readTVar s
+      let sent = pktStatsSentTotal st
+          recvd = succ (pktStatsRecvTotal st)
+          lost = pktStatsLostTotal st
+          rtt = now `diffUTCTime` dt
+          st' = st { pktStatsRecvTotal = recvd
+                   , pktStatsRoundtripTimes = rtt : (pktStatsRoundtripTimes st)
+                   }
+      writeTVar s st'
       (l,pq') <- readTVar q
       modifyTVar pq' $ IM.delete ibid
       writeTVar q (l-1,pq')
+      return (StatEntry sent recvd lost bid rtt)
+    entryHandler entry
   return m
   where ibid = fromIntegral bid
-statsHandler _ m = return m
 
-statsOnSend :: (MonadIO m) 
+statsOnSend :: (MonadIO m)
             => StatsEntity
             -> OfpMessage
             -> m ()
-statsOnSend (StatsEntity q s len to) 
+statsOnSend (StatsEntity q s len to)
             ( OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = liftIO $ do
   now <- getCurrentTime
   atomically $ do
@@ -127,16 +155,16 @@ statsOnSend _ _ = return ()
 
 whenJustM :: (Monad m) => (Maybe a) -> (a -> m b) -> m ()
 whenJustM Nothing _ = return ()
-whenJustM (Just a) m = do 
-    m a; 
+whenJustM (Just a) m = do
+    m a;
     return()
 
 statsSend :: StatsEntity
           -> OfpMessage
           -> FakeSwitchM ()
-statsSend q m = do 
+statsSend q m = do
     statsOnSend q m
-    send m 
+    send m
 
 statsSendOFPPacketIn :: StatsEntity
                      -> Word16
@@ -154,7 +182,7 @@ statsSendOFPPacketIn q pid pl = do
 getStats :: (MonadIO m)
          => StatsEntity
          -> m PktStats
-getStats (StatsEntity _ s _ _) = 
+getStats (StatsEntity _ s _ _) =
     liftIO $ readTVarIO s
 
 assembleStats :: (MonadIO m)
@@ -165,15 +193,10 @@ assembleStats lSE = liftIO $ do
   return $ sumStat lPS
 
 sumStat :: [PktStats] -> PktStats
-sumStat lPS = 
-  let summ = foldl1 addStats lPS
-      len  = length lPS
-  in summ{ pktStatsRoundtripTime 
-        = (\a -> return $ a / (fromIntegral len) ) 
-            =<< (pktStatsRoundtripTime summ)}
+sumStat lPS = foldl1 addStats lPS
   where
-    addStats (PktStats s r l cl rtt ) (PktStats as ar al acl artt) = 
-      PktStats (s+as) (r+ar) (l+al) (cl+acl) (liftM2 (+) rtt artt)
+    addStats (PktStats s r l cl rtt ) (PktStats as ar al acl artt) =
+      PktStats (s+as) (r+ar) (l+al) (cl+acl) (rtt ++ artt)
 
 type HCState = (Int,Int,UTCTime)
 newtype IOStat a = IOStat { runIOStat :: StateT HCState IO a
@@ -196,7 +219,7 @@ runStatsLogging :: (MonadIO m)
                 -> Bool
                 -> m ()
 runStatsLogging lSE sP logFile display = liftIO $ do
-  tChan <- newTChanIO 
+  tChan <- newTChanIO
   let wl = case logFile of Nothing -> []
                            Just file -> [writeLog sP file tChan]
       ds = if display then (displayStats sP tChan):wl
@@ -216,8 +239,7 @@ updateLog samplingPeriod chan lSE = do
       when ( fromRational dt > (0::Double) ) $ do
         stats <- liftIO $ mapM readTVarIO tst
         let !st = sumStat stats
-        let !rtts = BV.fromList $ (map (fromRational.toRational).
-                mapMaybe pktStatsRoundtripTime) stats :: BV.Vector Double
+        let !rtts = BV.fromList $ (concatMap (map (fromRational.toRational) . pktStatsRoundtripTimes) stats) :: BV.Vector Double
         let !mean = S.mean rtts * 1000 :: Double
         let !sent' = pktStatsSentTotal st
         let !recv' = pktStatsRecvTotal st
@@ -226,7 +248,7 @@ updateLog samplingPeriod chan lSE = do
         let !lost' = pktStatsLostTotal st
         let !err  = pktStatsConnLost st
         put (sent', recv', now)
-        liftIO $ atomically $ writeTChan 
+        liftIO $ atomically $ writeTChan
                     chan LogEntry { logTimestamp     = now `diffUTCTime` initTime
                                     , logSendPerSecond = sps
                                     , logRecvPerSecond = rps
@@ -240,7 +262,7 @@ updateLog samplingPeriod chan lSE = do
   return ()
 
 writeLog :: Int -> String -> TChan LogEntry -> IO ()
-writeLog samplingPeriod logFileName chan = 
+writeLog samplingPeriod logFileName chan =
   withFile logFileName WriteMode $ \h ->
     forever $ do
       hSetBuffering h NoBuffering -- If buffering on, tail won't be pused to file
@@ -262,7 +284,7 @@ displayStats sampligPeriod chan = do
   hSetBuffering stdout NoBuffering
   forever $ do
     log' <- atomically $ let k = do x <- readTChan chan
-                                    l <- isEmptyTChan chan 
+                                    l <- isEmptyTChan chan
                                     if l then return x
                                          else k
                         in k

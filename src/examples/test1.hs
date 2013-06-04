@@ -40,7 +40,7 @@ main = do
                 let port = 0
                     m1   = 37 -- TODO gen mac here
                     m2   = 29 -- TODO gen mac here
-                let pl = putEthernetFrame . (EthFrameP m1 m2) . putIPv4Pkt $
+                let pl = putEthernetFrame . (EthFrame m1 m2) . putIPv4Pkt $
                             TestPacketTCP { dstMAC = m2
                                           , srcMAC = m1
                                           , srcIP  = 99
@@ -65,7 +65,7 @@ main = do
                 let msg = putOFMessage $ do
                             putOFHeader $ do
                               putHdrType OFPT_PACKET_IN
-                              putHdrLength 42
+                              putPacketLength 4
                             putPacketIn $ do
                               putPacketInData pl
                 send msg
@@ -80,7 +80,7 @@ main = do
        let port = 0
            m1   = 37 -- TODO gen mac here
            m2   = 29 -- TODO gen mac here
-       let pl = putEthernetFrame . (EthFrameP m1 m2) . putIPv4Pkt $
+       let pl = putEthernetFrame . (EthFrame m1 m2) . putIPv4Pkt $
                     TestPacketTCP { dstMAC = m2
                                   , srcMAC = m1
                                   , srcIP  = 99
