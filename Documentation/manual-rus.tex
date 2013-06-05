@@ -28,8 +28,8 @@
 
 \renewcommand{\labelitemii}{$\circ$}
                                       
-\title{HCProbe Manual}
-\author{Alexander Vershilov, Kirill Zaborsky}
+\title{Руководство по HCProbe}
+\author{Александр Вершилов, Кирилл Заборский}
 
 \begin{document}
 \maketitle
@@ -42,135 +42,137 @@
 
 \pagebreak
 
-\section{Introduction}
+\section{Общее описание}
 
-\textbf{HCProbe} is a library in Haskell which provides means to work with 
-OpenFlow protocol. Also it includes OpenFlow software switch reference
-implementation  and domain-specific language for constructing new custom
-switches which enables different testing scenarios for OpenFlow
-controllers.
+\textbf{HCProbe} является реализацией библиотеки для работы с протоколом
+OpenFlow на языке Haskell и предоставляет эталонную реализацию софтового
+OpenFlow свича и язык для создания новых свичей, который можно использовать
+для тестирования OpenFlow контроллеров.
 
-\subsection{List of terms}
+\subsection{Перечень терминов}
 
 \begin{description}
-  \item[OpenFlow] is a communications protocol that gives access to the
-    forwarding plane of a network switch or router over the network.
-  \item[EDSL] embedded domain-specific language
+  \item[OpenFlow] протокол управления процессом обработки данных, передающихся
+    по сети передачи данных маршрутизаторами и коммутаторами, реализующий
+    технологию программно-конфигурируемой сети (SDN).
+  \item[EDSL] встроенный предметно-ориентированный язык
 \end{description}
 
 \pagebreak
 
-\section{Subsystems description}
+\section{Подсистемы}
 
-Project HCProbe includes the following subsystems:
+В проекте HCProbe можно выделить следующие подсистемы:
 
 \begin{description}
-    \item[OpenFlow library]  -- OpenFlow protocol implementation
-    \item[OpenFlow/Ethernet] -- generation of Ethernet frames containing
-      packets from higher level protocols
-    \item[HCProbe]           -- reference OpenFlow switch implementation
-    \item[HCProbe/EDSL]      -- domain-specific language for software switches
-    \item[tests]             -- packet generation and parsing tests
-    \item[примеры]           -- OpenFlow test examples which use switch
-      construction EDSL described above
+    \item[библиотека OpenFlow] -- реализация OpenFlow протокола;
+    \item[OpenFlow/Ethernet]   -- генерация фреймов Ethernet с пакетами протоколов
+      более высоких уровней;
+    \item[HCProbe]             -- реализация генератора сетевых пакетов и эталонной
+      реализации программного свича OpenFlow;
+    \item[HCProbe/EDSL]        -- предметноориентированный язык для создания контроллеров
+    \item[тесты]               -- тесты создания и разбора пакетов;
+    \item[примеры]             -- примеры тестов OpenFlow, разработанные с использованием
+      разработанного предметно-ориентированного языка.
 \end{description}
 
 
-\subsection{OpenFlow library}
+\subsection{Библиотека OpenFlow}
 
-OpenFlow library provides OpenFlow protocol implementation in Haskell based on standard
-OpenFlow spec v1.0\footnote{http://www.openflow.org/documents/openflow-spec-v1.0.0.pdf}.
-Main library submodules are:
+Библиотека OpenFlow представляет собой поддержку протокола 
+OpenFlow описываемого стандартом OpenFlow spec 
+v1.0\footnote{http://www.openflow.org/documents/openflow-spec-v1.0.0.pdf}
+для \texttt{Haskell}. Основные модули подсистемы:
 
 \begin{description}
-    \item[Network.Openflow.Types] -- OpenFlow protocol types and data structures
+    \item[Network.Openflow.Types] -- реализация структур данных, соотвествующая
+        стуктурам данных OpenFlow протокола.
         \begin{itemize}
-            \item \textbf{Binary.Read} instances for parsing data structures
-            \item \textbf{Enum} instances for enumerations
+            \item инстансы \textbf{Binary.Read} для разбора структур;
+            \item инстансы \textbf{Enum} для всех перечислений.
         \end{itemize}
-    \item[Network.Openflow.Misc] -- miscellaneous helper functions
+    \item[Network.Openflow.Misc] -- дополнительные функции использующиеся в библиотеке
         \begin{itemize}
-            \item CRC calculation
-            \item serialization functions for some types
-            \item functions dealing with IP amd MAC addresses
+            \item функции подсчета CRC
+            \item функции сериализации специальных типов данных
+            \item функции работы с IP и MAC адресами
         \end{itemize}
-    \item[Network.Openflow.Messages] -- OpenFlow messages serialization and parsing functions.
+    \item[Network.Openflow.Messages] -- функции серилизации и разбора сообщений OpenFlow.
 \end{description}
 
-\emph{Current implementation is not full as not 100\% of all structures and messages from
-specification are implented but library extension could be done relatively easy by analogy with
-already existing code.}
+\emph{Реализация протокола не является полной, так реализованы не все структуры из
+спецификации, однако, расширение поддерживаемого протокола может выполняться по аналогии с
+уже написанным кодом.}
 
 \subsection{OpenFlow/Ethernet}
 
-Данная подсистема предоставляет интерфейс для создания своих типов пакетов, 
-которые могут быть преобразованы в стандартные сетевые пакеты. Таким образом можно создавать
-специальные тестовые пакеты с определенным заданным поведением (с полями по умолчанию и т.п.).
-Main modules:
-
+Данная подсистема предоставляет интерфейс для создания и формирования в бинарном виде
+стандартых сетевых пакетов различных протоколов.
+Основные модули:
 
 \begin{description}
-  \item[Network.Openflow.Ethernet] -- module reexporting all submodules (so it suffices
-    to import only this module)
-  \item[Network.Openflow.ARP]      -- ARP packets
-  \item[Network.Openflow.Frame]    -- network frame (Ethernet)
-  \item[Network.Openflow.IPv4]     -- IPv4 packet
-  \item[Network.Openflow.TCP]      -- TCP packet
-  \item[Network.Openflow.Types]    -- internal data types
+  \item[Network.Openflow.Ethernet] -- реэксопортирование всех модулей, достаточно использовать только его
+  \item[Network.Openflow.ARP]      -- ARP пакет
+  \item[Network.Openflow.Frame]    -- сетевой фрейм (Ethernet)
+  \item[Network.Openflow.IPv4]     -- IPv4 пакет
+  \item[Network.Openflow.TCP]      -- TCP пакет
+  \item[Network.Openflow.Types]    -- внутренние типы данных
 \end{description}
 
-hcprobe is an executable implementing a number of software switches which could be used as
-a reference implementation of an OpenFlow switch.
+\subsection{HCProbe}
 
-\texttt{hcprobe} program creates some specified number of virtual switches which connect to
-some specified controller and after that they begin to generate messages to the controller
-containing full \texttt{TCP} packet with substituted MAC addresses of ports used by 
-\texttt{HCProbe}. Every switch counts nubmer of transmitted packets, number of replies
-received for those packets and also number of lost replies. All the statistics is
-summed up and showed after program execution.
+HCProbe является исполняемым файлом, реализующий софтовый набор свичей, которые могут
+быть взяты за эталонную реализацию программного OpenFlow свича.
 
-Packet is considered lost if there were no reply corresponding to it during some specified
-period of time.
+Программа \texttt{hcprobe} создает указанное количество виртуальных свичей,
+которые соединяются к контроллером, после чего начинают генерировать сообщения
+к контроллеру, создавая полный \texttt{TCP} пакет с подставленными MAC-адресами,
+относящимися к портам, используемым \texttt{HCProbe}. Каждый из свичей 
+подсчитывает количество отправленных пакетов, количество полученных ответов на них,
+а также количество пропущенных ответов. Полученная статистика суммируется и выводится
+после выполнения программы.
+
+Потерянным считается пакет, время ожидания ответа на который превысило указанный
+интервал времени.
 
 \subsection{EDSL}
 
-Domain-specific language HCProbe was developed for creating OpenFlow switch programs, 
-for creating different combinations of such switches, running them and also for
-registration and collection of statistics on packet exchange between OpenFlow controller
-and switches.
+Предметно-ориентированный язык HCProbe предназначен для создания программ свичей OpenFlow,
+комбинаций этих свичей, запуска их, а также регистрации и сбора статистики по обмену
+пакетами между свичами и контроллером OpenFlow.
 
-\subsubsection{Program structure}
+\subsubsection{Структура программы}
 
-Typical program created using HCProbe domain-specific language includes at least
-the following 2 parts:
+Типовая программа с использованием предметно-ориентированного языка HCProbe включает
+минимально 2 части:
 
 \begin{itemize}
-  \item Switch creation and configuration
-  \item Switch run using specified program
+  \item Создание свича и задание его конафигурации;
+  \item Запуска свича в соответствии с требуемой программой.
 \end{itemize}
 
-Also in most cases 3rd step is required on which main program thread waits for switch
-programs completion (for all of them or some of them depending on current task) and
-calculates summarized statistics.
+Кроме этого в большинстве случаев потребуется 3-й шаг, на котором программа дожидается
+завершения работы свичей (одного или нескольких в зависимости от задачи) и получает
+итоговую сводку статистики по запуску.
 
-\subsubsection{Switch creation}
+\subsubsection{Создание свича}
 
-Switch could be created using either \lstinline!switch! or \lstinline!switchOn! command.
-In the first case a switch with default setting is used as a model. In the second case
-some previously created switch could be supplied as a parameter. Thus using command
-\lstinline!switchOn! one could create a copy of some already existing switch.
+Свич создается одной из команд \lstinline!switch! или \lstinline!switchOn!. В первом случае
+в качестве образца будет использован свич с конфигурацией по умолчанию, а во-втором 
+переданный параметром свич. Таким образом командой \lstinline!switchOn! можно получить
+копию свича, созданного ранее.
 
-In order to ensure that MAC address ranges do not overlap between different switches
-environment \lstinline!config! should be used in which switches must be created:
+Для того, чтобы диапазоны MAC-адресов свичей не пересекались используется окружение
+\lstinline!config!, в котором они и создаются:
 
 \begin{lstlisting}
     sw <- config $ switch <switchIP> $ do ..
 \end{lstlisting}%$
 
-\subsubsection{Configuring switch settings}
+\subsubsection{Настройка возможностей свича}
 
-Switch configuration is done using environment \lstinline!features! in which different
-switch parameters could be specified.
+Настройки свича проводятся в окружении \lstinline!features!, в котором можно задать
+параметры свича.
 
 \begin{lstlisting}
     switch <switchIP> $ do
@@ -178,7 +180,7 @@ switch parameters could be specified.
         ..
 \end{lstlisting}
 
-These parameters include К настройкам относятся, например порты, добавляемые командой \lstinline!addPort!.
+К настройкам относятся, например порты, добавляемые командой \lstinline!addPort!.
 
 Команда \lstinline!addMACs! добавляет список MAC-адресов к свичу, при этом они разделяются
 поровну между портами этого свича.
