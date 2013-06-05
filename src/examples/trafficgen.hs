@@ -112,5 +112,6 @@ main = do
         lift $ threadDelay 3000000
         lift $ putStrLn "done"
     
+    return()
     --stats <- assembleStats lSE 
     --print stats
