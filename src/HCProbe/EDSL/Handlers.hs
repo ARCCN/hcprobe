@@ -5,6 +5,7 @@ module HCProbe.EDSL.Handlers
     , predicateHandler
     , PktStats(..)
     , StatEntry(..)
+    , StatsEntity(..)
     , initPacketStats
     , setSilentStatsHandler
     , setStatsHandler
