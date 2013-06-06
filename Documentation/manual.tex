@@ -46,8 +46,8 @@
 
 \textbf{HCProbe} is a tool for testing OpenFlow controllers which
 includes a library in Haskell providing means to work with OpenFlow
-protocol. Also it includes OpenFlow software switch reference
-implementation and domain-specific language for constructing new
+protocol. Also it includes a reference implementation of an OpenFlow
+software switch and a domain-specific language for constructing new
 custom switches.
 
 \subsection{List of terms}
@@ -68,7 +68,7 @@ Project HCProbe includes the following subsystems:
 \begin{description}
     \item[OpenFlow library] -- OpenFlow protocol implementation
     \item[OpenFlow/Ethernet] -- generation of Ethernet frames
-      containing packets from higher level protocols
+      containing higher level protocols
     \item[HCProbe] -- reference OpenFlow switch implementation
     \item[HCProbe/EDSL] -- domain-specific language for constructing
       OpenFlow software switches
@@ -81,8 +81,8 @@ Project HCProbe includes the following subsystems:
 \subsection{OpenFlow library}
 
 OpenFlow library provides OpenFlow protocol implementation in Haskell
-based on standard <<OpenFlow Switch Specification, Version 1.0.0>>
-\footnote{http://www.openflow.org/documents/openflow-spec-v1.0.0.pdf}.
+based on the <<OpenFlow Switch Specification, Version 1.0.0>>
+\footnote{http://www.openflow.org/documents/openflow-spec-v1.0.0.pdf} standard.
 Main library submodules are:
 
 \begin{description}
@@ -104,14 +104,14 @@ Main library submodules are:
 \end{description}
 
 \emph{Current implementation is not complete as not 100\% of all
-  structures and messages from specification are implented but library
-  extension could be done relatively easy by analogy with already
+  structures and messages from specification are implemented, but the library
+  could be relatively easily extended by analogy with the already
   existing code.}
 
 \subsection{OpenFlow/Ethernet}
 
-This subsystem provides interface for creating packets of different
-network protocols (Ethernet, IPv4, ARP, TCP). With its help one could
+This subsystem provides an interface for creating packets of different
+network protocols (Ethernet, IPv4, ARP, TCP). With it one could
 create custom test packets for incapsulation into PacketIn OpenFlow
 messages.
 
@@ -119,15 +119,15 @@ Main modules:
 
 \begin{description}
   \item[Network.Openflow.Ethernet] -- module reexporting all
-    submodules (so it suffices to import only this module)
+    submodules (so you can import only this module)
   \item[Network.Openflow.ARP]      -- ARP packets
-  \item[Network.Openflow.Frame]    -- network frame (Ethernet)
-  \item[Network.Openflow.IPv4]     -- IPv4 packet
-  \item[Network.Openflow.TCP]      -- TCP packet
+  \item[Network.Openflow.Frame]    -- network frames (Ethernet)
+  \item[Network.Openflow.IPv4]     -- IPv4 packets
+  \item[Network.Openflow.TCP]      -- TCP packets
   \item[Network.Openflow.Types]    -- internal data types
 \end{description}
 
-hcprobe is an executable implementing a number of software switches
+hcprobe is a program implementing a number of software switches
 which could be used as a reference implementation of an OpenFlow
 switch.
 
@@ -136,18 +136,18 @@ switches which connect to a specified controller and after that they
 begin to send PacketIn messages to that controller. These messages
 contain Ethernet frames with a header including MAC addresses
 corresponding to some of virtual switch ports. Also these Ethernet
-frames contain IP packet with TCP segment in it.
+frames contain an IP packet with a TCP segment in it.
 
-During program run some statistics is shown on the console. The data
-shown include number of sent messages, received messages, mean
-roundtrip time for one message and also number of lost messages and
+While running the program outputs some statistics to the console. The data
+shown includes the number of sent messages, received messages, mean
+roundtrip time for one message and also the number of lost messages and
 closed connections with controller.
 
 \subsection{EDSL}
 
-Domain-specific language HCProbe was developed for creating OpenFlow
-switch programs, for creating different combinations of such switches,
-running them and also for registration and collection of statistics on
+We developed HCProbe domain-specific language for creating OpenFlow
+switches and different combinations of them, writing programs for the
+switches and also for registration and collection of statistics on
 packet exchange between OpenFlow controller and switches.
 
 \subsubsection{Program structure}
@@ -157,10 +157,10 @@ includes at least the following 2 parts:
 
 \begin{itemize}
   \item Switch creation and configuration
-  \item Switch run using specified program
+  \item Running the specified program for the switches
 \end{itemize}
 
-In most cases 3rd step is required also on which main program thread
+In most cases 3rd step is also required: the main program thread
 waits for switch programs completion (for all or some of them
 depending on current task) and calculates summarized statistics.
 
@@ -168,7 +168,7 @@ depending on current task) and calculates summarized statistics.
 
 Switch could be created using either \lstinline!switch! or
 \lstinline!switchOn! command.  In the first case a switch with default
-setting is used as a model. In the second case some previously created
+settings is used. In the second case some previously created
 switch could be supplied as a parameter. Thus using command
 \lstinline!switchOn! one could create a copy of some already existing
 switch.
@@ -195,17 +195,17 @@ which different switch parameters could be specified.
 These parameters include ports added with \lstinline!addPort! command.
 
 Command \lstinline!addMACs! adds a list of MAC addresses to
-switch. And those addresses are equally divided between different
+the switch. And those addresses are equally divided between different
 ports of the switch they are assigned to.
 
 \emph{As it was said above to prevent overlapping between MAC
   addresses of different switches environment \lstinline!config! is
-  being used. So if during call to \lstinline!addMACs! some
-  overlapping with prevously configures switches will be detected then
+  used. So if during the call to \lstinline!addMACs! some
+  overlapping with the prevously configured switches will be detected then
   instead of these overlapping addresses that switch will be assigned
-  other higher an not yet reservec MAC addresses}
+  other higher an not yet reserved MAC addresses}
 
-\lstinline!clearMACs! clears any MAC addresses assigned to switch.
+\lstinline!clearMACs! clears any MAC addresses assigned to the switch.
 
 
 \subsubsection{Switch run}
@@ -213,16 +213,16 @@ ports of the switch they are assigned to.
 Switch could be run in 2 ways:
 
 \begin{itemize}
-  \item if standard switch logic is enough for the task it should be
+  \item if the standard switch logic is enough for the task it should be
     run using command \lstinline!runSwitch!;
-  \item more frequently some custom switch behaviour is needed and it
-    could be set up by using command \lstinline!withSwitch!.
+  \item more frequently one will need some custom switch behaviour which
+    could be set up using command \lstinline!withSwitch!.
 \end{itemize}
 
 
 \subsubsection{Program run}
 
-After switch was started using \lstinline!withSwitch! it begins to
+After the switch was started using \lstinline!withSwitch! it begins to
 execute some program that was specified. Such program is just an
 ordinary block of Haskell code which could work with switch using
 special commands for that. These commands include:
@@ -232,17 +232,17 @@ special commands for that. These commands include:
 
   \item[waitForType] -- waiting for some particular type of message
     from controller: program execution will be suspended till a
-    message with specified time arrives, returns message received.
+    message of the specified type arrives. Rreturns the received message.
 
-  \item[waitForBID] -- waiting for a message containing specified
-    \lstinline!buffer id!.  Returns message received.
+  \item[waitForBID] -- waiting for a message containing the specified
+    \lstinline!buffer id!.  Returns the received message.
 
 \end{description}
 
 
 For message generation it is desirable that transaction numbers and
 buffer ids used in a switch program do not overlap with each
-other. To solve this issue commands \lstinline!nextBID! и
+other. To solve this issue commands \lstinline!nextBID! and
 \lstinline!nextTID! should be used to get proper ids.
 
 For message sending the following commands could be used:
@@ -256,8 +256,8 @@ For message sending the following commands could be used:
 
   \item[sendARPGreeting] -- used for sending message
     \lstinline!OFPT_PACKET_IN!  containing ARP reply inside (could be
-    used when there is some need to inform controller of all MAC
-    addresses available to switch before actuall testings starts)
+    used when one needs to inform controller about all MAC
+    addresses available to switch before actuall testing starts)
 
   \item[statsSend/statsSendOFPacketIn] -- variants of \lstinline!send!
     and \lstinline!sendOFPacketIn! including statistics collection
@@ -271,10 +271,10 @@ statistical parameters:
 
 \begin{itemize}
   \item number of sent messages
-  \item number of messages for which reply from controller was
+  \item number of messages for which reply from the controller was
     received
-  \item number of messages with no reply from controller (messages are
-    assumed lost when reply waiting queue gets overflown)
+  \item number of messages with no reply from the controller (messages are
+    assumed lost when the reply waiting queue overflows)
   \item round-trip times from message sending to receiving reply for it
 \end{itemize}
 
@@ -284,38 +284,38 @@ Using statistics collection requires the following steps:
   \item \lstinline!initPacketStats! execution to create
     \lstinline!StatsEntity! in which statistics data will be stored
   \item statistics handler regsitration using
-    \lstinline!setSilentStatsHandler!  or \lstinline!setStatsHandler stEnt ...!,
-    the second call is used e.g. to execute some action where reply
-    for a message will be received. Such action could include
-    outputting round-trip time to console or file
+    \lstinline!setSilentStatsHandler!  or \lstinline!setStatsHandler stEnt ...!.
+    The second call is used e.g. to execute some action on recieving a reply
+    for a message. Such action could include
+    outputting round-trip time to the console or a file
   \item sending message to controller using commands
     \lstinline!statsSend! or \lstinline!statsSendOFPacketIn!
-  \item calculating statistics summary on all controllers using
+  \item calculating statistics summary from all controllers using
     command \lstinline!assembleStats!
 \end{itemize}
 
-\subsubsection{Setting up custom reaction on controller messages}
+\subsubsection{Setting up a custom reaction to the controller messages}
 
-In order to switch reaction to controller messages from default one to
-some custom reaction (e.g. to check controller reaction on erroneous
+In order to change the default reaction to the controller messages to
+some custom reaction (e.g. to check controller reaction to the invalid
 switch replies, packet loss etc.) command \lstinline!setUserHandler!
 should be used.
 
-\emph{In current implementation statistics collection also uses this
-  command so it is not recommended to use both of these mechanisms
+\emph{Current implementation also uses this command for collecting
+  statistics so it is not recommended to use both of these tools
   (statistics collection and custom reaction on controller messages)
   at the same time.}
 
 \section{Appendices}
 
-\subsection{Parallel run of software switches}
+\subsection{Running software switches in parallel}
 
 In order to run one (or more) software switch in parallel with another
 and also to control program execution time we use
 async\footnote{http://hackage.haskell.org/package/async} library.
 
 The most simple method of using this library is limiting switch
-program execution to some specified period of time:
+program execution time:
 
 \begin{lstlisting}
 import Control.Concurrent (threadDelay)
@@ -325,14 +325,14 @@ import Control.Concurrent.Async (race_)
 race_ action1 (threadDelay 1000000)
 \end{lstlisting}
 
-Here we assume that action1 contains start of some switch so the
+Here we assume that action1 contains the start of some switch program so the
 execution of this line will finish either on switch program
 termination (if it does not use default implementation and is finite
 in time) or after one second of time.
 
 If more than one switch should be run simultaneously then typical
 solution in this case will be to run each of the switches in separate
-thread (using \lstinline!async!) and to wait their termination (or
+thread (using \lstinline!async!) and to wait for their termination (or
 till some period of time expires).
 
 Schematically it will look like:
@@ -344,20 +344,20 @@ Schematically it will look like:
   mapM_ waitCatch [a1,....,aN]
 \end{lstlisting}
 
-If program should be terminated if some error occurs in any of
+If program should be terminated if some error occurs in any of the
 switches then \lstinline!waitCatch! should be replaced with
 \lstinline!wait!.
 
 Instead of \lstinline!withSwitch! command \lstinline!runSwitch! could
-be used depending on task required.
+be used depending on the requirements.
 
 \subsection{Program examples}
 
 \subsubsection{Simple switch}
 
-It is one of quite simple examples in which we create 2
-switches. Configuration of the second is displayed on the console and
-the first is run with default program with time limitation of 3 seconds.
+Here is a quite simple example in which we create 2
+switches. Configuration of the second one is outputted to the console and
+the first one runs the default program with time limitation of 3 seconds.
 
 \begin{lstlisting}
 {-# LANGUAGE OverloadedStrings #-}
