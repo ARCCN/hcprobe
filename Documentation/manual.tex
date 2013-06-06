@@ -198,6 +198,13 @@ Command \lstinline!addMACs! adds a list of MAC addresses to
 switch. And those addresses are equally divided between different
 ports of the switch they are assigned to.
 
+\emph{As it was said above to prevent overlapping between MAC
+  addresses of different switches environment \lstinline!config! is
+  being used. So if during call to \lstinline!addMACs! some
+  overlapping with prevously configures switches will be detected then
+  instead of these overlapping addresses that switch will be assigned
+  other higher an not yet reservec MAC addresses}
+
 \lstinline!clearMACs! clears any MAC addresses assigned to switch.
 
 
