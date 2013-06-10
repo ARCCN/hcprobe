@@ -298,6 +298,10 @@ arpGreeting = do
 delay :: Int -> FakeSwitchM ()
 delay = lift . threadDelay
 
+-- | maximum OF message size in bytes limited because lengthes are uint16
+maxMessageSize :: Int
+maxMessageSize = 65356
+
 
 -- | Run configured switch with program inside
 withSwitch :: EFakeSwitch
@@ -313,7 +317,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
   runResourceT $ do
     userS <- liftIO $ newTVarIO (CL.sinkNull)
     userH <- liftIO $ newTVarIO $ (\m->return m)
-    let extract'  = runPutToByteString 32768 . putMessage
+    let extract'  = runPutToByteString maxMessageSize . putMessage
         listener =  appSource ad
             $= conduitDecode
             =$= ( CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m)) :: Conduit OfpMessage IO (OfpType, OfpMessage) )
