@@ -136,7 +136,7 @@ addPort confFlags stateFlags featureFlags (PortNameGen genname) = do
     tell $ Endo $ \f ->
         --TODO: store mac in db?
         let pps  = ofp_switch_features_ports f                            -- load existsing ports
-            n    = length pps
+            n    = (length pps) + 1
             macbytes = [0x00, 0x16,0x3e] ++ bytes
             port = OfpPhyPort
                      { ofp_port_no = fromIntegral n
