@@ -142,7 +142,7 @@ pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
                                 else
                                   go lss bs (n+1) (Just buf')
         go _ _ _ _ = error "impossible"
-    go ls (cycle [1..maxBuffers-1]) 0 Nothing
+    go ls (map (`mod` maxBuffers) [1..]) 0 Nothing
   where -- nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
         nports = (fromIntegral.length.ofp_switch_features_ports.switchFeatures) fk
         choice n l | V.null l  = Nothing
