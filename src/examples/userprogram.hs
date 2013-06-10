@@ -23,9 +23,8 @@ import Text.Printf
 
 main :: IO ()
 main = do 
-    let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
     fakeSw <- config $ do
-                switch ip $ do
+                switch $ do
                     addMACs [1..450]
                     features $ do
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
@@ -88,16 +87,17 @@ main = do
                                   , srcPort = 12342
                                   , testWSS = Just 3
                                   , testFlags = tcpFlagsOf [ACK]
-                                  , testPayloadLen = 32
+                                  , testPayloadLen = 64000
                                   , testAckNo = Nothing
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
         bid <- statsSendOFPPacketIn stEnt port pl
         waitForBID bid
+        lift $ threadDelay 1000000
 
-        bid' <- statsSendOFPPacketIn stEnt port pl
-        waitForBID bid'
+        --bid' <- statsSendOFPPacketIn stEnt port pl
+        --waitForBID bid'
 
         let msg = putOFMessage $ do
                       putOFHeader $ do
@@ -105,8 +105,8 @@ main = do
                           putPacketLength 9109
                       putPacketIn $ do
                           putPacketInData pl
-        lift $ print msg
-        send msg
+        --lift $ print msg
+        --send msg
 
 
         lift $ putStrLn "done"

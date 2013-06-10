@@ -88,23 +88,20 @@ makePort gen cfg st ft = (port, gen')
                           }
 
 data SwitchGen = SwitchGen {  dpid    :: Int
-                           ,  ipAddr  :: IPv4Addr
                            ,  swRnd   :: StdGen
                            }
-defaultSwGen :: Int -> IPv4Addr -> StdGen -> SwitchGen
-defaultSwGen i ip g = SwitchGen i ip g
+defaultSwGen :: Int -> StdGen -> SwitchGen
+defaultSwGen i g = SwitchGen i g
 
 queueSize :: Int
 queueSize = 32
 
 data EFakeSwitch = EFakeSwitch
       { eSwitchFeatures :: OfpSwitchFeatures                      -- ^ List of switch features
-      , eSwitchIP       :: IPv4Addr                               -- ^ Switch mac address
       , eMacSpace       :: M.IntMap (V.Vector MACAddr)  -- ???
       } deriving (Show)
 
 data FakeSwitch = FakeSwitch {  switchFeatures :: OfpSwitchFeatures
-                              , switchIP       :: IPv4Addr
                               , macSpace       :: M.IntMap (V.Vector MACAddr)
                               , onSendMessage  :: OfpMessage -> IO ()
                               , onRecvMessage  :: OfpMessage -> IO ()
@@ -128,7 +125,7 @@ makeSwitch gen ports mpp cap act cfg st ff = do
         qOut <- atomically $ newTQueue
         bfs  <- replicateM queueSize $ mkBuffer 16384
         atomically $ mapM_ (writeTQueue qOut) bfs
-        return $ (FakeSwitch features (ipAddr gen) ms (const $ return ()) (const $ return ()) (qIn,qOut), gen')
+        return $ (FakeSwitch features ms (const $ return ()) (const $ return ()) (qIn,qOut), gen')
   where features = OfpSwitchFeatures { ofp_switch_features_datapath_id  = fromIntegral (dpid gen)
                                      , ofp_switch_features_n_buffers    = maxBuffers
                                      , ofp_switch_features_n_tables     = 1
@@ -194,7 +191,7 @@ client :: (MonadIO m, MonadUnsafeIO m, MonadThrow m, MonadBaseControl IO m)
        -> FakeSwitch
        -> AppData IO
        -> m ()
-client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = runResourceT $ do
+client pktInGen fk@(FakeSwitch sw _ sH rH (pktInQ,pktStockQ)) ad = runResourceT $ do
 
     tranId <- liftIO $ newTVarIO (0::Int)
     featureReplyMonitor <- liftIO $ newTVarIO False
@@ -293,14 +290,17 @@ client pktInGen fk@(FakeSwitch sw _switchIP _ sH rH (pktInQ,pktStockQ)) ad = run
 defaultPacketInPort :: OfpSwitchFeatures -> Word16
 defaultPacketInPort = ofp_port_no . last . ofp_switch_features_ports
 
+dummyIp :: Word32
+dummyIp =  0x08080808 -- taking Google's address as dummy
+
 arpGrat :: FakeSwitch -> Word32 -> Word32 -> OfpMessage
 arpGrat fk bid tid = arpGrat' sw ip bid tid
-  where ip  = switchIP fk
+  where ip  = dummyIp
         sw  = switchFeatures fk
 
 eArpGrat :: EFakeSwitch -> Word32 -> Word32 -> OfpMessage
 eArpGrat fk bid tid = arpGrat' sw ip bid tid
-  where ip  = eSwitchIP fk
+  where ip  = dummyIp
         sw  = eSwitchFeatures fk
 
 arpGrat' :: OfpSwitchFeatures -> IPv4Addr -> Word32 -> Word32 -> OfpMessage

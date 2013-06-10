@@ -98,10 +98,9 @@ config = flip evalStateT (SwitchState S.empty)
 
 -- | create switch from default using builder
 switch :: (Monad m)
-        => IPv4Addr
-       -> WriterT (Endo EFakeSwitch) m a
+       => WriterT (Endo EFakeSwitch) m a
        -> m EFakeSwitch
-switch ip = switchOn def{eSwitchIP=ip}
+switch = switchOn def
 
 -- | Modify switch using builder
 switchOn :: (Monad m)
@@ -434,7 +433,7 @@ genPerPortMACs port = do
                 else ue{macGen = PerPort $ IM.insert port 0 mg}
 
 instance Default EFakeSwitch where
-  def = EFakeSwitch defaultFeatures def def
+  def = EFakeSwitch defaultFeatures def
 
 #if ! MIN_VERSION_base(4,6,0)
 atomicModifyIORef' :: IORef a -> (a -> (a,b)) -> IO b

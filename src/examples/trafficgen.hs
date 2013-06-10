@@ -35,11 +35,9 @@ printStats startTime lSE = do
                               
 main :: IO ()
 main = do 
-    let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
-    
     fakeSwList <- forM [1..5] $ \i -> do
           config $ do
-                switch ip $ do
+                switch $ do
                     addMACs [(i*400)+1..(i+1)*400]
                     features $ do
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def

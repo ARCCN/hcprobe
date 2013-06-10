@@ -22,9 +22,8 @@ import HCProbe.TCP
 
 main :: IO ()
 main = do 
-    let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
     (s1, s2) <- config $ do
-                s1 <- switch ip $ do
+                s1 <- switch $ do
                           features $ do -- create 2 ports
                             addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
                             addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def

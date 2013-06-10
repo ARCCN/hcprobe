@@ -107,7 +107,7 @@ empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
 pktGenTest :: (MACAddr -> MACAddr -> IPv4Addr -> IPv4Addr -> TestPacketTCP) -> Parameters -> TVarL PacketQ -> (OfpMessage -> IO ()) -> FakeSwitch -> IO ()
-pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
+pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ (qOut,qIn)) = do
     ls <- MR.randoms =<< MR.getStdGen
     let go (l1:l2:l3:l4:l5:l6:l7:l8:lss) (bid:bs) = do
             let pid = l1 `mod` (nports-1) + 2
@@ -340,10 +340,9 @@ toTryMain = do
               else return []
 
   fakeSw <- forM [1..switchNum params] $ \i -> do
-    let ip = fromIntegral i .|. (0x10 `shiftL` 24)
     rnd <- R.newStdGen
     macs <- liftM S.toList (randomSet (fromIntegral (portNum params) * macSpaceDim params+1) S.empty)
-    fst <$> makeSwitch (defaultSwGen i ip rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+    fst <$> makeSwitch (defaultSwGen i rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
 
     
   w <- forM fakeSw $ \fake' -> do

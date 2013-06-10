@@ -49,9 +49,8 @@ putASCII sz bs = SP.putByteString bs' >> replicateM_ (sz - (BS.length bs')) (SP.
 
 main :: IO ()
 main = do 
-    let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
     fakeSw <- config $ do
-                switch ip $ do
+                switch $ do
                     addMACs [1..450]
                     features $ do
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def

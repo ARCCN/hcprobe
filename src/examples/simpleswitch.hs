@@ -12,9 +12,8 @@ import Data.Bits                        -- for IP creation [ TODO: remove ]
 import HCProbe.EDSL
 
 main = do 
-    let ip = 15 .|. (0x10 `shiftL` 24) -- TODO: make ip reasonable
     (sw1,sw2) <- config $ do
-      sw1 <- switch ip $ do
+      sw1 <- switch $ do
             features $ do
                 {- replicateM 48 $ --uncomment to create 48 ports -}
                 addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
