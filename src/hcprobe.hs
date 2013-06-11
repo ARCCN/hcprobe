@@ -142,8 +142,9 @@ pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
                                 else
                                   go lss bs (n+1) (Just buf')
         go _ _ _ _ = error "impossible"
-    go ls (map (`mod` maxBuffers) [1..]) 0 Nothing
+    go ls buffers 0 Nothing
   where -- nbuf = (fromIntegral.ofp_n_buffers.switchFeatures) fk
+        buffers = iterate (\ x -> if x > maxBuffers then 1 else x + 1) 1
         nports = (fromIntegral.length.ofp_switch_features_ports.switchFeatures) fk
         choice n l | V.null l  = Nothing
                    | otherwise = Just $ l `V.unsafeIndex` (n `mod` V.length l)
@@ -204,10 +205,10 @@ receivePacket q s bid = do
   pq  <- readTVarIO . snd =<< readTVarIO q
 
   whenJustM (IntMap.lookup ibid pq) $ \dt -> do
+    let !rtt = now `diffUTCTime` dt
     atomically $ 
       modifyTVar s (\st -> st { pktStatsRecvTotal = succ (pktStatsRecvTotal st)
-                              , pktStatsRoundtripTime = Just $ fromMaybe 0 (pktStatsRoundtripTime st) +
-                                                        ( now `diffUTCTime` dt )
+                              , pktStatsRoundtripTime = Just $ fromMaybe 0 (pktStatsRoundtripTime st) + rtt
                               })
     atomically $ do
       (l,pq') <- readTVar q
