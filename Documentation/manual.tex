@@ -273,8 +273,9 @@ statistical parameters:
   \item number of sent messages
   \item number of messages for which reply from the controller was
     received
-  \item number of messages with no reply from the controller (messages are
-    assumed lost when the reply waiting queue overflows)
+  \item number of messages with no reply from the controller (messages
+    are assumed lost when the reply waiting queue overflows and
+    waiting time for that message exceeds specified timeout)
   \item round-trip times from message sending to receiving reply for it
 \end{itemize}
 

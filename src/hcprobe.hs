@@ -177,10 +177,12 @@ onSend params q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
       (l,g) <- readTVar q
       when (l > pktInQLen params) $ do
         pq <- readTVar g
-        let rationalTimeout = toRational (pktInQTimeout params)
-        let (_lost, rest) = IntMap.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
+        let
+            rationalTimeout = toRational (pktInQTimeout params)
+            (lost, rest) = IntMap.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
+            !nLost = IntMap.size lost
         writeTVar g $! rest
-        modifyTVar s (\st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st)
+        modifyTVar s (\st -> st { pktStatsLostTotal = pktStatsLostTotal st + nLost
                                   })
         writeTVar q (IntMap.size rest,g)
 
