@@ -107,7 +107,7 @@ empyPacketQ :: PacketQ
 empyPacketQ = IntMap.empty
 
 pktGenTest :: (MACAddr -> MACAddr -> IPv4Addr -> IPv4Addr -> TestPacketTCP) -> Parameters -> TVarL PacketQ -> (OfpMessage -> IO ()) -> FakeSwitch -> IO ()
-pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ _ (qOut,qIn)) = do
+pktGenTest s params q stat fk@(FakeSwitch _ _ _ _ (qOut,qIn)) = do
     ls <- MR.randoms =<< MR.getStdGen
     let go (l1:l2:l3:l4:l5:l6:l7:l8:lss) (bid:bs) n mBuffer = do
             let pid = l1 `mod` (nports-1) + 2
@@ -183,10 +183,12 @@ onSend params q s (OfpMessage _ (OfpPacketInReply (OfpPacketIn bid _ _ _))) = do
       (l,g) <- readTVar q
       when (l > pktInQLen params) $ do
         pq <- readTVar g
-        let rationalTimeout = toRational (pktInQTimeout params)
-        let (_lost, rest) = IntMap.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
+        let
+            rationalTimeout = toRational (pktInQTimeout params)
+            (lost, rest) = IntMap.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
+            !nLost = IntMap.size lost
         writeTVar g $! rest
-        modifyTVar s (\st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st)
+        modifyTVar s (\st -> st { pktStatsLostTotal = pktStatsLostTotal st + nLost
                                   })
         writeTVar q (IntMap.size rest,g)
 
@@ -346,10 +348,9 @@ toTryMain = do
               else return []
 
   fakeSw <- forM [1..switchNum params] $ \i -> do
-    let ip = fromIntegral i .|. (0x10 `shiftL` 24)
     rnd <- R.newStdGen
     macs <- liftM S.toList (randomSet (fromIntegral (portNum params) * macSpaceDim params+1) S.empty)
-    fst <$> makeSwitch (defaultSwGen i ip rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
+    fst <$> makeSwitch (defaultSwGen i rnd) (portNum params) macs [] defActions [] [] [OFPPF_1GB_FD,OFPPF_COPPER]
 
     
   w <- forM fakeSw $ \fake' -> do

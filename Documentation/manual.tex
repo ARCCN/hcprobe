@@ -28,8 +28,8 @@
 
 \renewcommand{\labelitemii}{$\circ$}
                                       
-\title{Руководство по HCProbe}
-\author{Александр Вершилов, Кирилл Заборский}
+\title{HCProbe Manual}
+\author{Alexander Vershilov, Kirill Zaborsky}
 
 \begin{document}
 \maketitle
@@ -42,137 +42,149 @@
 
 \pagebreak
 
-\section{Общее описание}
+\section{Introduction}
 
-\textbf{HCProbe} является реализацией библиотеки для работы с протоколом
-OpenFlow на языке Haskell и предоставляет эталонную реализацию софтового
-OpenFlow свича и язык для создания новых свичей, который можно использовать
-для тестирования OpenFlow контроллеров.
+\textbf{HCProbe} is a tool for testing OpenFlow controllers which
+includes a library in Haskell providing means to work with OpenFlow
+protocol. Also it includes a reference implementation of an OpenFlow
+software switch and a domain-specific language for constructing new
+custom switches.
 
-\subsection{Перечень терминов}
+\subsection{List of terms}
 
 \begin{description}
-  \item[OpenFlow] протокол управления процессом обработки данных, передающихся
-    по сети передачи данных маршрутизаторами и коммутаторами, реализующий
-    технологию программно-конфигурируемой сети (SDN).
-  \item[EDSL] встроенный предметно-ориентированный язык
+  \item[OpenFlow] is a communications protocol that gives access to
+    the forwarding plane of a network switch or router over the
+    network.
+  \item[EDSL] embedded domain-specific language
 \end{description}
 
 \pagebreak
 
-\section{Подсистемы}
+\section{Subsystems description}
 
-В проекте HCProbe можно выделить сделующие подсистемы:
+Project HCProbe includes the following subsystems:
 
 \begin{description}
-    \item[библиотека OpenFlow] -- реализация OpenFlow протокола;
-    \item[OpenFlow/Ethernet]   -- реализация генерации пакетов Ethernet-стека;
-    \item[HCProbe]             -- реализация генератора сетевых пакетов и эталонной
-      реализации программного свича OpenFlow;
-    \item[HCProbe/EDSL]        -- предметноориентированный язык для создания контроллеров
-    \item[тесты]               -- тесты создания и разбора пакетов;
-    \item[примеры]             -- примеры тестов OpenFlow, разработанные с использованием
-      разработанного предметно-ориентированного языка.
+    \item[OpenFlow library] -- OpenFlow protocol implementation
+    \item[OpenFlow/Ethernet] -- generation of Ethernet frames
+      containing higher level protocols
+    \item[HCProbe] -- reference OpenFlow switch implementation
+    \item[HCProbe/EDSL] -- domain-specific language for constructing
+      OpenFlow software switches
+    \item[tests] -- packet generation and parsing tests
+    \item[примеры] -- OpenFlow test examples which use switch
+      construction EDSL mentioned above
 \end{description}
 
 
-\subsection{Библиотека OpenFlow}
+\subsection{OpenFlow library}
 
-Библиотека OpenFlow представляет собой поддержку протокола 
-OpenFlow описываемого стандартом OpenFlow spec 
-v1.0\footnote{http://www.openflow.org/documents/openflow-spec-v1.0.0.pdf}
-для \texttt{Haskell}. Основные модули подсистемы:
+OpenFlow library provides OpenFlow protocol implementation in Haskell
+based on the <<OpenFlow Switch Specification, Version 1.0.0>>
+\footnote{http://www.openflow.org/documents/openflow-spec-v1.0.0.pdf} standard.
+Main library submodules are:
 
 \begin{description}
-    \item[Network.Openflow.Types] -- реализация структур данных, соотвествующая
-        стуктурам данных OpenFlow протокола.
+    \item[Network.Openflow.Types] -- OpenFlow protocol types and data
+      structures
         \begin{itemize}
-            \item инстансы \textbf{Binary.Read} для разбора структур;
-            \item инстансы \textbf{Enum} для всех перечислений.
+            \item \textbf{Binary.Read} instances for parsing data
+              structures
+            \item \textbf{Enum} instances for enumerations
         \end{itemize}
-    \item[Network.Openflow.Misc] -- дополнительные функции использующиеся в библиотеке
+    \item[Network.Openflow.Misc] -- miscellaneous helper functions
         \begin{itemize}
-            \item функции подсчета CRC
-            \item функции сериализации спецаильных типов данных
-            \item функции работы с IP и MAC адресами
+            \item CRC calculation
+            \item serialization functions for some types
+            \item functions dealing with IP amd MAC addresses
         \end{itemize}
-    \item[Network.Openflow.Messages] -- функции серилизации и разбора сообщений OpenFlow.
+    \item[Network.Openflow.Messages] -- OpenFlow message
+      serialization and parsing functions.
 \end{description}
 
-\emph{Реализация протокола не является полной, так реализованы не все структуры из
-спецификации, однако, расширение поддерживаемого протокола может выполняться по аналогии с
-уже написанным кодом.}
+\emph{Current implementation is not complete as not 100\% of all
+  structures and messages from specification are implemented, but the library
+  could be relatively easily extended by analogy with the already
+  existing code.}
 
 \subsection{OpenFlow/Ethernet}
 
-Данная подсистема предоставляет интерфейс для создания своих типов пакетов, 
-которые могут быть преобразованы в стандартные сетевые пакеты. Таким образом можно создавать
-специальные тестовые пакеты с определенным заданным поведением (с полями по умолчанию и т.п.).
-Основные модули:
+This subsystem provides an interface for creating packets of different
+network protocols (Ethernet, IPv4, ARP, TCP). With it one could
+create custom test packets for incapsulation into PacketIn OpenFlow
+messages.
+
+Main modules:
 
 \begin{description}
-  \item[Network.Openflow.Ethernet] -- реэксопортирование всех модулей, достаточно использовать только его
-  \item[Network.Openflow.ARP]      -- ARP пакет
-  \item[Network.Openflow.Frame]    -- сетевой фрейм (Ethernet)
-  \item[Network.Openflow.IPv4]     -- IPv4 пакет
-  \item[Network.Openflow.TCP]      -- TCP пакет
-  \item[Network.Openflow.Types]    -- внутренние типы данных
+  \item[Network.Openflow.Ethernet] -- module reexporting all
+    submodules (so you can import only this module)
+  \item[Network.Openflow.ARP]      -- ARP packets
+  \item[Network.Openflow.Frame]    -- network frames (Ethernet)
+  \item[Network.Openflow.IPv4]     -- IPv4 packets
+  \item[Network.Openflow.TCP]      -- TCP packets
+  \item[Network.Openflow.Types]    -- internal data types
 \end{description}
 
-\subsection{HCProbe}
+hcprobe is a program implementing a number of software switches
+which could be used as a reference implementation of an OpenFlow
+switch.
 
-HCProbe является исполняемым файлом, реализующий софтовый набор свичей, которые могут
-быть взяты за эталонную реализацию программного OpenFlow свича.
+\texttt{hcprobe} program creates some specified number of virtual
+switches which connect to a specified controller and after that they
+begin to send PacketIn messages to that controller. These messages
+contain Ethernet frames with a header including MAC addresses
+corresponding to some of virtual switch ports. Also these Ethernet
+frames contain an IP packet with a TCP segment in it.
 
-Программа \texttt{hcprobe} создает указанное количество виртуальных свичей,
-которые соединяются к контроллером, после чего начинают генерировать сообщения
-к контроллеру, создавая полный \texttt{TCP} пакет с подствленными MAC-адресами,
-относящимися к портам, используемым \texttt{HCProbe}. Каждый из свичей 
-подсчитывает количество отправленных пакетов, количество полученных ответов на них,
-а также количество пропущенных ответов. Полученная статистика суммируется и выводится
-после выполнения программы.
-
-Потерянным считается пакет, время ожидания ответа на который превысило указанный
-интервал времени.
+While running the program outputs some statistics to the console. The data
+shown includes the number of sent messages, received messages, mean
+roundtrip time for one message and also the number of lost messages and
+closed connections with controller.
 
 \subsection{EDSL}
 
-Предметно-ориентированный язык HCProbe предназначен для создания программ свичей OpenFlow,
-комбинаций этих свичей, запуска их, а также регистрации и сбора статистики по обмену
-пакетами между свичами и контроллером OpenFlow.
+We developed HCProbe domain-specific language for creating OpenFlow
+switches and different combinations of them, writing programs for the
+switches and also for registration and collection of statistics on
+packet exchange between OpenFlow controller and switches.
 
-\subsubsection{Структура программы}
+\subsubsection{Program structure}
 
-Типовая программа с использованием предметно-ориентированного языка HCProbe включает
-минимально 2 части:
+Typical program created using HCProbe domain-specific language
+includes at least the following 2 parts:
 
 \begin{itemize}
-  \item Создание свича и задание его конафигурации;
-  \item Запуска свича в соответствии с требуемой программой.
+  \item Switch creation and configuration
+  \item Running the specified program for the switches
 \end{itemize}
 
-Кроме этого в большинстве случаев потребуется 3-й шаг, на котором программа дожидается
-завершения работы свичей (одного или нескольких в зависимости от задачи) и получает
-итоговую сводку статистики по запуску.
+In most cases 3rd step is also required: the main program thread
+waits for switch programs completion (for all or some of them
+depending on current task) and calculates summarized statistics.
 
-\subsubsection{Создание свича}
+\subsubsection{Switch creation}
 
-Свич создается одной из команд \lstinline!switch! или \lstinline!switchOn!. В первом случае
-в качестве образца будет использован свич с конфигурацией по умолчанию, а во-втором 
-переданный параметром свич. Таким образом командой \lstinline!switchOn! можно получить
-копию свича, созданного ранее.
+Switch could be created using either \lstinline!switch! or
+\lstinline!switchOn! command.  In the first case a switch with default
+settings is used. In the second case some previously created
+switch could be supplied as a parameter. Thus using command
+\lstinline!switchOn! one could create a copy of some already existing
+switch.
 
-Для того, чтобы диапазоны MAC-адресов свичей не пересекались используется окружение
-\lstinline!config!, в котором они и создаются:
+In order to ensure that MAC address ranges do not overlap between
+different switches environment \lstinline!config! should be used in
+which switches must be created:
 
 \begin{lstlisting}
     sw <- config $ switch <switchIP> $ do ..
 \end{lstlisting}%$
 
-\subsubsection{Настройка возможностей свича}
+\subsubsection{Configuring switch settings}
 
-Настройки свича проводятся в окружении \lstinline!features!, в котором можно задать
-параметры свича.
+Switch configuration is done using environment \lstinline!features! in
+which different switch parameters could be specified.
 
 \begin{lstlisting}
     switch <switchIP> $ do
@@ -180,111 +192,131 @@ HCProbe является исполняемым файлом, реализующ
         ..
 \end{lstlisting}
 
-К настройкам относятся, например порты, добавляемые командой \lstinline!addPort!.
+These parameters include ports added with \lstinline!addPort! command.
 
-Команда \lstinline!addMACs! добавляет список MAC-адресов к свичу, при этом они разделяются
-поровну между портами этого свича.
+Command \lstinline!addMACs! adds a list of MAC addresses to
+the switch. And those addresses are equally divided between different
+ports of the switch they are assigned to.
 
-\lstinline!clearMACs! удаляет все MAC-адреса, добавленные к свичу.
+\emph{As it was said above to prevent overlapping between MAC
+  addresses of different switches environment \lstinline!config! is
+  used. So if during the call to \lstinline!addMACs! some
+  overlapping with the prevously configured switches will be detected then
+  instead of these overlapping addresses that switch will be assigned
+  other higher an not yet reserved MAC addresses}
+
+\lstinline!clearMACs! clears any MAC addresses assigned to the switch.
 
 
-\subsubsection{Запуск свича}
+\subsubsection{Switch run}
 
-Свич может быть запущен в 2 вариантах:
+Switch could be run in 2 ways:
 
 \begin{itemize}
-  \item если для задачи подходит стандартная реализация логики свича, то запускать
-    его следует при помощи функции \lstinline!runSwitch!;
-  \item чаще требуется задание какой-то конкретной логики поведения свича, которая
-    может быть задана при выполнении функции \lstinline!withSwitch!.
+  \item if the standard switch logic is enough for the task it should be
+    run using command \lstinline!runSwitch!;
+  \item more frequently one will need some custom switch behaviour which
+    could be set up using command \lstinline!withSwitch!.
 \end{itemize}
 
 
-\subsubsection{Выполнение программы}
-Полсле запуска свича (при помощи \lstinline!withSwitch!) он начианет выполнять
-переданную ему программу, данный блок является обычным блоком haskell кода,
-который может взаимодействовать со свичем, используя созданные для этого команды,
-среди которых есть следующие:
+\subsubsection{Program run}
+
+After the switch was started using \lstinline!withSwitch! it begins to
+execute some program that was specified. Such program is just an
+ordinary block of Haskell code which could work with switch using
+special commands for that. These commands include:
 
 \begin{description}
-  \item[hangOn] -- ожидать вечно, может быть полезно в случае если нужно тестировать
-свич.
+  \item[hangOn] -- wait forever, may be useful in some testing scenarios.
 
-  \item[waitForType] -- ожидание определенного типа сообщения: выполнение прогаммы
-будет прервано то тех пор, пока не придет сообщение указанного типа, возвращает 
-полученное сообщение.
+  \item[waitForType] -- waiting for some particular type of message
+    from controller: program execution will be suspended till a
+    message of the specified type arrives. Rreturns the received message.
 
-  \item[waitForBID] -- ожидание сообщения с указанным значением \lstinline!buffer id!.
-Возвращшает полученное сообщение.
+  \item[waitForBID] -- waiting for a message containing the specified
+    \lstinline!buffer id!.  Returns the received message.
 
 \end{description}
 
-Для генерации сообщений желательно, чтобы используемые номера транзакций и буфферов 
-не пересекались, для этого служат команды \lstinline!nextBID! и \lstinline!nextTID!.
 
-Для отправки сообщений могут быть использованы следующие команды:
+For message generation it is desirable that transaction numbers and
+buffer ids used in a switch program do not overlap with each
+other. To solve this issue commands \lstinline!nextBID! and
+\lstinline!nextTID! should be used to get proper ids.
+
+For message sending the following commands could be used:
 
 \begin{description}
 
-  \item[send] -- отправка произвольного пакета OpenFlow контроллеру;
+  \item[send] -- send arbitrary OpenFlow message to controller
 
-  \item[sendOFPacketIn] -- отправка пакета типа \lstinline!OFPT_PACKET_IN!;
+  \item[sendOFPacketIn] -- send OpenFlow message with type
+    \lstinline!OFPT_PACKET_IN!
 
-  \item[sendARPGreeting] -- отправка контроллеру пакета \lstinline!OFPT_PACKET_IN!
-    с ответом ARP внутри (может понадобиться для случая, когда нам нужно проверить
-    ситуацию в которой контроллер должен знать MAC-адрес или адреса);
+  \item[sendARPGreeting] -- used for sending message
+    \lstinline!OFPT_PACKET_IN!  containing ARP reply inside (could be
+    used when one needs to inform controller about all MAC
+    addresses available to switch before actuall testing starts)
 
-  \item[statsSend/statsSendOFPacketIn] -- варианты \lstinline!send! и
-    \lstinline!sendOFPacketIn! со сбором статистики при отсылке пакетов.
+  \item[statsSend/statsSendOFPacketIn] -- variants of \lstinline!send!
+    and \lstinline!sendOFPacketIn! including statistics collection
 
 \end{description}
 
-\subsubsection{Сбор статистики}
+\subsubsection{Statistics collection}
 
-Текущая реализация поддерживает сбор следующих параметров статистики:
-
-\begin{itemize}
-  \item число отосланных пакетов;
-  \item число пакетов с ответами от контроллера;
-  \item число пакетов без ответов от контроллера (факт отсутствия ответа обозначается,
-    когда очередь ожидания ответов становится переполненной);
-  \item времена ответов от сервера (вычисляется как разница времени отправки пакета
-    и получения ответа на него).
-\end{itemize}
-
-Собственно, само использование статистики подразумевает следующие шаги:
+Current hcprobe implementation supports collection of the following
+statistical parameters:
 
 \begin{itemize}
-  \item вызов \lstinline!initPacketStats! для создания cущности \lstinline!StatsEntity!,
-    в которой будут храниться данные статистики;
-  \item регистрация обработчика статистики для свича при помощи 
-    \lstinline!setSilentStatsHandler! или \lstinline!setStatsHandler stEnt ...!,
-    второй вариант предназначен для того, чтобы, к примеру, выводить в консоль или
-    файл факты регистрации ответа на отсылку пакета контролллеру;
-  \item отсылка пакета контроллеру при помощи команд \lstinline!statsSend! или
-    \lstinline!statsSendOFPacketIn!;
-  \item получение сводной статистики по контроллерам при помощи команды
-    \lstinline!assembleStats!.
+  \item number of sent messages
+  \item number of messages for which reply from the controller was
+    received
+  \item number of messages with no reply from the controller (messages
+    are assumed lost when the reply waiting queue overflows and
+    waiting time for that message exceeds specified timeout)
+  \item round-trip times from message sending to receiving reply for it
 \end{itemize}
 
-\subsubsection{Изменение ответов контроллеру по умолчанию}
+Using statistics collection requires the following steps:
 
-Для того, чтобы изменить поведение свича на сообщения контроллера (например, для
-проверки реакции контроллера на ошибочное поведение свича, потерю пакетов и т.п.)
-можно использовать команду \lstinline!setUserHandler!, которая позволяет задать
-необходимую по задаче реакцию.
+\begin{itemize}
+  \item \lstinline!initPacketStats! execution to create
+    \lstinline!StatsEntity! in which statistics data will be stored
+  \item statistics handler regsitration using
+    \lstinline!setSilentStatsHandler!  or \lstinline!setStatsHandler stEnt ...!.
+    The second call is used e.g. to execute some action on recieving a reply
+    for a message. Such action could include
+    outputting round-trip time to the console or a file
+  \item sending message to controller using commands
+    \lstinline!statsSend! or \lstinline!statsSendOFPacketIn!
+  \item calculating statistics summary from all controllers using
+    command \lstinline!assembleStats!
+\end{itemize}
 
-\emph{В текущей реализации статистика работает также через \lstinline!setUseHandler!,
-поэтому одновременно эти два механизма пока использовать не рекомендуется.}
+\subsubsection{Setting up a custom reaction to the controller messages}
 
-\section{Приложения}
+In order to change the default reaction to the controller messages to
+some custom reaction (e.g. to check controller reaction to the invalid
+switch replies, packet loss etc.) command \lstinline!setUserHandler!
+should be used.
 
-\subsection{Параллельное выполнение свичей}
+\emph{Current implementation also uses this command for collecting
+  statistics so it is not recommended to use both of these tools
+  (statistics collection and custom reaction on controller messages)
+  at the same time.}
 
-Для параллельного запуска нескольких свичей и контроля за временем исполнения
-используется библиотека asyc\footnote{http://hackage.haskell.org/package/async}
+\section{Appendices}
 
-Самым простым приёмом может быть ограничение выполнения запуска свича по времени:
+\subsection{Running software switches in parallel}
+
+In order to run one (or more) software switch in parallel with another
+and also to control program execution time we use
+async\footnote{http://hackage.haskell.org/package/async} library.
+
+The most simple method of using this library is limiting switch
+program execution time:
 
 \begin{lstlisting}
 import Control.Concurrent (threadDelay)
@@ -294,15 +326,17 @@ import Control.Concurrent.Async (race_)
 race_ action1 (threadDelay 1000000)
 \end{lstlisting}
 
-Здесь, подразумевается что action1 содержит запуск нужного свича, таким образом
-выполнение этой строки завершится или по завершении программы свича (если она
-отличается от программы по-умолчанию и конечна) или по истечении одной секунды.
+Here we assume that action1 contains the start of some switch program so the
+execution of this line will finish either on switch program
+termination (if it does not use default implementation and is finite
+in time) or after one second of time.
 
-Если же запускается одновременно несколько свичей, то типовым решением будет
-запуск каждого из них в отдельном потоке (при помощи \lstinline!async!) и ожидание
-их окончания (или истечения интервала времени, если это необходимо).
+If more than one switch should be run simultaneously then typical
+solution in this case will be to run each of the switches in separate
+thread (using \lstinline!async!) and to wait for their termination (or
+till some period of time expires).
 
-Схематически это будет выглядеть примерно следующим образом:
+Schematically it will look like:
 
 \begin{lstlisting}
   a1 <- async $ withSwitch sw1 ...
@@ -311,20 +345,20 @@ race_ action1 (threadDelay 1000000)
   mapM_ waitCatch [a1,....,aN]
 \end{lstlisting}
 
-Если выполнение программы стоит приостановить при появлении ошибки в любом из
-свичей, то \lstinline!waitCatch! следует заменить на \lstinline!wait!.
+If program should be terminated if some error occurs in any of the
+switches then \lstinline!waitCatch! should be replaced with
+\lstinline!wait!.
 
-Конечно же вместо \lstinline!withSwitch! может стоять \lstinline!runSwitch!
-в зависимости от задачи.
+Instead of \lstinline!withSwitch! command \lstinline!runSwitch! could
+be used depending on the requirements.
 
-\subsection{Примеры программ}
+\subsection{Program examples}
 
-\subsubsection{Простейший свич}
+\subsubsection{Simple switch}
 
-Это один из простейших примеров, тут задаётся 2 свича,
-выводится в консоль конфигурация второго и запускается
-первый с программой по умолчанию с ограничением работы
-в 3 секунды.
+Here is a quite simple example in which we create 2
+switches. Configuration of the second one is outputted to the console and
+the first one runs the default program with time limitation of 3 seconds.
 
 \begin{lstlisting}
 {-# LANGUAGE OverloadedStrings #-}
@@ -337,9 +371,8 @@ import Data.Bits                        -- for IP creation
 import HCProbe.EDSL
 
 main = do 
-    let ip = 15 .|. (0x10 `shiftL` 24)
     (sw1,sw2) <- config $ do
-      sw1 <- switch ip $ do
+      sw1 <- switch $ do
             features $ do
                 {- replicateM 48 $ --uncomment to create 48 ports -}
                 addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
@@ -352,13 +385,5 @@ main = do
     print sw2
     race_ (runSwitch sw1 "localhost" 6633) (threadDelay 3000000)
 \end{lstlisting}
-
-% Идеи, что еще можно сделать с eDSL
-% 1. Измениение длины пакета. Было бы здорово, если можно было бы напрямую задать значение этого поля в OF Header'е. А не влиять на нее косвенно, задавая только длину заголовка.
-% 2. Генерация кривых кадров внутрь PacketIn. Также, чтобы можно было менять поля (хочу положить в Ethernet кадр IP пакет, а в заголовке написать, что это ARP), прям при создании сообщения. Сейчас для этого надо делать instance EthernetFrame.
-% 3. Вообще, можно для всех типов сообщений сделать генераторы по типу putPacketIn, чтобы не приходилось этого делать через putOFData/putRaw
-% 4. Очень нетривиально для человека, который не знает haskell, сделать генерацию неправильных ASCII-строк:) Но, я думаю, можно не считать это распространенным юзкейсом.
-% 5. Не знаю, какую-то юзер-френдли статистику. Пока без примеров непонятно, как ее делать.
-% 6. Нужен пример с несколькими свичами (с одинковой программой для каждого и с разными)
 
 \end{document}

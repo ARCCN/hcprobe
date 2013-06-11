@@ -98,10 +98,9 @@ config = flip evalStateT (SwitchState S.empty)
 
 -- | create switch from default using builder
 switch :: (Monad m)
-        => IPv4Addr
-       -> WriterT (Endo EFakeSwitch) m a
+       => WriterT (Endo EFakeSwitch) m a
        -> m EFakeSwitch
-switch ip = switchOn def{eSwitchIP=ip}
+switch = switchOn def
 
 -- | Modify switch using builder
 switchOn :: (Monad m)
@@ -136,7 +135,7 @@ addPort confFlags stateFlags featureFlags (PortNameGen genname) = do
     tell $ Endo $ \f ->
         --TODO: store mac in db?
         let pps  = ofp_switch_features_ports f                            -- load existsing ports
-            n    = length pps
+            n    = (length pps) + 1
             macbytes = [0x00, 0x16,0x3e] ++ bytes
             port = OfpPhyPort
                      { ofp_port_no = fromIntegral n
@@ -298,6 +297,10 @@ arpGreeting = do
 delay :: Int -> FakeSwitchM ()
 delay = lift . threadDelay
 
+-- | maximum OF message size in bytes limited because lengthes are uint16
+maxMessageSize :: Int
+maxMessageSize = 65356
+
 
 -- | Run configured switch with program inside
 withSwitch :: EFakeSwitch
@@ -313,7 +316,7 @@ withSwitch sw host port u = runTCPClient (clientSettings port host) $ \ad -> do
   runResourceT $ do
     userS <- liftIO $ newTVarIO (CL.sinkNull)
     userH <- liftIO $ newTVarIO $ (\m->return m)
-    let extract'  = runPutToByteString 32768 . putMessage
+    let extract'  = runPutToByteString maxMessageSize . putMessage
         listener =  appSource ad
             $= conduitDecode
             =$= ( CL.map (\m@(OfpMessage h _) -> ((ofp_hdr_type h),m)) :: Conduit OfpMessage IO (OfpType, OfpMessage) )
@@ -430,7 +433,7 @@ genPerPortMACs port = do
                 else ue{macGen = PerPort $ IM.insert port 0 mg}
 
 instance Default EFakeSwitch where
-  def = EFakeSwitch defaultFeatures def def
+  def = EFakeSwitch defaultFeatures def
 
 #if ! MIN_VERSION_base(4,6,0)
 atomicModifyIORef' :: IORef a -> (a -> (a,b)) -> IO b

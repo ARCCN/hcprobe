@@ -5,6 +5,7 @@ module HCProbe.EDSL.Handlers
     , predicateHandler
     , PktStats(..)
     , StatEntry(..)
+    , StatsEntity(..)
     , initPacketStats
     , setSilentStatsHandler
     , setStatsHandler
@@ -145,10 +146,12 @@ statsOnSend (StatsEntity q s len to)
       (l,g) <- readTVar q
       when (l > len) $ do
         pq <- readTVar g
-        let rationalTimeout = toRational to
-        let (_lost, rest) = IM.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
+        let
+            rationalTimeout = toRational to
+            (lost, rest) = IM.partition ((>rationalTimeout).toRational.diffUTCTime now) pq
+            !nLost = IM.size lost
         writeTVar g $! rest
-        modifyTVar s (\st -> st { pktStatsLostTotal = succ (pktStatsLostTotal st)
+        modifyTVar s (\st -> st { pktStatsLostTotal = pktStatsLostTotal st + nLost
                                   })
         writeTVar q (IM.size rest,g)
 statsOnSend _ _ = return ()

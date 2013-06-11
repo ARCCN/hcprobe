@@ -1,7 +1,7 @@
 .DEFAULT: all
 .PHONY: all
 
-all: report.pdf manual.pdf
+all: report.pdf manual.pdf manual-rus.tex
 
 clean:
 	rm -rf *.log

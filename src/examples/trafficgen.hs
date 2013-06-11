@@ -7,10 +7,12 @@ module Main
   where
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (replicateM_)
+import Control.Concurrent.Async
+--import Control.Monad (replicateM_)
 import Control.Monad.Trans (lift)
 import Data.Bits                -- for IP creation [ TODO: remove ]
 import HCProbe.EDSL
+import Control.Monad
 -- low level message generation
 import Network.Openflow.Ethernet.Generator
 import Network.Openflow.Ethernet.IPv4
@@ -20,24 +22,39 @@ import HCProbe.TCP
 import HCProbe.EDSL.Handlers
 import Data.IORef
 import Text.Printf
+import Data.Time
 
+printStats :: UTCTime -> [StatsEntity] -> IO ()
+printStats startTime lSE = do
+                              stats <- assembleStats lSE
+                              now <- getCurrentTime
+                              let ctime = round $ toRational (now `diffUTCTime` startTime) :: Int
+                              printf "%d %d %d\n" ctime (pktStatsLostTotal stats) (pktStatsConnLost stats)
+                              threadDelay 10000000
+                              printStats startTime lSE
+                              
 main :: IO ()
 main = do 
-    fakeSw <- config $ do
+    fakeSwList <- forM [1..5] $ \i -> do
+          config $ do
                 switch $ do
-                    addMACs [1..450]
+                    addMACs [(i*400)+1..(i+1)*400]
                     features $ do
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
                       addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
 
-    lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..100]
+    lSE <- sequence $ map (\_->initPacketStats 1000 0.5) [1..5]
 
-    print fakeSw
-    withSwitch fakeSw "127.0.0.1" 6633 $ do
+    let swsWithSes = zip fakeSwList lSE
+    
+    startTime <- getCurrentTime
+    async $ printStats startTime lSE 
+    
+    flip mapConcurrently swsWithSes $ \(fs, stE)-> do 
+      withSwitch fs "127.0.0.1" 6633 $ do
        
-        let stEnt = head lSE
-        setStatsHandler stEnt $ \StatEntry{statBid=bid,statRoundtripTime=rtt} ->
-            putStr $ printf "bid: %6d rtt: %4.2fms\n" bid (realToFrac rtt * 1000 :: Double)
+        let stEnt = stE
+        setSilentStatsHandler stEnt
 
 {-
         xid <- nextXID
@@ -47,24 +64,9 @@ main = do
                                putHdrType OFPT_HELLO
                                putHdrXid xid
 -}                            
-
-        -- wait for type examples: 
-        lift $ putStr "waiting for barrier request.. "
-        waitForType OFPT_BARRIER_REQUEST
-        lift $ putStrLn  "[done]"
-        lift $ putStr "waiting for echo request.. "
-        --waitForType OFPT_ECHO_REQUEST
-        lift $ putStrLn "[done]"
         
         -- thread delay example
-        lift $ putStr "waiting for 1 second.. "
         lift $ threadDelay 1000000 -- wait for a second
-        lift $ putStrLn "[done]"
-        
-        -- next buffer id example
-        replicateM_ 10 $ do
-            x <- nextBID
-            lift . putStrLn $ "next buffer id " ++ show x
 
         count <- lift $ ( newIORef 0 :: IO (IORef Int))
         -- setUserHandler $ predicateHandler (\_->True) count
@@ -72,7 +74,6 @@ main = do
         -- Sending primitives:
         -- send simple packet
         -- tcp <- randomTCP
-        lift $ putStrLn "sending packet. and waiting for responce."
         let port = 1
             m1   = 37
             m2   = 29
@@ -87,29 +88,28 @@ main = do
                                   , srcPort = 12342
                                   , testWSS = Just 3
                                   , testFlags = tcpFlagsOf [ACK]
-                                  , testPayloadLen = 64000
+                                  , testPayloadLen = 32
                                   , testAckNo = Nothing
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
-        bid <- statsSendOFPPacketIn stEnt port pl
-        waitForBID bid
-        lift $ threadDelay 1000000
 
-        --bid' <- statsSendOFPPacketIn stEnt port pl
-        --waitForBID bid'
+        let delays = [20,25,35,60,50,40,30,25,20,15,12,10,12,14,12,10,8,7,6,7,8,10,12,15,20,20,25,30,40,50,60,35,25]
+            td = 86400
+        startTime <- lift getCurrentTime
+        forever $ do
+            bid <- statsSendOFPPacketIn stEnt port pl
+            now <- lift getCurrentTime
+            let ctime = round $ toRational (now `diffUTCTime` startTime) :: Int
+                step = (td `div` (length delays))
+                cdel = ((fromIntegral ctime) `div` step) `mod` (length delays)
+                delay  = (delays !! cdel) * 10000
+            lift $ threadDelay delay
+            return()         
 
-        let msg = putOFMessage $ do
-                      putOFHeader $ do
-                          putHdrType OFPT_PACKET_IN
-                          putPacketLength 9109
-                      putPacketIn $ do
-                          putPacketInData pl
-        --lift $ print msg
-        --send msg
-
-
+        lift $ threadDelay 3000000
         lift $ putStrLn "done"
     
-    stats <- assembleStats lSE 
-    print stats
+    return()
+    --stats <- assembleStats lSE 
+    --print stats
