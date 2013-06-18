@@ -43,25 +43,11 @@ main = do
         let stEnt = stE
         setStatsHandler stEnt $ \StatEntry{statBid=bid,statRoundtripTime=rtt} ->
             putStr $ printf "bid: %6d rtt: %4.2fms\n" bid (realToFrac rtt * 1000 :: Double)
-
-{-
-        xid <- nextXID
-        statsSend stEnt $ putOFMessage $ do
-                             putOFHeader $ do
-                               putHdrVersion openflow_1_0
-                               putHdrType OFPT_HELLO
-                               putHdrXid xid
--}                            
-        
-        -- thread delay example
+                      
         lift $ threadDelay 1000000 -- wait for a second
 
         count <- lift $ ( newIORef 0 :: IO (IORef Int))
-        -- setUserHandler $ predicateHandler (\_->True) count
 
-        -- Sending primitives:
-        -- send simple packet
-        -- tcp <- randomTCP
         let port = 1
             m1   = 37
             m2   = 29

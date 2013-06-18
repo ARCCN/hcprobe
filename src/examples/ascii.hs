@@ -32,7 +32,6 @@ putData (OfpPortStatus (OfpPortStatusData reason data_)) = do
     SP.putZeros 7
     putPort data_
 
---putPort :: OfpPhyPort -> PutM ()
 putPort port = do
   SP.putWord16be (ofp_port_no port)                                                            -- 2
   mapM_ SP.putWord8 (drop 2 (unpack64 (ofp_port_hw_addr port)))                                -- 8
@@ -68,8 +67,6 @@ main = do
 
 	-- broken ascii
 	replicateM_ 100 $ do
-            --x <- nextBID
-            --lift . putStrLn $ "next buffer id " ++ show x
             let msg = putOFMessage $ do
                   putOFHeader $ do
                     putHdrType OFPT_PORT_STATUS
