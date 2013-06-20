@@ -66,11 +66,8 @@ main = do
                                                  , tePayLoad   = putIP
                                                  }
                 
-        --bid <- statsSendOFPPacketIn stEnt port pl
-        --waitForBID bid
-        lift $ putStrLn "done"
 
-	-- broken length
+	-- broken Ethernet header (ARP => IP)
 	replicateM_ 100 $ do
             x <- nextBID
             lift . putStrLn $ "next buffer id " ++ show x

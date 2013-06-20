@@ -59,7 +59,6 @@ main = do
         setStatsHandler stEnt $ \StatEntry{statBid=bid,statRoundtripTime=rtt} ->
             putStr $ printf "bid: %6d rtt: %4.2fms\n" bid (realToFrac rtt * 1000 :: Double)
         
-        -- thread delay example
         lift $ threadDelay 1000000 -- wait for a second
 
         replicateM_ 100 $ do
@@ -79,7 +78,6 @@ main = do
         setStatsHandler stEnt $ \StatEntry{statBid=bid,statRoundtripTime=rtt} ->
             putStr $ printf "bid: %6d rtt: %4.2fms\n" bid (realToFrac rtt * 1000 :: Double)
         
-        -- thread delay example
         lift $ threadDelay 1000000 -- wait for a second
 
         replicateM_ 100 $ do

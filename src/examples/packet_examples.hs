@@ -67,9 +67,6 @@ main = do
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
-        --bid <- statsSendOFPPacketIn stEnt port pl
-        --waitForBID bid
-        --lift $ putStrLn "done"
 	
 	-- packet in
         x <- nextBID

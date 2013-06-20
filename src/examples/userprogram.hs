@@ -67,11 +67,9 @@ main = do
             lift . putStrLn $ "next buffer id " ++ show x
 
         count <- lift $ ( newIORef 0 :: IO (IORef Int))
-        -- setUserHandler $ predicateHandler (\_->True) count
 
         -- Sending primitives:
         -- send simple packet
-        -- tcp <- randomTCP
         lift $ putStrLn "sending packet. and waiting for responce."
         let port = 1
             m1   = 37
@@ -96,17 +94,15 @@ main = do
         waitForBID bid
         lift $ threadDelay 1000000
 
-        --bid' <- statsSendOFPPacketIn stEnt port pl
-        --waitForBID bid'
-
+        -- send packet with broken length
         let msg = putOFMessage $ do
                       putOFHeader $ do
                           putHdrType OFPT_PACKET_IN
                           putPacketLength 9109
                       putPacketIn $ do
                           putPacketInData pl
-        --lift $ print msg
-        --send msg
+        lift $ print msg
+        send msg
 
 
         lift $ putStrLn "done"

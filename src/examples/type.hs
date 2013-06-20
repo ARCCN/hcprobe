@@ -58,14 +58,9 @@ main = do
                                   , testSeqNo = Nothing
                                   , testIpID = Nothing
                                   }
-        --bid <- statsSendOFPPacketIn stEnt port pl
-        --waitForBID bid
-        lift $ putStrLn "done"
 
-	-- broken length
+	-- broken type (Packet In => Port Status)
 	replicateM_ 100 $ do
-            --x <- nextBID
-            --lift . putStrLn $ "next buffer id " ++ show x
             let msg = putOFMessage $ do
                   putOFHeader $ do
                     putHdrType OFPT_PACKET_IN
