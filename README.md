@@ -13,10 +13,13 @@ Introduction
 Build
 =======
 
-  To build hcprobe you need cabal. To build it in a sandbox use
-  cabal-dev tool.
+  To build hcprobe you need cabal.
   
-  Building with cabal-dev:
+  To build it in a sandbox use cabal-dev tool:
+
+    cabal insatall cabal-dev
+  
+  Building hcprobe with cabal-dev:
     
     cd src
     cabal update
