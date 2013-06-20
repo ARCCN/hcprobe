@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Hcprobe by ARCCN</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Hcprobe</h1>
+        <p>Framework for testing OpenFlow controllers</p>
+
+        <p class="view"><a href="https://github.com/ARCCN/hcprobe">View the Project on GitHub <small>ARCCN/hcprobe</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/ARCCN/hcprobe/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/ARCCN/hcprobe/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/ARCCN/hcprobe">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a name="introduction" class="anchor" href="#introduction"><span class="octicon octicon-link"></span></a>Introduction</h1>
+
+<p>HCProbe is a tool for testing OpenFlow controllers. It includes
+  a library in Haskell that provides means to work with OpenFlow
+  protocol. Also it includes a reference implementation of an OpenFlow
+  software switch and a domain-specific language (EDSL) for constructing
+  new custom switches.</p>
+
+<h1>
+<a name="build" class="anchor" href="#build"><span class="octicon octicon-link"></span></a>Build</h1>
+
+<p>To build hcprobe you need cabal.</p>
+
+<p>To build it in a sandbox use cabal-dev tool:</p>
+
+<pre><code>cabal insatall cabal-dev
+</code></pre>
+
+<p>Building hcprobe with cabal-dev:</p>
+
+<pre><code>cd src
+cabal update
+cabal-dev install-deps
+cabal-dev configure
+cabal-dev build
+</code></pre>
+
+<p>Executables can be found in ./dist/build/</p>
+
+<p>To run the reference switch implementation:</p>
+
+<pre><code>./dist/build/hcprobe/hcprobe
+</code></pre>
+
+<p>By default it runs 16 OpenFlow switches which try to connect
+  to an OpenFlow controller at 127.0.0.1, port 6633.
+  Run with --help for more settings.</p>
+
+<p>For more information on writing tests with EDSL see Documentation.</p>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/ARCCN">ARCCN</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
