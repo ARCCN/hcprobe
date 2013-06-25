@@ -1,4 +1,5 @@
 hcprobe
+http://arccn.github.io/hcprobe/
 =======
 
 Introduction
@@ -8,7 +9,7 @@ Introduction
   a library in Haskell that provides means to work with OpenFlow
   protocol. Also it includes a reference implementation of an OpenFlow
   software switch and a domain-specific language (EDSL) for constructing
-  new custom switches.
+  new custom switches and writing programs for them.
   
 Build
 =======
