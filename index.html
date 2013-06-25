@@ -28,19 +28,19 @@
         </ul>
       </header>
       <section>
-        <h1>
-<a name="introduction" class="anchor" href="#introduction"><span class="octicon octicon-link"></span></a>Introduction</h1>
+        <h2>
+<a name="introduction" class="anchor" href="#introduction"><span class="octicon octicon-link"></span></a>Introduction</h2>
 
 <p>HCProbe is a tool for testing OpenFlow controllers. It includes
   a library in Haskell that provides means to work with OpenFlow
   protocol. Also it includes a reference implementation of an OpenFlow
   software switch and a domain-specific language (EDSL) for constructing
-  new custom switches.</p>
+  new custom switches and writing programs for them.</p>
 
-<h1>
-<a name="build" class="anchor" href="#build"><span class="octicon octicon-link"></span></a>Build</h1>
+<h2>
+<a name="build" class="anchor" href="#build"><span class="octicon octicon-link"></span></a>Build</h2>
 
-<p>To build hcprobe you need cabal.</p>
+<p>To build hcprobe you need <a href="http://www.haskell.org/cabal/">cabal</a>.</p>
 
 <p>To build it in a sandbox use cabal-dev tool:</p>
 
@@ -56,18 +56,69 @@ cabal-dev configure
 cabal-dev build
 </code></pre>
 
-<p>Executables can be found in ./dist/build/</p>
+<p>Executables can be found in <em>dist/build/</em></p>
 
+<h2>Hcprobe Tests</h2>
+
+<p>Hcprobe contains a reference switch implementation test and a number
+of EDSL test examples.</p>
+
+<h3>Referecnse Switch</h3>
+<p>For the source code see <strong>hcprobe.hs</strong>. This test emulates
+several OpenFlow switches, sending fixed PacketIn messages (the idea is same to
+the traditional <a href="http://docs.projectfloodlight.org/display/floodlightcontroller/Cbench">Cbench</a> controllers benchmark).</p>
 <p>To run the reference switch implementation:</p>
 
 <pre><code>./dist/build/hcprobe/hcprobe
 </code></pre>
 
-<p>By default it runs 16 OpenFlow switches which try to connect
+<p>By default it runs 16 OpenFlow switches, which try to connect
   to an OpenFlow controller at 127.0.0.1, port 6633.
-  Run with --help for more settings.</p>
+   You can change IP and the TCP port, the number of emulated switches and switch ports, the number of unique MAC adresses (hosts), assosiated with one port, etc. For the list of options run with --help.</p>
+   
+<h3>EDSL Examples</h3>
+<p>Source code for EDSL examples can be found in <em>examples</em>, executables - in <em>dist/build/</em>.</p>
+
+<p>Examples:</p>
+<ul>
+<li><strong>userprogram.hs</strong> - a basic example of an EDSL program: crete a switch, send an automaicaly generated PacketIn message and a PacketIn message with custom fields.
+<li><strong>simpleswitch.hs</strong> - creating OpenFlow switches with various settings.
+<li><strong>packet_examples.hs</strong> - creating various OpenFlow messages with custom fields.
+<li><strong>switch_concurrent.hs</strong> - running the same program on several switches.
+<li><strong>switch_async.hs</strong> - running individual programs on different switches.
+<li><strong>length.hs</strong> - sending PacketIn with an incorrect length field in the OF header.
+<li><strong>version.hs</strong> - sending PacketIn with an invalid OF version.
+<li><strong>type.hs</strong> - sending an OF message with OFPT_PACKET_IN in the OF header, but containing a  PortStatus message.
+<li><strong>proto.hs</strong> - sending PacketIn with a malformed Ethernet frame (code of ARP protocol, but carrying IP).
+<li><strong>ascii.hs</strong> - sending PortStatus with a malformed ASCII string in the port_name field.
+<li><strong>trafficgen.hs</strong> - generating a sample workload profile.
+</ul>
+
+<p>A simple example of using EDSL (PacketIn with bad length):</p>
+
+<pre><code>fakeSw <- config $ do
+                switch $ do
+                    addMACs [1..450]
+                    features $ do
+                      addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
+                      addPort [] [] [OFPPF_1GB_FD, OFPPF_COPPER] def
+                      
+withSwitch fakeSw "127.0.0.1" 6633 $ forever $ do
+    let payload = putDefaultEthernetFrame
+        msg     = putOFMessage $ do
+                      putOFHeader $ do
+                          putHdrType OFPT_PACKET_IN
+                          putPacketLength 42 -- Bad length!
+                      putPacketIn $ do
+                          putPacketInData pl
+        send msg
+</code></pre>
 
 <p>For more information on writing tests with EDSL see Documentation.</p>
+<p>When creating a new test note that you need to add it to the <strong>hcprobe.cabal</strong> file to build executables (see existing entries for an example), then rebuild Hcprobe (see <a href="#build">Build</a>).</p>
+
+<h2>Contacts</h2>
+<p>If you have any questions or wish to contribute, please contact us: <a href="mailto:dev@arccn.ru">dev@arccn.ru</a>.</p>
       </section>
       <footer>
         <p>This project is maintained by <a href="https://github.com/ARCCN">ARCCN</a></p>
