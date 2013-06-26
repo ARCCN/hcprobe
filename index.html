@@ -45,7 +45,7 @@ Hcprobe provides a bunch of libraries, which can be used for creating various te
 You can implement any testcase you need using Haskell, though the most convinient way of creating new tests is with EDSL. EDSL provides means for creating any number of switches with custom settings, defining their logic, e.g. the scenario of sending any type of OpenFlow messages to the controller, and collecting various statistics.
 </p>
   
-<p>A typical EDSL test includes a definition of OpenFlow switches, a sending messages scenario and, optonally, setting hadlers for incoming and outcoming messages, which collect statistics or redefine the default switch behavior. A simple example of EDSL test (running one switch, which sends one PacketIn with bad length):</p>
+<p>A typical EDSL test includes a definition of OpenFlow switches, a sending messages scenario and, optionally, setting hanЖdlers for incoming and outcoming messages, which collect statistics or redefine the default switch behavior. A simple example of EDSL test (running one switch, which sends one PacketIn with bad length):</p>
 
 <pre><code>fakeSw <- config $ do
                 switch $ do
