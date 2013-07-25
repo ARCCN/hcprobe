@@ -103,6 +103,15 @@ main = do
                       putErrorData $ BS.pack $ replicate 64 42
         send msg
         lift $ threadDelay 10000
+
+        -- barrier
+        x <- nextBID
+        lift . putStrLn $ "next buffer id " ++ show x
+        let msg = putOFMessage $ do
+                    putOFHeader $ do
+                      putHdrType OFPT_BARRIER_REPLY
+        send msg
+        lift $ threadDelay 10000
         
         -- flow removed
         x <- nextBID
@@ -125,6 +134,7 @@ main = do
         lift $ threadDelay 10000
         
         -- features reply
+        {-
         x <- nextBID
         lift . putStrLn $ "next buffer id " ++ show x
         let msg = putOFMessage $ do
@@ -154,7 +164,7 @@ main = do
                       putSwitchCfgMissSendLen     128
         send msg
         lift $ threadDelay 10000
-	
+	-}
 	lift $ threadDelay 1000000
 
 	lift $ putStrLn "done"
