@@ -40,3 +40,11 @@ Build
   
   For more information on writing tests with EDSL see Documentation.
 
+Authors
+========
+
+  * Dmitry Zuikov
+  * Alexander Vershilov
+  * Kirill Zaborsky
+  * Yury Shvedov
+  * Daria Zimarina
